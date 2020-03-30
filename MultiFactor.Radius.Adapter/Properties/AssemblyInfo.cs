@@ -6,12 +6,12 @@ using System.Runtime.InteropServices;
 // набора атрибутов. Измените значения этих атрибутов, чтобы изменить сведения,
 // общие сведения об этой сборке.
 [assembly: AssemblyTitle("MultiFactor.Radius.Adapter")]
-[assembly: AssemblyDescription("")]
+[assembly: AssemblyDescription("Multifactor Radus Adapter for Windows Network Policy Server")]
 [assembly: AssemblyConfiguration("")]
-[assembly: AssemblyCompany("")]
+[assembly: AssemblyCompany("MultiFactor")]
 [assembly: AssemblyProduct("MultiFactor.Radius.Adapter")]
-[assembly: AssemblyCopyright("Copyright ©  2020")]
-[assembly: AssemblyTrademark("")]
+[assembly: AssemblyCopyright("Copyright © MultiFactor 2020")]
+[assembly: AssemblyTrademark("MultiFactor")]
 [assembly: AssemblyCulture("")]
 
 // Установка значения False для параметра ComVisible делает типы в этой сборке невидимыми
