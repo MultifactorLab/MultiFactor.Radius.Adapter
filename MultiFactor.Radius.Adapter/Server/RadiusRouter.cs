@@ -14,6 +14,7 @@ namespace MultiFactor.Radius.Adapter.Server
         private Configuration _configuration;
         private ILogger _logger;
         private IRadiusPacketParser _packetParser;
+        private ActiveDirectoryService _activeDirectoryService;
         private MultiFactorApiClient _multifactorApiClient;
         public event EventHandler<PendingRequest> RequestProcessed;
 
@@ -23,6 +24,7 @@ namespace MultiFactor.Radius.Adapter.Server
             _packetParser = packetParser ?? throw new ArgumentNullException(nameof(packetParser));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
+            _activeDirectoryService = new ActiveDirectoryService(configuration, logger);
             _multifactorApiClient = new MultiFactorApiClient(configuration, logger);
         }
 
@@ -64,10 +66,49 @@ namespace MultiFactor.Radius.Adapter.Server
             RequestProcessed?.Invoke(this, request);
         }
 
+        private PacketCode ProcessFirstAuthenticationFactor(PendingRequest request)
+        {
+            switch(_configuration.FirstFactorAuthenticationSource)
+            {
+                case AuthenticationSource.ActiveDirectory:  //AD auth
+                    return ProcessActiveDirectoryAuthentication(request);
+                case AuthenticationSource.Radius:           //RADIUS auth
+                    return ProcessRadiusAuthentication(request);
+                default:                                    //unknown source
+                    throw new NotImplementedException(_configuration.FirstFactorAuthenticationSource.ToString());
+            }
+        }
+
+        /// <summary>
+        /// Authenticate request at Active Directory Domain with user-name and password
+        /// </summary>
+        private PacketCode ProcessActiveDirectoryAuthentication(PendingRequest request)
+        {
+            var userName = request.Packet.GetAttribute<string>("User-Name");
+
+            if (string.IsNullOrEmpty(userName))
+            {
+                _logger.Warning($"Can't find User-Name in message Id={request.Packet.Identifier} from {request.RemoteEndpoint}");
+                return PacketCode.AccessReject;
+            }
+
+            //user-password attribute hold second request otp from user
+            var password = request.Packet.GetAttribute<string>("User-Password");
+
+            if (string.IsNullOrEmpty(password))
+            {
+                _logger.Warning($"Can't find User-Password in message Id={request.Packet.Identifier} from {request.RemoteEndpoint}");
+                return PacketCode.AccessReject;
+            }
+
+            var isValid = _activeDirectoryService.VerifyCredential(userName, password);
+            return isValid ? PacketCode.AccessAccept : PacketCode.AccessReject;
+        }
+
         /// <summary>
         /// Authenticate request at Network Policy Server with user-name and password
         /// </summary>
-        private PacketCode ProcessFirstAuthenticationFactor(PendingRequest request)
+        private PacketCode ProcessRadiusAuthentication(PendingRequest request)
         {
             var originalRequest = request.Packet;
 
@@ -105,7 +146,7 @@ namespace MultiFactor.Radius.Adapter.Server
             }
         }
 
-         /// <summary>
+        /// <summary>
         /// Authenticate request at MultiFactor with user-name only
         /// </summary>
         private PacketCode ProcessSecondAuthenticationFactor(PendingRequest request, out string state)

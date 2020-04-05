@@ -83,6 +83,7 @@
     <Reference Include="System.Configuration" />
     <Reference Include="System.Configuration.Install" />
     <Reference Include="System.Core" />
+    <Reference Include="System.DirectoryServices.Protocols" />
     <Reference Include="System.Management" />
     <Reference Include="System.Runtime.Serialization" />
     <Reference Include="System.ServiceModel" />
@@ -106,6 +107,7 @@
     <Compile Include="Core\RadiusPacketParser.cs" />
     <Compile Include="Core\RadiusPassword.cs" />
     <Compile Include="MultiFactorApiClient.cs" />
+    <Compile Include="Server\ActiveDirectoryService.cs" />
     <Compile Include="ServiceInstaller.cs">
       <SubType>Component</SubType>
     </Compile>
