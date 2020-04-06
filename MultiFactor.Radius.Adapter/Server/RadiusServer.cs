@@ -188,10 +188,19 @@ namespace MultiFactor.Radius.Adapter.Server
                 responsePacket.AddAttribute("Reply-Message", "Enter OTP code");
                 responsePacket.AddAttribute("State", request.State); //state to match user authentication session
             }
+
+            //proxy echo required
             if (requestPacket.Attributes.ContainsKey("Proxy-State"))
             {
                 responsePacket.Attributes.Add("Proxy-State", requestPacket.Attributes.SingleOrDefault(o => o.Key == "Proxy-State").Value);
             }
+
+            //cisco webvpn:user-vpn-group
+            if (requestPacket.Attributes.ContainsKey("cisco-avpair"))
+            {
+                responsePacket.Attributes.Add("cisco-avpair", requestPacket.Attributes.SingleOrDefault(o => o.Key == "cisco-avpair").Value);
+            }
+
 
             Send(responsePacket, request.RemoteEndpoint);
         }
