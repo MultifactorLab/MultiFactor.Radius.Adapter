@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.Configuration;
 using System.Net;
 
@@ -57,6 +59,11 @@ namespace MultiFactor.Radius.Adapter
         /// Logging level
         /// </summary>
         public string LogLevel { get; set; }
+
+        /// <summary>
+        /// Custom RADIUS reply attributes
+        /// </summary>
+        public IDictionary<string, List<object>> RadiusReplyAttributes { get; set; }
 
         /// <summary>
         /// Read and load settings from appSettings configuration section
@@ -128,10 +135,12 @@ namespace MultiFactor.Radius.Adapter
                     throw new NotImplementedException(configuration.FirstFactorAuthenticationSource.ToString());
             }
 
+            LoadRadiusReplyAttributes(configuration);
+
             return configuration;
         }
 
-        public static void LoadActiveDirectoryAuthenticationSourceSettings(Configuration configuration)
+        private static void LoadActiveDirectoryAuthenticationSourceSettings(Configuration configuration)
         {
             var appSettings = ConfigurationManager.AppSettings;
 
@@ -145,7 +154,7 @@ namespace MultiFactor.Radius.Adapter
             configuration.ActiveDirectoryDomain = activeDirectoryDomainSetting;
         }
 
-        public static void LoadRadiusAuthenticationSourceSettings(Configuration configuration)
+        private static void LoadRadiusAuthenticationSourceSettings(Configuration configuration)
         {
             var appSettings = ConfigurationManager.AppSettings;
             
@@ -174,6 +183,29 @@ namespace MultiFactor.Radius.Adapter
             configuration.NpsServerEndpoint = npsEndpoint;
         }
 
+        private static void LoadRadiusReplyAttributes(Configuration configuration)
+        {
+            var replyAttributes = new Dictionary<string, List<object>>();
+
+            var section = ConfigurationManager.GetSection("RadiusReply") as RadiusReplyAttributesSection;
+
+            if (section != null)
+            {
+                foreach (var member in section.Members)
+                {
+                    var attribute = member as RadiusReplyAttributeElement;
+                    if (!replyAttributes.ContainsKey(attribute.Name))
+                    {
+                        replyAttributes.Add(attribute.Name, new List<object>());
+                    }
+
+                    replyAttributes[attribute.Name].Add(attribute.Value);
+                }
+            }
+
+            configuration.RadiusReplyAttributes = replyAttributes;
+        }
+
         private static bool TryParseIPEndPoint(string text, out IPEndPoint ipEndPoint)
         {
             Uri uri;
@@ -198,5 +230,43 @@ namespace MultiFactor.Radius.Adapter
     {
         ActiveDirectory,
         Radius
+    }
+
+    public class RadiusReplyAttributeElement : ConfigurationElement
+    {
+        [ConfigurationProperty("name", IsKey = false, IsRequired = true)]
+        public string Name
+        {
+            get { return (string)this["name"]; }
+        }
+
+        [ConfigurationProperty("value", IsKey = false, IsRequired = true)]
+        public string Value
+        {
+            get { return (string)this["value"]; }
+        }
+    }
+
+    public class RadiusReplyAttributesCollection : ConfigurationElementCollection
+    {
+        protected override ConfigurationElement CreateNewElement()
+        {
+            return new RadiusReplyAttributeElement();
+        }
+
+        protected override object GetElementKey(ConfigurationElement element)
+        {
+            var attribute = (RadiusReplyAttributeElement)element;
+            return $"{attribute.Name}:{attribute.Value}";
+        }
+    }
+
+    public class RadiusReplyAttributesSection : ConfigurationSection
+    {
+        [ConfigurationProperty("Attributes")]
+        public RadiusReplyAttributesCollection Members
+        {
+            get { return (RadiusReplyAttributesCollection)this["Attributes"]; }
+        }
     }
 }

@@ -195,12 +195,14 @@ namespace MultiFactor.Radius.Adapter.Server
                 responsePacket.Attributes.Add("Proxy-State", requestPacket.Attributes.SingleOrDefault(o => o.Key == "Proxy-State").Value);
             }
 
-            //cisco webvpn:user-vpn-group
-            if (requestPacket.Attributes.ContainsKey("cisco-avpair"))
+            //add custom reply attributes
+            if (request.ResponseCode == PacketCode.AccessAccept)
             {
-                responsePacket.Attributes.Add("cisco-avpair", requestPacket.Attributes.SingleOrDefault(o => o.Key == "cisco-avpair").Value);
+                foreach(var attr in _configuration.RadiusReplyAttributes)
+                {
+                    responsePacket.Attributes.Add(attr.Key, attr.Value);
+                }
             }
-
 
             Send(responsePacket, request.RemoteEndpoint);
         }
