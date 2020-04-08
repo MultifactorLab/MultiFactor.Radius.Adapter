@@ -17,6 +17,11 @@ namespace MultiFactor.Radius.Adapter
         public IPEndPoint ServiceServerEndpoint { get; set; }
 
         /// <summary>
+        /// Shared secret between this service and Radius client
+        /// </summary>
+        public string RadiusSharedSecret { get; set; }
+
+        /// <summary>
         /// Where to handle first factor (UserName and Password)
         /// </summary>
         public AuthenticationSource FirstFactorAuthenticationSource { get; set; }
@@ -54,7 +59,7 @@ namespace MultiFactor.Radius.Adapter
         /// <summary>
         /// RADIUS Shared Secret
         /// </summary>
-        public string SharedSecret { get; set; }
+        public string MultiFactorSharedSecret { get; set; }
         /// <summary>
         /// Logging level
         /// </summary>
@@ -72,10 +77,11 @@ namespace MultiFactor.Radius.Adapter
         {
             var appSettings = ConfigurationManager.AppSettings;
             var serviceServerEndpointSetting = appSettings["adapter-server-endpoint"];
+            var radiusSharedSecretSetting = appSettings["radius-shared-secret"];
             var firstFactorAuthenticationSourceSettings = appSettings["first-factor-authentication-source"];
             var apiUrlSetting = appSettings["multifactor-api-url"];
             var nasIdentifierSetting = appSettings["multifactor-nas-identifier"];
-            var sharedSecretSetting = appSettings["multifactor-shared-secret"];
+            var multiFactorSharedSecretSetting = appSettings["multifactor-shared-secret"];
             var logLevelSetting = appSettings["logging-level"];
 
             if (string.IsNullOrEmpty(firstFactorAuthenticationSourceSettings))
@@ -86,6 +92,10 @@ namespace MultiFactor.Radius.Adapter
             {
                 throw new Exception("Configuration error: 'adapter-server-endpoint' element not found");
             }
+            if (string.IsNullOrEmpty(radiusSharedSecretSetting))
+            {
+                throw new Exception("Configuration error: 'radius-shared-secret' element not found");
+            }
             if (string.IsNullOrEmpty(apiUrlSetting))
             {
                 throw new Exception("Configuration error: 'multifactor-api-url' element not found");
@@ -94,7 +104,7 @@ namespace MultiFactor.Radius.Adapter
             {
                 throw new Exception("Configuration error: 'multifactor-nas-identifier' element not found");
             }
-            if (string.IsNullOrEmpty(sharedSecretSetting))
+            if (string.IsNullOrEmpty(multiFactorSharedSecretSetting))
             {
                 throw new Exception("Configuration error: 'multifactor-shared-secret' element not found");
             }
@@ -112,14 +122,14 @@ namespace MultiFactor.Radius.Adapter
                 throw new Exception("Configuration error: Can't parse 'adapter-server-endpoint' value");
             }
 
-
             var configuration = new Configuration
             {
                 ServiceServerEndpoint = serviceServerEndpoint,
+                RadiusSharedSecret = radiusSharedSecretSetting,
                 FirstFactorAuthenticationSource = firstFactorAuthenticationSource,
                 ApiUrl = apiUrlSetting,
                 NasIdentifier = nasIdentifierSetting,
-                SharedSecret = sharedSecretSetting,
+                MultiFactorSharedSecret = multiFactorSharedSecretSetting,
                 LogLevel = logLevelSetting
             };
 

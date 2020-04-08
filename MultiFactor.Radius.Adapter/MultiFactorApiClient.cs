@@ -69,7 +69,7 @@ namespace MultiFactor.Radius.Adapter
                 byte[] responseData = null;
 
                 //basic authorization
-                var auth = Convert.ToBase64String(Encoding.ASCII.GetBytes(_configuration.NasIdentifier + ":" + _configuration.SharedSecret));
+                var auth = Convert.ToBase64String(Encoding.ASCII.GetBytes(_configuration.NasIdentifier + ":" + _configuration.MultiFactorSharedSecret));
 
                 using (var web = new WebClient())
                 {

@@ -156,7 +156,7 @@ namespace MultiFactor.Radius.Adapter.Server
         /// </summary>
         internal void ParseAndProcess(byte[] packetBytes, IPEndPoint remoteEndpoint)
         {
-            var requestPacket = _radiusPacketParser.Parse(packetBytes, Encoding.ASCII.GetBytes(_configuration.SharedSecret));
+            var requestPacket = _radiusPacketParser.Parse(packetBytes, Encoding.ASCII.GetBytes(_configuration.RadiusSharedSecret));
 
             _logger.Information($"Received {requestPacket.Code} from {remoteEndpoint} Id={requestPacket.Identifier}");
 

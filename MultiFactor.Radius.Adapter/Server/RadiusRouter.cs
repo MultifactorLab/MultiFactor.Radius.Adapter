@@ -112,7 +112,7 @@ namespace MultiFactor.Radius.Adapter.Server
         {
             var originalRequest = request.Packet;
 
-            var npsRequestPacket = new RadiusPacket(PacketCode.AccessRequest, originalRequest.Identifier, _configuration.SharedSecret);
+            var npsRequestPacket = new RadiusPacket(PacketCode.AccessRequest, originalRequest.Identifier, _configuration.MultiFactorSharedSecret);
 
             //copy all attributes but not Message-Authenticator
             foreach (var attr in originalRequest.Attributes)
