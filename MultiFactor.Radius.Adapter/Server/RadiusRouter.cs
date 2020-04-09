@@ -101,7 +101,9 @@ namespace MultiFactor.Radius.Adapter.Server
                 return PacketCode.AccessReject;
             }
 
-            var isValid = _activeDirectoryService.VerifyCredential(userName, password);
+            var isValid = _activeDirectoryService.VerifyCredential(userName, password, out string phone);
+            request.UserPhone = phone;
+            
             return isValid ? PacketCode.AccessAccept : PacketCode.AccessReject;
         }
 
@@ -160,7 +162,7 @@ namespace MultiFactor.Radius.Adapter.Server
                 return PacketCode.AccessReject;
             }
 
-            var response = _multifactorApiClient.CreateSecondFactorRequest(userName, out var multifactorStateId);
+            var response = _multifactorApiClient.CreateSecondFactorRequest(userName, request.UserPhone, out var multifactorStateId);
             state = multifactorStateId;
             return response;
         }

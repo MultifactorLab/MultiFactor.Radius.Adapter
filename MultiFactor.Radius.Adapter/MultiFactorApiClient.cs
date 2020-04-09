@@ -23,12 +23,13 @@ namespace MultiFactor.Radius.Adapter
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
-        public PacketCode CreateSecondFactorRequest(string userName, out string state)
+        public PacketCode CreateSecondFactorRequest(string userName, string userPhone, out string state)
         {
             var url = _configuration.ApiUrl + "/access/requests/ra";
             var payload = new
             {
                 Identity = userName,
+                Phone = userPhone
             };
 
             var response = SendRequest(url, payload, out var requestId);

@@ -16,5 +16,6 @@ namespace MultiFactor.Radius.Adapter.Server
         public DateTime ReceivedAt { get; set; }
         public PacketCode ResponseCode { get; set; }
         public string State { get; set; }
+        public string UserPhone { get; set; }
     }
 }

@@ -1,5 +1,6 @@
 ﻿using Serilog;
 using System;
+using System.DirectoryServices.AccountManagement;
 using System.DirectoryServices.Protocols;
 using System.Net;
 using System.Text.RegularExpressions;
@@ -23,8 +24,10 @@ namespace MultiFactor.Radius.Adapter.Server
         /// <summary>
         /// Verify User Name, Password, User Status and Policy against Active Directory
         /// </summary>
-        public bool VerifyCredential(string userName, string password)
+        public bool VerifyCredential(string userName, string password, out string phone)
         {
+            phone = null;
+
             try
             {
                 _logger.Debug($"Verifying user {userName} credential and status at {_configuration.ActiveDirectoryDomain}");
@@ -36,6 +39,35 @@ namespace MultiFactor.Radius.Adapter.Server
                 }
 
                 _logger.Information($"User {userName} credential and status verified successfully at {_configuration.ActiveDirectoryDomain}");
+
+                var checkGroupMembership = !string.IsNullOrEmpty(_configuration.ActiveDirectoryGroup);
+                if (checkGroupMembership || _configuration.UseActiveDirectoryUserPhone)
+                {
+                    using (var ctx = new PrincipalContext(ContextType.Domain, _configuration.ActiveDirectoryDomain, userName, password))
+                    {
+                        var user = UserPrincipal.FindByIdentity(ctx, userName);
+
+                        //user must be member of security group
+                        if (checkGroupMembership)
+                        {
+                            _logger.Debug($"Verifying user {userName} is member of {_configuration.ActiveDirectoryGroup} group");
+
+                            var isMemberOf = user.IsMemberOf(ctx, IdentityType.Name, _configuration.ActiveDirectoryGroup);
+                            if (!isMemberOf)
+                            {
+                                _logger.Warning($"User {userName} is NOT member of {_configuration.ActiveDirectoryGroup} group");
+                                return false;
+                            }
+
+                            _logger.Information($"User {userName} is member of {_configuration.ActiveDirectoryGroup} group");
+                        }
+
+                        if (_configuration.UseActiveDirectoryUserPhone)
+                        {
+                            phone = user.VoiceTelephoneNumber; //user phone from general settings
+                        }
+                    }
+                }
 
                 return true; //OK
             }

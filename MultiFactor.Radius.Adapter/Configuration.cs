@@ -33,6 +33,16 @@ namespace MultiFactor.Radius.Adapter
         /// </summary>
         public string ActiveDirectoryDomain { get; set; }
 
+        /// <summary>
+        /// Only members of this group allowed to access (Optional)
+        /// </summary>
+        public string ActiveDirectoryGroup { get; set; }
+
+        /// <summary>
+        /// Use ActiveDirectory User general properties phone number (Optional)
+        /// </summary>
+        public bool UseActiveDirectoryUserPhone { get; set; }
+
         #endregion
 
         #region RADIUS Authentication settings
@@ -155,13 +165,26 @@ namespace MultiFactor.Radius.Adapter
             var appSettings = ConfigurationManager.AppSettings;
 
             var activeDirectoryDomainSetting = appSettings["active-directory-domain"];
+            var activeDirectoryGroupSetting = appSettings["active-directory-group"];
+            var useActiveDirectoryUserPhoneSetting = appSettings["use-active-directory-user-phone"];
 
             if (string.IsNullOrEmpty(activeDirectoryDomainSetting))
             {
                 throw new Exception("Configuration error: 'active-directory-domain' element not found");
             }
 
+            if (!string.IsNullOrEmpty(useActiveDirectoryUserPhoneSetting))
+            {
+                if (!bool.TryParse(useActiveDirectoryUserPhoneSetting, out var useActiveDirectoryUserPhone))
+                {
+                    throw new Exception("Configuration error: Can't parse 'use-active-directory-user-phone' value");
+                }
+
+                configuration.UseActiveDirectoryUserPhone = useActiveDirectoryUserPhone;
+            }
+
             configuration.ActiveDirectoryDomain = activeDirectoryDomainSetting;
+            configuration.ActiveDirectoryGroup = activeDirectoryGroupSetting;
         }
 
         private static void LoadRadiusAuthenticationSourceSettings(Configuration configuration)
