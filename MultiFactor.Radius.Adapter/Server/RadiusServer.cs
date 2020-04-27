@@ -160,7 +160,7 @@ namespace MultiFactor.Radius.Adapter.Server
 
             _logger.Information($"Received {requestPacket.Code} from {remoteEndpoint} Id={requestPacket.Identifier}");
 
-            var request = new PendingRequest { RemoteEndpoint = remoteEndpoint, Packet = requestPacket };
+            var request = new PendingRequest { RemoteEndpoint = remoteEndpoint, Packet = requestPacket, OriginalUnpackedRequest = packetBytes };
 
             Task.Run(() => _router.HandleRequest(request));
         }

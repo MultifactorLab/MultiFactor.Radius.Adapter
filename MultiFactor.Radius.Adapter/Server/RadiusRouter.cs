@@ -133,7 +133,7 @@ namespace MultiFactor.Radius.Adapter.Server
             {
                 _logger.Information($"Sending Access-Request message with Id={npsRequestPacket.Identifier} to Network Policy Server {_configuration.NpsServerEndpoint}");
 
-                var response = client.SendPacketAsync(npsRequestPacket, _configuration.NpsServerEndpoint, TimeSpan.FromSeconds(5)).Result;
+                var response = client.SendPacketAsync(npsRequestPacket, _configuration.NpsServerEndpoint, TimeSpan.FromSeconds(5), request.OriginalUnpackedRequest).Result;
 
                 if (response != null)
                 {

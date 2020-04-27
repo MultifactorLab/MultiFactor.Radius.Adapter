@@ -65,9 +65,9 @@ namespace MultiFactor.Radius.Adapter.Server
         /// <param name="remoteEndpoint"></param>
         /// <param name="timeout"></param>
         /// <returns></returns>
-        public async Task<IRadiusPacket> SendPacketAsync(IRadiusPacket packet, IPEndPoint remoteEndpoint, TimeSpan timeout)
+        public async Task<IRadiusPacket> SendPacketAsync(IRadiusPacket packet, IPEndPoint remoteEndpoint, TimeSpan timeout, byte[] originalUnpackedRequest = null)
         {
-            var packetBytes = _radiusPacketParser.GetBytes(packet);
+            var packetBytes = originalUnpackedRequest ?? _radiusPacketParser.GetBytes(packet);
             var responseTaskCS = new TaskCompletionSource<UdpReceiveResult>();
 
             if (_pendingRequests.TryAdd(new Tuple<byte, IPEndPoint>(packet.Identifier, remoteEndpoint), responseTaskCS))

@@ -12,6 +12,7 @@ namespace MultiFactor.Radius.Adapter.Server
             ResponseCode = PacketCode.AccessReject;
         }
         public IPEndPoint RemoteEndpoint { get; set; }
+        public byte[] OriginalUnpackedRequest { get; set; }
         public IRadiusPacket Packet { get; set; }
         public DateTime ReceivedAt { get; set; }
         public PacketCode ResponseCode { get; set; }
