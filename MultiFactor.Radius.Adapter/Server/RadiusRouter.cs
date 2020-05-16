@@ -162,7 +162,9 @@ namespace MultiFactor.Radius.Adapter.Server
                 return PacketCode.AccessReject;
             }
 
-            var response = _multifactorApiClient.CreateSecondFactorRequest(userName, request.UserPhone, out var multifactorStateId);
+            var remoteHost = request.Packet.GetAttribute<string>("MS-Client-Machine-Account-Name");
+
+            var response = _multifactorApiClient.CreateSecondFactorRequest(remoteHost, userName, request.UserPhone, out var multifactorStateId);
             state = multifactorStateId;
             return response;
         }

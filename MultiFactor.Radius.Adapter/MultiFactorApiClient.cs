@@ -3,6 +3,7 @@ using MultiFactor.Radius.Adapter.Server;
 using Newtonsoft.Json;
 using Serilog;
 using System;
+using System.Collections.Concurrent;
 using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -17,14 +18,28 @@ namespace MultiFactor.Radius.Adapter
         private Configuration _configuration;
         private ILogger _logger;
 
+        private static readonly ConcurrentDictionary<string, AuthenticatedClient> _authenticatedClients = new ConcurrentDictionary<string, AuthenticatedClient>();
+
         public MultiFactorApiClient(Configuration configuration, ILogger logger)
         {
             _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
-        public PacketCode CreateSecondFactorRequest(string userName, string userPhone, out string state)
+        public PacketCode CreateSecondFactorRequest(string remoteHost, string userName, string userPhone, out string state)
         {
+            state = null;
+            
+            //try to get authenticated client to bypass second factor if configured
+            if (_configuration.BypassSecondFactorPeriod > 0)
+            {
+                if (TryHitCache(remoteHost, userName))
+                {
+                    _logger.Information($"Bypass second factor for user {userName} from {remoteHost}");
+                    return PacketCode.AccessAccept;
+                }
+            }
+            
             var url = _configuration.ApiUrl + "/access/requests/ra";
             var payload = new
             {
@@ -34,6 +49,14 @@ namespace MultiFactor.Radius.Adapter
 
             var response = SendRequest(url, payload, out var requestId);
             state = requestId;
+
+            if (response == PacketCode.AccessAccept)
+            {
+                if (_configuration.BypassSecondFactorPeriod > 0)
+                {
+                    SetCache(remoteHost, userName);
+                }
+            }
 
             return response;
         }
@@ -109,6 +132,52 @@ namespace MultiFactor.Radius.Adapter
             {
                 _logger.Error(ex, $"Multifactor API host unreachable: {url}");
                 return PacketCode.AccessReject; //access denied
+            }
+        }
+
+        private bool TryHitCache(string remoteHost, string userName)
+        {
+            if (string.IsNullOrEmpty(remoteHost))
+            {
+                _logger.Warning($"Remote host parameter miss for user {userName}");
+                return false;
+            }
+
+            var id = AuthenticatedClient.CreateId(remoteHost, userName);
+            if (_authenticatedClients.TryGetValue(id, out var authenticatedClient))
+            {
+                _logger.Debug($"User {userName} from {remoteHost} authenticated {authenticatedClient.Elapsed.ToString("hh\\:mm\\:ss")} ago. Bypass period: {_configuration.BypassSecondFactorPeriod}m");
+
+                if (authenticatedClient.Elapsed.TotalMinutes <= (_configuration.BypassSecondFactorPeriod ?? 0))
+                {
+                    return true;
+                }
+                else
+                {
+                    _authenticatedClients.TryRemove(id, out _);
+                }
+            }
+
+            return false;
+        }
+
+        private void SetCache(string remoteHost, string userName)
+        {
+            if (string.IsNullOrEmpty(remoteHost))
+            {
+                return; 
+            }
+            
+            var client = new AuthenticatedClient
+            {
+                RemoteHost = remoteHost,
+                UserName = userName,
+                AuthenticatedAt = DateTime.Now
+            };
+
+            if (!_authenticatedClients.ContainsKey(client.Id))
+            {
+                _authenticatedClients.TryAdd(client.Id, client);
             }
         }
     }

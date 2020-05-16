@@ -99,6 +99,7 @@
     <Reference Include="System.ServiceProcess" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="AuthenticatedClient.cs" />
     <Compile Include="Configuration.cs" />
     <Compile Include="Core\DictionaryAttribute.cs" />
     <Compile Include="Core\DictionaryVendorAttribute.cs" />

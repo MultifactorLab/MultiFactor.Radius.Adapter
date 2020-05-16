@@ -455,6 +455,7 @@ VendorSpecificAttribute	311	29	MS-Secondary-DNS-Server	ipaddr
 VendorSpecificAttribute	311	30	MS-Primary-NBNS-Server	ipaddr
 VendorSpecificAttribute	311	31	MS-Secondary-NBNS-Server	ipaddr
 VendorSpecificAttribute	311	33	MS-ARAP-Challenge	string
+VendorSpecificAttribute	311	50	MS-Client-Machine-Account-Name	string
 
 # VendorId 318
 VendorSpecificAttribute	318	1	APC-Service-Type	integer

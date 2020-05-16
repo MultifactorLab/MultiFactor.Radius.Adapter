@@ -26,6 +26,11 @@ namespace MultiFactor.Radius.Adapter
         /// </summary>
         public AuthenticationSource FirstFactorAuthenticationSource { get; set; }
 
+        /// <summary>
+        /// Bypass second factor within specified minutes period for same client-machine/user-name
+        /// </summary>
+        public int? BypassSecondFactorPeriod { get; set; }
+
         #region ActiveDirectory Authentication settings
 
         /// <summary>
@@ -90,6 +95,7 @@ namespace MultiFactor.Radius.Adapter
             var radiusSharedSecretSetting = appSettings["radius-shared-secret"];
             var firstFactorAuthenticationSourceSettings = appSettings["first-factor-authentication-source"];
             var apiUrlSetting = appSettings["multifactor-api-url"];
+            var bypassSecondFactorPeriodSetting = appSettings["bypass-second-factor-period"];
             var nasIdentifierSetting = appSettings["multifactor-nas-identifier"];
             var multiFactorSharedSecretSetting = appSettings["multifactor-shared-secret"];
             var logLevelSetting = appSettings["logging-level"];
@@ -132,6 +138,7 @@ namespace MultiFactor.Radius.Adapter
                 throw new Exception("Configuration error: Can't parse 'adapter-server-endpoint' value");
             }
 
+
             var configuration = new Configuration
             {
                 ServiceServerEndpoint = serviceServerEndpoint,
@@ -142,6 +149,14 @@ namespace MultiFactor.Radius.Adapter
                 MultiFactorSharedSecret = multiFactorSharedSecretSetting,
                 LogLevel = logLevelSetting
             };
+
+            if (bypassSecondFactorPeriodSetting != null)
+            {
+                if (int.TryParse(bypassSecondFactorPeriodSetting, out var bypassSecondFactorPeriod))
+                {
+                    configuration.BypassSecondFactorPeriod = bypassSecondFactorPeriod;
+                }
+            }
 
             switch(configuration.FirstFactorAuthenticationSource)
             {
