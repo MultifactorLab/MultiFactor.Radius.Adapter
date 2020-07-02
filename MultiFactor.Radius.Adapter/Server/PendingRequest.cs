@@ -18,5 +18,6 @@ namespace MultiFactor.Radius.Adapter.Server
         public PacketCode ResponseCode { get; set; }
         public string State { get; set; }
         public string UserPhone { get; set; }
+        public bool Bypass2Fa { get; set; }
     }
 }

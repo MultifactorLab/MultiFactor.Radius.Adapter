@@ -58,6 +58,19 @@ namespace MultiFactor.Radius.Adapter.Server
                 return; 
             }
 
+            if (request.Bypass2Fa)
+            {
+                //second factor not trquired
+                var userName = request.Packet.GetAttribute<string>("User-Name");
+                _logger.Information($"Bypass second factor for user {userName}");
+
+                request.ResponseCode = PacketCode.AccessAccept;
+                RequestProcessed?.Invoke(this, request);
+
+                //stop authencation process
+                return;
+            }
+
             var secondFactorAuthenticationResultCode = ProcessSecondAuthenticationFactor(request, out var state);
 
             request.ResponseCode = secondFactorAuthenticationResultCode;
@@ -101,8 +114,7 @@ namespace MultiFactor.Radius.Adapter.Server
                 return PacketCode.AccessReject;
             }
 
-            var isValid = _activeDirectoryService.VerifyCredential(userName, password, out string phone);
-            request.UserPhone = phone;
+            var isValid = _activeDirectoryService.VerifyCredential(userName, password, request);
             
             return isValid ? PacketCode.AccessAccept : PacketCode.AccessReject;
         }

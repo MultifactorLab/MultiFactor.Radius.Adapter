@@ -44,6 +44,11 @@ namespace MultiFactor.Radius.Adapter
         public string ActiveDirectoryGroup { get; set; }
 
         /// <summary>
+        /// Only members of this group required to pass 2fa to access (Optional)
+        /// </summary>
+        public string ActiveDirectory2FaGroup { get; set; }
+
+        /// <summary>
         /// Use ActiveDirectory User general properties phone number (Optional)
         /// </summary>
         public bool UseActiveDirectoryUserPhone { get; set; }
@@ -181,6 +186,7 @@ namespace MultiFactor.Radius.Adapter
 
             var activeDirectoryDomainSetting = appSettings["active-directory-domain"];
             var activeDirectoryGroupSetting = appSettings["active-directory-group"];
+            var activeDirectory2FaGroupSetting = appSettings["active-directory-2fa-group"];
             var useActiveDirectoryUserPhoneSetting = appSettings["use-active-directory-user-phone"];
 
             if (string.IsNullOrEmpty(activeDirectoryDomainSetting))
@@ -200,6 +206,7 @@ namespace MultiFactor.Radius.Adapter
 
             configuration.ActiveDirectoryDomain = activeDirectoryDomainSetting;
             configuration.ActiveDirectoryGroup = activeDirectoryGroupSetting;
+            configuration.ActiveDirectory2FaGroup = activeDirectory2FaGroupSetting;
         }
 
         private static void LoadRadiusAuthenticationSourceSettings(Configuration configuration)

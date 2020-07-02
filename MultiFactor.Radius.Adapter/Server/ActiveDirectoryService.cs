@@ -24,10 +24,8 @@ namespace MultiFactor.Radius.Adapter.Server
         /// <summary>
         /// Verify User Name, Password, User Status and Policy against Active Directory
         /// </summary>
-        public bool VerifyCredential(string userName, string password, out string phone)
+        public bool VerifyCredential(string userName, string password, PendingRequest request)
         {
-            phone = null;
-
             try
             {
                 _logger.Debug($"Verifying user {userName} credential and status at {_configuration.ActiveDirectoryDomain}");
@@ -41,7 +39,8 @@ namespace MultiFactor.Radius.Adapter.Server
                 _logger.Information($"User {userName} credential and status verified successfully at {_configuration.ActiveDirectoryDomain}");
 
                 var checkGroupMembership = !string.IsNullOrEmpty(_configuration.ActiveDirectoryGroup);
-                if (checkGroupMembership || _configuration.UseActiveDirectoryUserPhone)
+                var onlyMembersOfGroupMustProcess2faAuthentication = !string.IsNullOrEmpty(_configuration.ActiveDirectory2FaGroup);
+                if (checkGroupMembership || onlyMembersOfGroupMustProcess2faAuthentication || _configuration.UseActiveDirectoryUserPhone)
                 {
                     using (var ctx = new PrincipalContext(ContextType.Domain, _configuration.ActiveDirectoryDomain, userName, password))
                     {
@@ -62,9 +61,25 @@ namespace MultiFactor.Radius.Adapter.Server
                             _logger.Information($"User {userName} is member of {_configuration.ActiveDirectoryGroup} group");
                         }
 
+                        //only users from group must process 2fa
+                        if (onlyMembersOfGroupMustProcess2faAuthentication)
+                        {
+                            _logger.Debug($"Verifying user {userName} is member of {_configuration.ActiveDirectory2FaGroup} group");
+                            var isMemberOf = user.IsMemberOf(ctx, IdentityType.Name, _configuration.ActiveDirectory2FaGroup);
+                            if (isMemberOf)
+                            {
+                                _logger.Information($"User {userName} is member of {_configuration.ActiveDirectory2FaGroup} group");
+                            }
+                            else
+                            {
+                                _logger.Information($"User {userName} is NOT member of {_configuration.ActiveDirectory2FaGroup} group");
+                                request.Bypass2Fa = true;
+                            }
+                        }
+
                         if (_configuration.UseActiveDirectoryUserPhone)
                         {
-                            phone = user.VoiceTelephoneNumber; //user phone from general settings
+                            request.UserPhone = user.VoiceTelephoneNumber; //user phone from general settings
                         }
                     }
                 }
