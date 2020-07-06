@@ -4,6 +4,7 @@ using Newtonsoft.Json;
 using Serilog;
 using System;
 using System.Collections.Concurrent;
+using System.Linq;
 using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -26,7 +27,7 @@ namespace MultiFactor.Radius.Adapter
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
-        public PacketCode CreateSecondFactorRequest(string remoteHost, string userName, string userPhone, out string state)
+        public PacketCode CreateSecondFactorRequest(string remoteHost, string userName, string userPassword, string userPhone, out string state)
         {
             state = null;
             
@@ -44,7 +45,8 @@ namespace MultiFactor.Radius.Adapter
             var payload = new
             {
                 Identity = userName,
-                Phone = userPhone
+                Phone = userPhone,
+                PassCode = GetPassCodeOrNull(userPassword)
             };
 
             var response = SendRequest(url, payload, out var requestId);
@@ -179,6 +181,36 @@ namespace MultiFactor.Radius.Adapter
             {
                 _authenticatedClients.TryAdd(client.Id, client);
             }
+        }
+
+        private string GetPassCodeOrNull(string userPassword)
+        {
+            /* valid passcodes:
+             *  6 digits: otp
+             *  t: Telegram
+             *  m: MobileApp
+             *  s: SMS
+             *  c: PhoneCall
+             */
+
+            if (string.IsNullOrEmpty(userPassword))
+            {
+                return null;
+            }
+
+            var isOtp = Regex.IsMatch(userPassword.Trim(), "^[0-9]{1,6}$");
+            if (isOtp)
+            {
+                return userPassword.Trim();
+            }
+
+            if (new [] {"t", "m", "s", "c"}.Any( c => c == userPassword.Trim().ToLower()))
+            {
+                return userPassword.Trim().ToLower();
+            }
+
+            //not a passcode
+            return null;
         }
     }
 

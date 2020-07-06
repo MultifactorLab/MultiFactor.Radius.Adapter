@@ -87,6 +87,8 @@ namespace MultiFactor.Radius.Adapter.Server
                     return ProcessActiveDirectoryAuthentication(request);
                 case AuthenticationSource.Radius:           //RADIUS auth
                     return ProcessRadiusAuthentication(request);
+                case AuthenticationSource.None:
+                    return PacketCode.AccessAccept;         //first factor not required
                 default:                                    //unknown source
                     throw new NotImplementedException(_configuration.FirstFactorAuthenticationSource.ToString());
             }
@@ -175,8 +177,10 @@ namespace MultiFactor.Radius.Adapter.Server
             }
 
             var remoteHost = request.Packet.GetAttribute<string>("MS-Client-Machine-Account-Name");
+            var userPassword = request.Packet.GetAttribute<string>("User-Password");
 
-            var response = _multifactorApiClient.CreateSecondFactorRequest(remoteHost, userName, request.UserPhone, out var multifactorStateId);
+
+            var response = _multifactorApiClient.CreateSecondFactorRequest(remoteHost, userName, userPassword, request.UserPhone, out var multifactorStateId);
             state = multifactorStateId;
             return response;
         }

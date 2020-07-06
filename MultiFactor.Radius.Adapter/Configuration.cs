@@ -171,8 +171,6 @@ namespace MultiFactor.Radius.Adapter
                 case AuthenticationSource.Radius:
                     LoadRadiusAuthenticationSourceSettings(configuration);
                     break;
-                default:
-                    throw new NotImplementedException(configuration.FirstFactorAuthenticationSource.ToString());
             }
 
             LoadRadiusReplyAttributes(configuration);
@@ -284,7 +282,8 @@ namespace MultiFactor.Radius.Adapter
     public enum AuthenticationSource
     {
         ActiveDirectory,
-        Radius
+        Radius,
+        None
     }
 
     public class RadiusReplyAttributeElement : ConfigurationElement
