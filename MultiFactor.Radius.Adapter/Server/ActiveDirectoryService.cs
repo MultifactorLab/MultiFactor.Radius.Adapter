@@ -1,5 +1,6 @@
 ﻿using Serilog;
 using System;
+using System.DirectoryServices;
 using System.DirectoryServices.AccountManagement;
 using System.DirectoryServices.Protocols;
 using System.Net;
@@ -40,7 +41,7 @@ namespace MultiFactor.Radius.Adapter.Server
 
                 var checkGroupMembership = !string.IsNullOrEmpty(_configuration.ActiveDirectoryGroup);
                 var onlyMembersOfGroupMustProcess2faAuthentication = !string.IsNullOrEmpty(_configuration.ActiveDirectory2FaGroup);
-                if (checkGroupMembership || onlyMembersOfGroupMustProcess2faAuthentication || _configuration.UseActiveDirectoryUserPhone)
+                if (checkGroupMembership || onlyMembersOfGroupMustProcess2faAuthentication || _configuration.UseActiveDirectoryUserPhone || _configuration.UseActiveDirectoryMobileUserPhone)
                 {
                     using (var ctx = new PrincipalContext(ContextType.Domain, _configuration.ActiveDirectoryDomain, userName, password))
                     {
@@ -80,6 +81,18 @@ namespace MultiFactor.Radius.Adapter.Server
                         if (_configuration.UseActiveDirectoryUserPhone)
                         {
                             request.UserPhone = user.VoiceTelephoneNumber; //user phone from general settings
+                        }
+
+                        if (_configuration.UseActiveDirectoryMobileUserPhone)
+                        {
+                            using (var entry = user.GetUnderlyingObject() as DirectoryEntry)
+                            {
+                                if (entry != null)
+                                {
+                                    var mobile = entry.Properties["mobile"].Value as string;
+                                    request.UserPhone = mobile; //user mobile phone from general settings
+                                }
+                            }
                         }
                     }
                 }

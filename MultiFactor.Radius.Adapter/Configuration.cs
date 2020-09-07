@@ -53,6 +53,11 @@ namespace MultiFactor.Radius.Adapter
         /// </summary>
         public bool UseActiveDirectoryUserPhone { get; set; }
 
+        /// <summary>
+        /// Use ActiveDirectory User general properties mobile phone number (Optional)
+        /// </summary>
+        public bool UseActiveDirectoryMobileUserPhone { get; set; }
+
         #endregion
 
         #region RADIUS Authentication settings
@@ -186,6 +191,7 @@ namespace MultiFactor.Radius.Adapter
             var activeDirectoryGroupSetting = appSettings["active-directory-group"];
             var activeDirectory2FaGroupSetting = appSettings["active-directory-2fa-group"];
             var useActiveDirectoryUserPhoneSetting = appSettings["use-active-directory-user-phone"];
+            var useActiveDirectoryMobileUserPhoneSetting = appSettings["use-active-directory-mobile-user-phone"];
 
             if (string.IsNullOrEmpty(activeDirectoryDomainSetting))
             {
@@ -200,6 +206,16 @@ namespace MultiFactor.Radius.Adapter
                 }
 
                 configuration.UseActiveDirectoryUserPhone = useActiveDirectoryUserPhone;
+            }
+
+            if (!string.IsNullOrEmpty(useActiveDirectoryMobileUserPhoneSetting))
+            {
+                if (!bool.TryParse(useActiveDirectoryMobileUserPhoneSetting, out var useActiveDirectoryMobileUserPhone))
+                {
+                    throw new Exception("Configuration error: Can't parse 'use-active-directory-mobile-user-phone' value");
+                }
+
+                configuration.UseActiveDirectoryMobileUserPhone = useActiveDirectoryMobileUserPhone;
             }
 
             configuration.ActiveDirectoryDomain = activeDirectoryDomainSetting;
