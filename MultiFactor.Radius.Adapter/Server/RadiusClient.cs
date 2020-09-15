@@ -118,7 +118,6 @@ namespace MultiFactor.Radius.Adapter.Server
         {
             _cancellationTokenSource.Cancel();
             _udpClient?.Close();
-            GC.Collect();
         }
     }
 }

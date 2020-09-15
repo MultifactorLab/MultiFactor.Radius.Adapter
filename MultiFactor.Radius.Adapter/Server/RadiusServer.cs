@@ -205,6 +205,9 @@ namespace MultiFactor.Radius.Adapter.Server
             }
 
             Send(responsePacket, request.RemoteEndpoint);
+
+            //request processed, clear all
+            GC.Collect();
         }
 
 

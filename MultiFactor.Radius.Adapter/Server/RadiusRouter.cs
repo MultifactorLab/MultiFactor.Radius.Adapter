@@ -117,7 +117,7 @@ namespace MultiFactor.Radius.Adapter.Server
             }
 
             var isValid = _activeDirectoryService.VerifyCredential(userName, password, request);
-            
+
             return isValid ? PacketCode.AccessAccept : PacketCode.AccessReject;
         }
 

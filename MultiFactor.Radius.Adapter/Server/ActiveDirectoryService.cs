@@ -1,4 +1,5 @@
-﻿using Serilog;
+﻿using MultiFactor.Radius.Adapter.Core;
+using Serilog;
 using System;
 using System.DirectoryServices;
 using System.DirectoryServices.AccountManagement;
@@ -27,70 +28,76 @@ namespace MultiFactor.Radius.Adapter.Server
         /// </summary>
         public bool VerifyCredential(string userName, string password, PendingRequest request)
         {
+            var login = Utils.CanonicalizeUserName(userName);
+            
             try
             {
-                _logger.Debug($"Verifying user {userName} credential and status at {_configuration.ActiveDirectoryDomain}");
+                _logger.Debug($"Verifying user {login} credential and status at {_configuration.ActiveDirectoryDomain}");
 
                 using (var connection = new LdapConnection(_configuration.ActiveDirectoryDomain))
                 {
-                    connection.Credential = new NetworkCredential(userName, password);
+                    connection.Credential = new NetworkCredential(login, password);
                     connection.Bind();
                 }
 
-                _logger.Information($"User {userName} credential and status verified successfully at {_configuration.ActiveDirectoryDomain}");
+                _logger.Information($"User {login} credential and status verified successfully at {_configuration.ActiveDirectoryDomain}");
 
                 var checkGroupMembership = !string.IsNullOrEmpty(_configuration.ActiveDirectoryGroup);
                 var onlyMembersOfGroupMustProcess2faAuthentication = !string.IsNullOrEmpty(_configuration.ActiveDirectory2FaGroup);
                 if (checkGroupMembership || onlyMembersOfGroupMustProcess2faAuthentication || _configuration.UseActiveDirectoryUserPhone || _configuration.UseActiveDirectoryMobileUserPhone)
                 {
-                    using (var ctx = new PrincipalContext(ContextType.Domain, _configuration.ActiveDirectoryDomain, userName, password))
+                    using (var ctx = new PrincipalContext(ContextType.Domain, _configuration.ActiveDirectoryDomain, login, password))
                     {
-                        var user = UserPrincipal.FindByIdentity(ctx, userName);
-
-                        //user must be member of security group
-                        if (checkGroupMembership)
+                        using (var user = UserPrincipal.FindByIdentity(ctx, IdentityType.SamAccountName, login))
                         {
-                            _logger.Debug($"Verifying user {userName} is member of {_configuration.ActiveDirectoryGroup} group");
-
-                            var isMemberOf = user.IsMemberOf(ctx, IdentityType.Name, _configuration.ActiveDirectoryGroup);
-                            if (!isMemberOf)
+                            //user must be member of security group
+                            if (checkGroupMembership)
                             {
-                                _logger.Warning($"User {userName} is NOT member of {_configuration.ActiveDirectoryGroup} group");
-                                return false;
-                            }
+                                _logger.Debug($"Verifying user {login} is member of {_configuration.ActiveDirectoryGroup} group");
 
-                            _logger.Information($"User {userName} is member of {_configuration.ActiveDirectoryGroup} group");
-                        }
+                                var isMemberOf = IsMemberOf(user, _configuration.ActiveDirectoryGroup);
 
-                        //only users from group must process 2fa
-                        if (onlyMembersOfGroupMustProcess2faAuthentication)
-                        {
-                            _logger.Debug($"Verifying user {userName} is member of {_configuration.ActiveDirectory2FaGroup} group");
-                            var isMemberOf = user.IsMemberOf(ctx, IdentityType.Name, _configuration.ActiveDirectory2FaGroup);
-                            if (isMemberOf)
-                            {
-                                _logger.Information($"User {userName} is member of {_configuration.ActiveDirectory2FaGroup} group");
-                            }
-                            else
-                            {
-                                _logger.Information($"User {userName} is NOT member of {_configuration.ActiveDirectory2FaGroup} group");
-                                request.Bypass2Fa = true;
-                            }
-                        }
-
-                        if (_configuration.UseActiveDirectoryUserPhone)
-                        {
-                            request.UserPhone = user.VoiceTelephoneNumber; //user phone from general settings
-                        }
-
-                        if (_configuration.UseActiveDirectoryMobileUserPhone)
-                        {
-                            using (var entry = user.GetUnderlyingObject() as DirectoryEntry)
-                            {
-                                if (entry != null)
+                                if (!isMemberOf)
                                 {
-                                    var mobile = entry.Properties["mobile"].Value as string;
-                                    request.UserPhone = mobile; //user mobile phone from general settings
+                                    _logger.Warning($"User {login} is NOT member of {_configuration.ActiveDirectoryGroup} group");
+                                    return false;
+                                }
+
+                                _logger.Information($"User {login} is member of {_configuration.ActiveDirectoryGroup} group");
+                            }
+
+                            //only users from group must process 2fa
+                            if (onlyMembersOfGroupMustProcess2faAuthentication)
+                            {
+                                _logger.Debug($"Verifying user {login} is member of {_configuration.ActiveDirectory2FaGroup} group");
+
+                                var isMemberOf = IsMemberOf(user, _configuration.ActiveDirectory2FaGroup);
+
+                                if (isMemberOf)
+                                {
+                                    _logger.Information($"User {login} is member of {_configuration.ActiveDirectory2FaGroup} group");
+                                }
+                                else
+                                {
+                                    _logger.Information($"User {login} is NOT member of {_configuration.ActiveDirectory2FaGroup} group");
+                                    request.Bypass2Fa = true;
+                                }
+                            }
+
+                            if (_configuration.UseActiveDirectoryUserPhone)
+                            {
+                                request.UserPhone = user.VoiceTelephoneNumber; //user phone from general settings
+                            }
+
+                            if (_configuration.UseActiveDirectoryMobileUserPhone)
+                            {
+                                using (var entry = user.GetUnderlyingObject() as DirectoryEntry)
+                                {
+                                    if (entry != null)
+                                    {
+                                        var mobile = entry.Properties["mobile"].Value as string;
+                                        request.UserPhone = mobile; //user mobile phone from general settings
+                                    }
                                 }
                             }
                         }
@@ -106,16 +113,16 @@ namespace MultiFactor.Radius.Adapter.Server
                     var dataReason = ExtractErrorReason(lex.ServerErrorMessage);
                     if (dataReason != null)
                     {
-                        _logger.Warning($"Verification user {userName} at {_configuration.ActiveDirectoryDomain} failed: {dataReason}");
+                        _logger.Warning($"Verification user {login} at {_configuration.ActiveDirectoryDomain} failed: {dataReason}");
                         return false;
                     }
                 }
 
-                _logger.Error(lex, $"Verification user {userName} at {_configuration.ActiveDirectoryDomain} failed");
+                _logger.Error(lex, $"Verification user {login} at {_configuration.ActiveDirectoryDomain} failed");
             }
             catch (Exception ex)
             {
-                _logger.Error(ex, $"Verification user {userName} at {_configuration.ActiveDirectoryDomain} failed");
+                _logger.Error(ex, $"Verification user {login} at {_configuration.ActiveDirectoryDomain} failed");
             }
 
             return false;
@@ -154,6 +161,26 @@ namespace MultiFactor.Radius.Adapter.Server
             }
 
             return null;
+        }
+
+        public bool IsMemberOf(Principal principal, string groupName)
+        {
+            using (var group = GroupPrincipal.FindByIdentity(principal.Context, IdentityType.SamAccountName, groupName))
+            {
+                if (group == null)
+                {
+                    _logger.Warning($"Security group {groupName} not exists");
+                    return false;
+                }
+
+                var filter = $"(&(sAMAccountName={principal.SamAccountName})(memberOf:1.2.840.113556.1.4.1941:={group.DistinguishedName}))";
+
+                using (var searcher = new DirectorySearcher(filter))
+                {
+                    var result = searcher.FindOne();
+                    return result != null;
+                }
+            }
         }
     }
 }
