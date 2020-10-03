@@ -44,63 +44,63 @@ namespace MultiFactor.Radius.Adapter.Server
 
                 var checkGroupMembership = !string.IsNullOrEmpty(_configuration.ActiveDirectoryGroup);
                 var onlyMembersOfGroupMustProcess2faAuthentication = !string.IsNullOrEmpty(_configuration.ActiveDirectory2FaGroup);
-                if (checkGroupMembership || onlyMembersOfGroupMustProcess2faAuthentication || _configuration.UseActiveDirectoryUserPhone || _configuration.UseActiveDirectoryMobileUserPhone)
+
+                using (var ctx = new PrincipalContext(ContextType.Domain, _configuration.ActiveDirectoryDomain, login, password))
                 {
-                    using (var ctx = new PrincipalContext(ContextType.Domain, _configuration.ActiveDirectoryDomain, login, password))
+                    using (var user = UserPrincipal.FindByIdentity(ctx, IdentityType.SamAccountName, login))
                     {
-                        using (var user = UserPrincipal.FindByIdentity(ctx, IdentityType.SamAccountName, login))
+                        //user must be member of security group
+                        if (checkGroupMembership)
                         {
-                            //user must be member of security group
-                            if (checkGroupMembership)
+                            _logger.Debug($"Verifying user {login} is member of {_configuration.ActiveDirectoryGroup} group");
+
+                            var isMemberOf = IsMemberOf(user, _configuration.ActiveDirectoryGroup);
+
+                            if (!isMemberOf)
                             {
-                                _logger.Debug($"Verifying user {login} is member of {_configuration.ActiveDirectoryGroup} group");
-
-                                var isMemberOf = IsMemberOf(user, _configuration.ActiveDirectoryGroup);
-
-                                if (!isMemberOf)
-                                {
-                                    _logger.Warning($"User {login} is NOT member of {_configuration.ActiveDirectoryGroup} group");
-                                    return false;
-                                }
-
-                                _logger.Information($"User {login} is member of {_configuration.ActiveDirectoryGroup} group");
+                                _logger.Warning($"User {login} is NOT member of {_configuration.ActiveDirectoryGroup} group");
+                                return false;
                             }
 
-                            //only users from group must process 2fa
-                            if (onlyMembersOfGroupMustProcess2faAuthentication)
+                            _logger.Information($"User {login} is member of {_configuration.ActiveDirectoryGroup} group");
+                        }
+
+                        //only users from group must process 2fa
+                        if (onlyMembersOfGroupMustProcess2faAuthentication)
+                        {
+                            _logger.Debug($"Verifying user {login} is member of {_configuration.ActiveDirectory2FaGroup} group");
+
+                            var isMemberOf = IsMemberOf(user, _configuration.ActiveDirectory2FaGroup);
+
+                            if (isMemberOf)
                             {
-                                _logger.Debug($"Verifying user {login} is member of {_configuration.ActiveDirectory2FaGroup} group");
-
-                                var isMemberOf = IsMemberOf(user, _configuration.ActiveDirectory2FaGroup);
-
-                                if (isMemberOf)
-                                {
-                                    _logger.Information($"User {login} is member of {_configuration.ActiveDirectory2FaGroup} group");
-                                }
-                                else
-                                {
-                                    _logger.Information($"User {login} is NOT member of {_configuration.ActiveDirectory2FaGroup} group");
-                                    request.Bypass2Fa = true;
-                                }
+                                _logger.Information($"User {login} is member of {_configuration.ActiveDirectory2FaGroup} group");
                             }
-
-                            if (_configuration.UseActiveDirectoryUserPhone)
+                            else
                             {
-                                request.UserPhone = user.VoiceTelephoneNumber; //user phone from general settings
+                                _logger.Information($"User {login} is NOT member of {_configuration.ActiveDirectory2FaGroup} group");
+                                request.Bypass2Fa = true;
                             }
+                        }
 
-                            if (_configuration.UseActiveDirectoryMobileUserPhone)
+                        if (_configuration.UseActiveDirectoryUserPhone)
+                        {
+                            request.UserPhone = user.VoiceTelephoneNumber; //user phone from general settings
+                        }
+
+                        if (_configuration.UseActiveDirectoryMobileUserPhone)
+                        {
+                            using (var entry = user.GetUnderlyingObject() as DirectoryEntry)
                             {
-                                using (var entry = user.GetUnderlyingObject() as DirectoryEntry)
+                                if (entry != null)
                                 {
-                                    if (entry != null)
-                                    {
-                                        var mobile = entry.Properties["mobile"].Value as string;
-                                        request.UserPhone = mobile; //user mobile phone from general settings
-                                    }
+                                    var mobile = entry.Properties["mobile"].Value as string;
+                                    request.UserPhone = mobile; //user mobile phone from general settings
                                 }
                             }
                         }
+
+                        request.EmailAddress = user.EmailAddress;
                     }
                 }
 
