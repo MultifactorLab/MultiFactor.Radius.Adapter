@@ -1718,7 +1718,7 @@ VendorSpecificAttribute	12902	1	User-Group-Name	string
 VendorSpecificAttribute	12902	2	Client-BW-Info	string
 
 # VendorId 12356
-Fortinet‐Group‐Name	12356	1	Fortinet‐Group‐Name	string
+VendorSpecificAttribute	12356	1	Fortinet‐Group‐Name	string
 
 # VendorId 13209
 VendorSpecificAttribute	13209	1	Ipass-13209-1	string
