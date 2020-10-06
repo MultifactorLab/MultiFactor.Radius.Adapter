@@ -114,6 +114,7 @@
     <Compile Include="Core\RadiusPacketParser.cs" />
     <Compile Include="Core\RadiusPassword.cs" />
     <Compile Include="MultiFactorApiClient.cs" />
+    <Compile Include="RadiusReplyAttributeValue.cs" />
     <Compile Include="Server\ActiveDirectoryService.cs" />
     <Compile Include="ServiceInstaller.cs">
       <SubType>Component</SubType>

@@ -1,5 +1,6 @@
 ﻿using MultiFactor.Radius.Adapter.Core;
 using System;
+using System.Collections.Generic;
 using System.Net;
 
 namespace MultiFactor.Radius.Adapter.Server
@@ -10,6 +11,7 @@ namespace MultiFactor.Radius.Adapter.Server
         {
             ReceivedAt = DateTime.Now;
             ResponseCode = PacketCode.AccessReject;
+            UserGroups = new List<string>();
         }
         public IPEndPoint RemoteEndpoint { get; set; }
         public byte[] OriginalUnpackedRequest { get; set; }
@@ -20,5 +22,6 @@ namespace MultiFactor.Radius.Adapter.Server
         public string UserPhone { get; set; }
         public string EmailAddress { get; set; }
         public bool Bypass2Fa { get; set; }
+        public IList<string> UserGroups { get; set; }
     }
 }

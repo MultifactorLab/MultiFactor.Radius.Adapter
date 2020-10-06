@@ -179,13 +179,11 @@ namespace MultiFactor.Radius.Adapter.Core
         {
             switch (type)
             {
-                case "string":
+                case DictionaryAttribute.TYPE_STRING:
+                case DictionaryAttribute.TYPE_TAGGED_STRING:
                     return Encoding.UTF8.GetString(contentBytes);
 
-                case "tagged-string":
-                    return Encoding.UTF8.GetString(contentBytes);
-
-                case "octet":
+                case DictionaryAttribute.TYPE_OCTET:
                     // If this is a password attribute it must be decrypted
                     if (code == 2)
                     {
@@ -193,13 +191,11 @@ namespace MultiFactor.Radius.Adapter.Core
                     }
                     return contentBytes;
 
-                case "integer":
+                case DictionaryAttribute.TYPE_INTEGER:
+                case DictionaryAttribute.TYPE_TAGGED_INTEGER:
                     return BitConverter.ToUInt32(contentBytes.Reverse().ToArray(), 0);
 
-                case "tagged-integer":
-                    return BitConverter.ToUInt32(contentBytes.Reverse().ToArray(), 0);
-
-                case "ipaddr":
+                case DictionaryAttribute.TYPE_IPADDR:
                     return new IPAddress(contentBytes);
 
                 default:

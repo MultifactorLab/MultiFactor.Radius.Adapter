@@ -1,6 +1,6 @@
-﻿using System;
+﻿using MultiFactor.Radius.Adapter.Core;
+using System;
 using System.Collections.Generic;
-using System.Collections.Specialized;
 using System.Configuration;
 using System.Net;
 
@@ -93,13 +93,18 @@ namespace MultiFactor.Radius.Adapter
         /// <summary>
         /// Custom RADIUS reply attributes
         /// </summary>
-        public IDictionary<string, List<object>> RadiusReplyAttributes { get; set; }
+        public IDictionary<string, List<RadiusReplyAttributeValue>> RadiusReplyAttributes { get; set; }
 
         /// <summary>
         /// Read and load settings from appSettings configuration section
         /// </summary>
-        public static Configuration Load()
+        public static Configuration Load(IRadiusDictionary dictionary)
         {
+            if (dictionary == null)
+            {
+                throw new ArgumentNullException(nameof(dictionary));
+            }
+            
             var appSettings = ConfigurationManager.AppSettings;
             var serviceServerEndpointSetting = appSettings["adapter-server-endpoint"];
             var radiusSharedSecretSetting = appSettings["radius-shared-secret"];
@@ -178,7 +183,7 @@ namespace MultiFactor.Radius.Adapter
                     break;
             }
 
-            LoadRadiusReplyAttributes(configuration);
+            LoadRadiusReplyAttributes(configuration, dictionary);
 
             return configuration;
         }
@@ -252,10 +257,9 @@ namespace MultiFactor.Radius.Adapter
             configuration.NpsServerEndpoint = npsEndpoint;
         }
 
-        private static void LoadRadiusReplyAttributes(Configuration configuration)
+        private static void LoadRadiusReplyAttributes(Configuration configuration, IRadiusDictionary dictionary)
         {
-            var replyAttributes = new Dictionary<string, List<object>>();
-
+            var replyAttributes = new Dictionary<string, List<RadiusReplyAttributeValue>>();
             var section = ConfigurationManager.GetSection("RadiusReply") as RadiusReplyAttributesSection;
 
             if (section != null)
@@ -263,16 +267,49 @@ namespace MultiFactor.Radius.Adapter
                 foreach (var member in section.Members)
                 {
                     var attribute = member as RadiusReplyAttributeElement;
+                    var radiusAttribute = dictionary.GetAttribute(attribute.Name);
+                    if (radiusAttribute == null)
+                    {
+                        throw new ConfigurationErrorsException($"Unknown attribute '{attribute.Name}' in RadiusReply configuration element, please see dictionary");
+                    }
+                    
                     if (!replyAttributes.ContainsKey(attribute.Name))
                     {
-                        replyAttributes.Add(attribute.Name, new List<object>());
+                        replyAttributes.Add(attribute.Name, new List<RadiusReplyAttributeValue>());
                     }
 
-                    replyAttributes[attribute.Name].Add(attribute.Value);
+                    try
+                    {
+                        var value = ParseRadiusReplyAttributeValue(radiusAttribute, attribute.Value);
+                        replyAttributes[attribute.Name].Add(new RadiusReplyAttributeValue(value, attribute.When));
+                    }
+                    catch (Exception ex)
+                    {
+                        throw new ConfigurationErrorsException($"Error while parsing attribute '{radiusAttribute.Name}' with {radiusAttribute.Type} value '{attribute.Value}' in RadiusReply configuration element: {ex.Message}");
+                    }
                 }
             }
 
             configuration.RadiusReplyAttributes = replyAttributes;
+        }
+
+        private static object ParseRadiusReplyAttributeValue(DictionaryAttribute attribute, string value)
+        {
+            switch (attribute.Type)
+            {
+                case DictionaryAttribute.TYPE_STRING:
+                case DictionaryAttribute.TYPE_TAGGED_STRING:
+                    return value;
+                case DictionaryAttribute.TYPE_INTEGER:
+                case DictionaryAttribute.TYPE_TAGGED_INTEGER:
+                    return uint.Parse(value);
+                case DictionaryAttribute.TYPE_IPADDR:
+                    return IPAddress.Parse(value);
+                case DictionaryAttribute.TYPE_OCTET:
+                    return Utils.StringToByteArray(value);
+                default:
+                    throw new Exception($"Unknown type {attribute.Type}");
+            }
         }
 
         private static bool TryParseIPEndPoint(string text, out IPEndPoint ipEndPoint)
@@ -314,6 +351,12 @@ namespace MultiFactor.Radius.Adapter
         public string Value
         {
             get { return (string)this["value"]; }
+        }
+
+        [ConfigurationProperty("when", IsKey = false, IsRequired = false)]
+        public string When
+        {
+            get { return (string)this["when"]; }
         }
     }
 

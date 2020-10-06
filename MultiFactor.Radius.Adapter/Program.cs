@@ -45,13 +45,15 @@ namespace MultiFactor.Radius.Adapter
 
             try
             {
+                //load radius attributes dictionary
+                var dictionaryPath = path + "Content" + Path.DirectorySeparatorChar + "radius.dictionary";
+                var dictionary = new RadiusDictionary(dictionaryPath, Log.Logger);
+
                 //init configuration
-                var configuration = Configuration.Load();
+                var configuration = Configuration.Load(dictionary);
 
                 SetLogLevel(configuration.LogLevel, levelSwitch);
 
-                var dictionaryPath = path + "Content" + Path.DirectorySeparatorChar + "radius.dictionary";
-                var dictionary = new RadiusDictionary(dictionaryPath, Log.Logger);
 
                 var adapterService = new AdapterService(configuration, dictionary, Log.Logger);
 
@@ -81,7 +83,7 @@ namespace MultiFactor.Radius.Adapter
             }
             catch(Exception ex)
             {
-                Log.Logger.Error(ex, "Unable to start");
+                Log.Logger.Error($"Unable to start: {ex.Message}");
             }
         }
 

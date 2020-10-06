@@ -19,24 +19,25 @@
 //LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 //OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 //SOFTWARE.
-
-using System;
-
 namespace MultiFactor.Radius.Adapter.Core
 {
     public class DictionaryAttribute
     {
-        public readonly Byte Code;
-        public readonly String Name;
-        public readonly String Type;
+        public const string TYPE_STRING = "string";
+        public const string TYPE_TAGGED_STRING = "tagged-string";
+        public const string TYPE_INTEGER = "integer";
+        public const string TYPE_TAGGED_INTEGER= "tagged-integer";
+        public const string TYPE_OCTET = "octet";
+        public const string TYPE_IPADDR = "ipaddr";
+
+        public readonly byte Code;
+        public readonly string Name;
+        public readonly string Type;
 
         /// <summary>
         /// Create a dictionary rfc attribute
         /// </summary>
-        /// <param name="name"></param>
-        /// <param name="code"></param>
-        /// <param name="type"></param>
-        public DictionaryAttribute(String name, Byte code, String type)
+        public DictionaryAttribute(string name, byte code, string type)
         {
             Code = code;
             Name = name;

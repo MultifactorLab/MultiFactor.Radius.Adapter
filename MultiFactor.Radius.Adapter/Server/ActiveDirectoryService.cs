@@ -4,6 +4,7 @@ using System;
 using System.DirectoryServices;
 using System.DirectoryServices.AccountManagement;
 using System.DirectoryServices.Protocols;
+using System.Linq;
 using System.Net;
 using System.Text.RegularExpressions;
 
@@ -32,7 +33,7 @@ namespace MultiFactor.Radius.Adapter.Server
             
             try
             {
-                _logger.Debug($"Verifying user {login} credential and status at {_configuration.ActiveDirectoryDomain}");
+                _logger.Debug($"Verifying user '{login}' credential and status at {_configuration.ActiveDirectoryDomain}");
 
                 using (var connection = new LdapConnection(_configuration.ActiveDirectoryDomain))
                 {
@@ -40,7 +41,7 @@ namespace MultiFactor.Radius.Adapter.Server
                     connection.Bind();
                 }
 
-                _logger.Information($"User {login} credential and status verified successfully at {_configuration.ActiveDirectoryDomain}");
+                _logger.Information($"User '{login}' credential and status verified successfully at {_configuration.ActiveDirectoryDomain}");
 
                 var checkGroupMembership = !string.IsNullOrEmpty(_configuration.ActiveDirectoryGroup);
                 var onlyMembersOfGroupMustProcess2faAuthentication = !string.IsNullOrEmpty(_configuration.ActiveDirectory2FaGroup);
@@ -52,34 +53,57 @@ namespace MultiFactor.Radius.Adapter.Server
                         //user must be member of security group
                         if (checkGroupMembership)
                         {
-                            _logger.Debug($"Verifying user {login} is member of {_configuration.ActiveDirectoryGroup} group");
+                            _logger.Debug($"Verifying user '{login}' is member of '{_configuration.ActiveDirectoryGroup}' group");
 
                             var isMemberOf = IsMemberOf(user, _configuration.ActiveDirectoryGroup);
 
                             if (!isMemberOf)
                             {
-                                _logger.Warning($"User {login} is NOT member of {_configuration.ActiveDirectoryGroup} group");
+                                _logger.Warning($"User '{login}' is NOT member of '{_configuration.ActiveDirectoryGroup}' group");
                                 return false;
                             }
 
-                            _logger.Information($"User {login} is member of {_configuration.ActiveDirectoryGroup} group");
+                            _logger.Information($"User '{login}' is member of '{_configuration.ActiveDirectoryGroup}' group");
                         }
 
                         //only users from group must process 2fa
                         if (onlyMembersOfGroupMustProcess2faAuthentication)
                         {
-                            _logger.Debug($"Verifying user {login} is member of {_configuration.ActiveDirectory2FaGroup} group");
+                            _logger.Debug($"Verifying user '{login}' is member of '{_configuration.ActiveDirectory2FaGroup}' group");
 
                             var isMemberOf = IsMemberOf(user, _configuration.ActiveDirectory2FaGroup);
 
                             if (isMemberOf)
                             {
-                                _logger.Information($"User {login} is member of {_configuration.ActiveDirectory2FaGroup} group");
+                                _logger.Information($"User '{login}' is member of '{_configuration.ActiveDirectory2FaGroup}' group");
                             }
                             else
                             {
-                                _logger.Information($"User {login} is NOT member of {_configuration.ActiveDirectory2FaGroup} group");
+                                _logger.Information($"User '{login}' is NOT member of '{_configuration.ActiveDirectory2FaGroup}' group");
                                 request.Bypass2Fa = true;
+                            }
+                        }
+
+                        //check groups membership for radius reply conditional attributes
+                        var radiusReplyValuesMatchedUserGroup = _configuration
+                            .RadiusReplyAttributes
+                            .SelectMany(attr => attr.Value.Where(val => val.UserGroupCondition != null).Select(val => val.UserGroupCondition))
+                            .Distinct();
+
+                        foreach(var attribute in _configuration.RadiusReplyAttributes)
+                        {
+                            foreach(var value in attribute.Value.Where(val => val.UserGroupCondition != null))
+                            {
+                                _logger.Debug($"Verifying user '{login}' is member of '{value.UserGroupCondition}' group");
+                                if (IsMemberOf(user, value.UserGroupCondition))
+                                {
+                                    _logger.Information($"User '{login}' is member of '{value.UserGroupCondition}'. Adding attribute '{attribute.Key}:{value.Value}' to reply");
+                                    request.UserGroups.Add(value.UserGroupCondition);
+                                }
+                                else
+                                {
+                                    _logger.Debug($"User '{login}' is NOT member of '{value.UserGroupCondition}'");
+                                }
                             }
                         }
 

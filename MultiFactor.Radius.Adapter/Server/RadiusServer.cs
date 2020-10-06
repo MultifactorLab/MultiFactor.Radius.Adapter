@@ -200,7 +200,12 @@ namespace MultiFactor.Radius.Adapter.Server
             {
                 foreach(var attr in _configuration.RadiusReplyAttributes)
                 {
-                    responsePacket.Attributes.Add(attr.Key, attr.Value);
+                    //check condition
+                    var matched = attr.Value.Where(val => val.IsMatch(request)).Select(val => val.Value);
+                    if (matched.Any())
+                    {
+                        responsePacket.Attributes.Add(attr.Key, matched.ToList());
+                    }
                 }
             }
 
