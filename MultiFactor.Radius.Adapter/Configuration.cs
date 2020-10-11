@@ -1,4 +1,8 @@
-﻿using MultiFactor.Radius.Adapter.Core;
+﻿//Copyright(c) 2020 MultiFactor
+//Please see licence at 
+//https://github.com/MultifactorLab/MultiFactor.Radius.Adapter/blob/master/LICENSE.md
+
+using MultiFactor.Radius.Adapter.Core;
 using System;
 using System.Collections.Generic;
 using System.Configuration;

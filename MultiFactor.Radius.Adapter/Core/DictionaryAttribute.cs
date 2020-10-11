@@ -1,7 +1,9 @@
-﻿//MIT License
+﻿//Copyright(c) 2020 MultiFactor
+//Please see licence at 
+//https://github.com/MultifactorLab/MultiFactor.Radius.Adapter/blob/master/LICENSE.md
 
+//MIT License
 //Copyright(c) 2017 Verner Fortelius
-
 //Permission is hereby granted, free of charge, to any person obtaining a copy
 //of this software and associated documentation files (the "Software"), to deal
 //in the Software without restriction, including without limitation the rights

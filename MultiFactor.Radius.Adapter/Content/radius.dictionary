@@ -1,4 +1,4 @@
-﻿Attribute	1	User-Name	string
+Attribute	1	User-Name	string
 Attribute	2	User-Password	octet
 Attribute	3	CHAP-Password	octet
 Attribute	4	NAS-IP-Address	ipaddr
@@ -22,7 +22,7 @@ Attribute	21	Expiration	date
 Attribute	22	Framed-Route	string
 Attribute	23	Framed-IPX-Network	ipaddr
 Attribute	24	State	octet
-Attribute	25	Class	string
+Attribute	25	Class	octet
 Attribute	26	Vendor-Specific	string
 Attribute	27	Session-Timeout	integer
 Attribute	28	Idle-Timeout	integer
@@ -444,7 +444,7 @@ VendorSpecificAttribute	311	18	MS-RAS-Version	string
 VendorSpecificAttribute	311	19	MS-Old-ARAP-Password	string
 VendorSpecificAttribute	311	20	MS-New-ARAP-Password	string
 VendorSpecificAttribute	311	21	MS-ARAP-Password-Change-Reason	string
-VendorSpecificAttribute	311	22	MS-Filter	string
+VendorSpecificAttribute	311	22	MS-Filter	octet
 VendorSpecificAttribute	311	23	MS-Acct-Auth-Type	integer
 VendorSpecificAttribute	311	24	MS-Acct-EAP-Type	integer
 VendorSpecificAttribute	311	25	MS-CHAP2-Response	octet
@@ -455,8 +455,12 @@ VendorSpecificAttribute	311	29	MS-Secondary-DNS-Server	ipaddr
 VendorSpecificAttribute	311	30	MS-Primary-NBNS-Server	ipaddr
 VendorSpecificAttribute	311	31	MS-Secondary-NBNS-Server	ipaddr
 VendorSpecificAttribute	311	33	MS-ARAP-Challenge	string
-VendorSpecificAttribute	311	50	MS-Client-Machine-Account-Name	string
+VendorSpecificAttribute	311	34	MS-RAS-Client-Name	string
+VendorSpecificAttribute	311	35	MS-RAS-Client-Version	string
 VendorSpecificAttribute	311	47	MS-Network-Access-Server-Type	integer
+VendorSpecificAttribute	311	50	MS-Client-Machine-Account-Name	string
+VendorSpecificAttribute	311	56	MS-RAS-Correlation	octet
+
 VendorSpecificAttribute	311	63	MS-RDG-Device-Redirection	integer
 
 # VendorId 318
@@ -1718,7 +1722,7 @@ VendorSpecificAttribute	12902	1	User-Group-Name	string
 VendorSpecificAttribute	12902	2	Client-BW-Info	string
 
 # VendorId 12356
-VendorSpecificAttribute	12356	1	Fortinet‐Group‐Name	string
+VendorSpecificAttribute	12356	1	Fortinet-Group-Name	string
 
 # VendorId 13209
 VendorSpecificAttribute	13209	1	Ipass-13209-1	string

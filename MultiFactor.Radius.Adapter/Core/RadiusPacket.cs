@@ -1,4 +1,8 @@
-﻿//MIT License
+﻿//Copyright(c) 2020 MultiFactor
+//Please see licence at 
+//https://github.com/MultifactorLab/MultiFactor.Radius.Adapter/blob/master/LICENSE.md
+
+//MIT License
 
 //Copyright(c) 2017 Verner Fortelius
 
@@ -42,9 +46,9 @@ namespace MultiFactor.Radius.Adapter.Core
         public Byte Identifier
         {
             get;
-            internal set;
+            set;
         }
-        public Byte[] Authenticator { get; internal set; } = new Byte[16];
+        public Byte[] Authenticator { get; set; } = new Byte[16];
         public IDictionary<String, List<Object>> Attributes { get; set; }  = new Dictionary<string, List<object>>();
         public Byte[] SharedSecret
         {
@@ -57,6 +61,13 @@ namespace MultiFactor.Radius.Adapter.Core
             internal set;
         }
 
+        public bool IsEapMessageChallenge
+        {
+            get
+            {
+                return Code == PacketCode.AccessChallenge && Attributes.ContainsKey("EAP-Message");
+            }
+        }
 
         internal RadiusPacket()
         {
@@ -141,6 +152,16 @@ namespace MultiFactor.Radius.Adapter.Core
                 return Attributes[name].Cast<T>().ToList();
             }
             return new List<T>();
+        }
+
+        public void CopyTo(IRadiusPacket packet)
+        {
+            packet.Authenticator = Authenticator;
+            packet.Attributes = Attributes;
+            //if (packet.Attributes.ContainsKey("Message-Authenticator"))
+            //{
+            //    packet.Attributes.Remove("Message-Authenticator");
+            //}
         }
 
 

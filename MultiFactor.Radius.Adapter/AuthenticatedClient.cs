@@ -1,4 +1,8 @@
-﻿using System;
+﻿//Copyright(c) 2020 MultiFactor
+//Please see licence at 
+//https://github.com/MultifactorLab/MultiFactor.Radius.Adapter/blob/master/LICENSE.md
+
+using System;
 namespace MultiFactor.Radius.Adapter
 {
     /// <summary>

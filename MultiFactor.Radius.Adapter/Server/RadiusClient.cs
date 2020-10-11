@@ -1,4 +1,8 @@
-﻿//MIT License
+﻿//Copyright(c) 2020 MultiFactor
+//Please see licence at 
+//https://github.com/MultifactorLab/MultiFactor.Radius.Adapter/blob/master/LICENSE.md
+
+//MIT License
 
 //Copyright(c) 2017 Verner Fortelius
 
@@ -35,7 +39,6 @@ namespace MultiFactor.Radius.Adapter.Server
     {
         private readonly IPEndPoint _localEndpoint;
         private readonly UdpClient _udpClient;
-        private readonly IRadiusPacketParser _radiusPacketParser;
         private readonly ConcurrentDictionary<Tuple<byte, IPEndPoint>, TaskCompletionSource<UdpReceiveResult>> _pendingRequests = new ConcurrentDictionary<Tuple<byte, IPEndPoint>, TaskCompletionSource<UdpReceiveResult>>();
         private readonly CancellationTokenSource _cancellationTokenSource;
         private readonly ILogger _logger;
@@ -43,12 +46,9 @@ namespace MultiFactor.Radius.Adapter.Server
         /// <summary>
         /// Create a radius client which sends and receives responses on localEndpoint
         /// </summary>
-        /// <param name="localEndpoint"></param>
-        /// <param name="dictionary"></param>
-        public RadiusClient(IPEndPoint localEndpoint, IRadiusPacketParser radiusPacketParser, ILogger logger)
+        public RadiusClient(IPEndPoint localEndpoint, ILogger logger)
         {
             _localEndpoint = localEndpoint;
-            _radiusPacketParser = radiusPacketParser;
             _logger = logger;
             _udpClient = new UdpClient(_localEndpoint);
             
@@ -61,22 +61,17 @@ namespace MultiFactor.Radius.Adapter.Server
         /// <summary>
         /// Send a packet with specified timeout
         /// </summary>
-        /// <param name="packet"></param>
-        /// <param name="remoteEndpoint"></param>
-        /// <param name="timeout"></param>
-        /// <returns></returns>
-        public async Task<IRadiusPacket> SendPacketAsync(IRadiusPacket packet, IPEndPoint remoteEndpoint, TimeSpan timeout, byte[] originalUnpackedRequest = null)
+        public async Task<byte[]> SendPacketAsync(byte identifier, byte[] requestPacket, IPEndPoint remoteEndpoint, TimeSpan timeout)
         {
-            var packetBytes = originalUnpackedRequest ?? _radiusPacketParser.GetBytes(packet);
             var responseTaskCS = new TaskCompletionSource<UdpReceiveResult>();
 
-            if (_pendingRequests.TryAdd(new Tuple<byte, IPEndPoint>(packet.Identifier, remoteEndpoint), responseTaskCS))
+            if (_pendingRequests.TryAdd(new Tuple<byte, IPEndPoint>(identifier, remoteEndpoint), responseTaskCS))
             {
-                await _udpClient.SendAsync(packetBytes, packetBytes.Length, remoteEndpoint);
+                await _udpClient.SendAsync(requestPacket, requestPacket.Length, remoteEndpoint);
                 var completedTask = await Task.WhenAny(responseTaskCS.Task, Task.Delay(timeout));
                 if (completedTask == responseTaskCS.Task)
                 {
-                    return _radiusPacketParser.Parse(responseTaskCS.Task.Result.Buffer, packet.SharedSecret);
+                    return responseTaskCS.Task.Result.Buffer;
                 }
 
                 //timeout
@@ -91,7 +86,6 @@ namespace MultiFactor.Radius.Adapter.Server
         /// <summary>
         /// Receive packets in a loop and complete tasks based on identifier
         /// </summary>
-        /// <returns></returns>
         private async Task StartReceiveLoopAsync(CancellationToken cancellationToken)
         {
             while (!cancellationToken.IsCancellationRequested)

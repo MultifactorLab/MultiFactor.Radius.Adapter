@@ -1,4 +1,8 @@
-﻿//MIT License
+﻿//Copyright(c) 2020 MultiFactor
+//Please see licence at 
+//https://github.com/MultifactorLab/MultiFactor.Radius.Adapter/blob/master/LICENSE.md
+
+//MIT License
 
 //Copyright(c) 2017 Verner Fortelius
 
@@ -54,7 +58,7 @@ namespace MultiFactor.Radius.Adapter.Core
         /// <param name="packetBytes"></param>
         /// <param name="dictionary"></param>
         /// <param name="sharedSecret"></param>
-        public IRadiusPacket Parse(Byte[] packetBytes, Byte[] sharedSecret)
+        public IRadiusPacket Parse(Byte[] packetBytes, Byte[] sharedSecret, byte[] requestAuthenticator = null)
         {
             var packetLength = BitConverter.ToUInt16(packetBytes.Skip(2).Take(2).Reverse().ToArray(), 0);
             if (packetBytes.Length != packetLength)
@@ -155,12 +159,14 @@ namespace MultiFactor.Radius.Adapter.Core
                 var tempPacket = new Byte[packetBytes.Length];
                 packetBytes.CopyTo(tempPacket, 0);
                 Buffer.BlockCopy(temp, 0, tempPacket, messageAuthenticatorPosition + 2, 16);
-                var calculatedMessageAuthenticator = CalculateMessageAuthenticator(tempPacket, sharedSecret, null);
+                var calculatedMessageAuthenticator = CalculateMessageAuthenticator(tempPacket, sharedSecret, requestAuthenticator);
                 if (!calculatedMessageAuthenticator.SequenceEqual(messageAuthenticator))
                 {
                     throw new InvalidOperationException($"Invalid Message-Authenticator in packet {packet.Identifier}");
                 }
             }
+
+            packet.RequestAuthenticator = requestAuthenticator;
 
             return packet;
         }
@@ -358,6 +364,11 @@ namespace MultiFactor.Radius.Adapter.Core
             }
             else
             {
+                if (packet.RequestAuthenticator == null)
+                {
+                    Buffer.BlockCopy(packet.Authenticator, 0, packetBytesArray, 4, 16);
+                }
+
                 if (messageAuthenticatorPosition != 0)
                 {
                     var temp = new Byte[16];
@@ -366,8 +377,11 @@ namespace MultiFactor.Radius.Adapter.Core
                     Buffer.BlockCopy(messageAuthenticatorBytes, 0, packetBytesArray, messageAuthenticatorPosition + 2, 16);
                 }
 
-                var authenticator = packet.RequestAuthenticator != null ? CalculateResponseAuthenticator(packet.SharedSecret, packet.RequestAuthenticator, packetBytesArray) : packet.Authenticator;
-                Buffer.BlockCopy(authenticator, 0, packetBytesArray, 4, 16);
+                if (packet.RequestAuthenticator != null)
+                {
+                    var authenticator = CalculateResponseAuthenticator(packet.SharedSecret, packet.RequestAuthenticator, packetBytesArray);
+                    Buffer.BlockCopy(authenticator, 0, packetBytesArray, 4, 16);
+                }
             }
 
             return packetBytesArray;

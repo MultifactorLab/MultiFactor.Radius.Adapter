@@ -1,4 +1,8 @@
-﻿//MIT License
+﻿//Copyright(c) 2020 MultiFactor
+//Please see licence at 
+//https://github.com/MultifactorLab/MultiFactor.Radius.Adapter/blob/master/LICENSE.md
+
+//MIT License
 
 //Copyright(c) 2017 Verner Fortelius
 
@@ -20,13 +24,11 @@
 //OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 //SOFTWARE.
 
-using System.IO;
-
 namespace MultiFactor.Radius.Adapter.Core
 {
     public interface IRadiusPacketParser
     {
         byte[] GetBytes(IRadiusPacket packet);
-        IRadiusPacket Parse(byte[] packetBytes, byte[] sharedSecret);
+        IRadiusPacket Parse(byte[] packetBytes, byte[] sharedSecret, byte[] requestAuthenticator = null);
     }
 }

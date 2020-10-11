@@ -1,4 +1,8 @@
-﻿using MultiFactor.Radius.Adapter.Core;
+﻿//Copyright(c) 2020 MultiFactor
+//Please see licence at 
+//https://github.com/MultifactorLab/MultiFactor.Radius.Adapter/blob/master/LICENSE.md
+
+using MultiFactor.Radius.Adapter.Core;
 using Serilog;
 using System;
 using System.DirectoryServices;
@@ -137,16 +141,16 @@ namespace MultiFactor.Radius.Adapter.Server
                     var dataReason = ExtractErrorReason(lex.ServerErrorMessage);
                     if (dataReason != null)
                     {
-                        _logger.Warning($"Verification user {login} at {_configuration.ActiveDirectoryDomain} failed: {dataReason}");
+                        _logger.Warning($"Verification user '{login}' at {_configuration.ActiveDirectoryDomain} failed: {dataReason}");
                         return false;
                     }
                 }
 
-                _logger.Error(lex, $"Verification user {login} at {_configuration.ActiveDirectoryDomain} failed");
+                _logger.Error(lex, $"Verification user '{login}' at {_configuration.ActiveDirectoryDomain} failed");
             }
             catch (Exception ex)
             {
-                _logger.Error(ex, $"Verification user {login} at {_configuration.ActiveDirectoryDomain} failed");
+                _logger.Error(ex, $"Verification user '{login}' at {_configuration.ActiveDirectoryDomain} failed");
             }
 
             return false;

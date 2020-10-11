@@ -1,5 +1,9 @@
-﻿using MultiFactor.Radius.Adapter.Core;
-using MultiFactor.Radius.Adapter.Server;
+﻿//Copyright(c) 2020 MultiFactor
+//Please see licence at 
+//https://github.com/MultifactorLab/MultiFactor.Radius.Adapter/blob/master/LICENSE.md
+
+
+using MultiFactor.Radius.Adapter.Core;
 using Newtonsoft.Json;
 using Serilog;
 using System;

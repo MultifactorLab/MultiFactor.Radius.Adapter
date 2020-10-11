@@ -1,7 +1,9 @@
-﻿//MIT License
+﻿//Copyright(c) 2020 MultiFactor
+//Please see licence at 
+//https://github.com/MultifactorLab/MultiFactor.Radius.Adapter/blob/master/LICENSE.md
 
+//MIT License
 //Copyright(c) 2017 Verner Fortelius
-
 //Permission is hereby granted, free of charge, to any person obtaining a copy
 //of this software and associated documentation files (the "Software"), to deal
 //in the Software without restriction, including without limitation the rights
@@ -157,10 +159,9 @@ namespace MultiFactor.Radius.Adapter.Server
         internal void ParseAndProcess(byte[] packetBytes, IPEndPoint remoteEndpoint)
         {
             var requestPacket = _radiusPacketParser.Parse(packetBytes, Encoding.ASCII.GetBytes(_configuration.RadiusSharedSecret));
+            _logger.Debug($"Received {requestPacket.Code} from {remoteEndpoint} Id={requestPacket.Identifier}");
 
-            _logger.Information($"Received {requestPacket.Code} from {remoteEndpoint} Id={requestPacket.Identifier}");
-
-            var request = new PendingRequest { RemoteEndpoint = remoteEndpoint, Packet = requestPacket, OriginalUnpackedRequest = packetBytes };
+            var request = new PendingRequest { RemoteEndpoint = remoteEndpoint, RequestPacket = requestPacket };
 
             Task.Run(() => _router.HandleRequest(request));
         }
@@ -168,19 +169,43 @@ namespace MultiFactor.Radius.Adapter.Server
         /// <summary>
         /// Sends a packet
         /// </summary>
-        /// <param name="responsePacket"></param>
-        /// <param name="remoteEndpoint"></param>
         private void Send(IRadiusPacket responsePacket, IPEndPoint remoteEndpoint)
         {
             var responseBytes = _radiusPacketParser.GetBytes(responsePacket);
             _server.Send(responseBytes, responseBytes.Length, remoteEndpoint);
-            _logger.Information($"{responsePacket.Code} sent to {remoteEndpoint} Id={responsePacket.Identifier}");
+            _logger.Debug($"{responsePacket.Code} sent to {remoteEndpoint} Id={responsePacket.Identifier}");
         }
 
         private void RouterRequestProcessed(object sender, PendingRequest request)
         {
-            var requestPacket = request.Packet;
+            if (request.ResponsePacket?.IsEapMessageChallenge == true)
+            {
+                //ms-chap authentication in process, just proxy response
+                _logger.Debug($"Proxying EAP-Message Challenge to {request.RemoteEndpoint} Id={request.RequestPacket.Identifier}");
+                Send(request.ResponsePacket, request.RemoteEndpoint);
+                
+                return; //stop processing
+            }
+
+            var requestPacket = request.RequestPacket;
             var responsePacket = requestPacket.CreateResponsePacket(request.ResponseCode);
+
+            if (request.ResponseCode == PacketCode.AccessAccept)
+            {
+                if (request.ResponsePacket != null) //copy from remote radius reply
+                {
+                    request.ResponsePacket.CopyTo(responsePacket);
+                }
+            }
+
+            //proxy echo required
+            if (requestPacket.Attributes.ContainsKey("Proxy-State"))
+            {
+                if (!responsePacket.Attributes.ContainsKey("Proxy-State"))
+                {
+                    responsePacket.Attributes.Add("Proxy-State", requestPacket.Attributes.SingleOrDefault(o => o.Key == "Proxy-State").Value);
+                }
+            }
 
             if (request.ResponseCode == PacketCode.AccessChallenge)
             {
@@ -189,16 +214,10 @@ namespace MultiFactor.Radius.Adapter.Server
                 responsePacket.AddAttribute("State", request.State); //state to match user authentication session
             }
 
-            //proxy echo required
-            if (requestPacket.Attributes.ContainsKey("Proxy-State"))
-            {
-                responsePacket.Attributes.Add("Proxy-State", requestPacket.Attributes.SingleOrDefault(o => o.Key == "Proxy-State").Value);
-            }
-
             //add custom reply attributes
             if (request.ResponseCode == PacketCode.AccessAccept)
             {
-                foreach(var attr in _configuration.RadiusReplyAttributes)
+                foreach (var attr in _configuration.RadiusReplyAttributes)
                 {
                     //check condition
                     var matched = attr.Value.Where(val => val.IsMatch(request)).Select(val => val.Value);
@@ -207,6 +226,11 @@ namespace MultiFactor.Radius.Adapter.Server
                         responsePacket.Attributes.Add(attr.Key, matched.ToList());
                     }
                 }
+                ////for remote radius dont use any custom attrinutes, just proxy reply as is
+                //if (_configuration.FirstFactorAuthenticationSource != AuthenticationSource.Radius)
+                //{
+
+                //}
             }
 
             Send(responsePacket, request.RemoteEndpoint);

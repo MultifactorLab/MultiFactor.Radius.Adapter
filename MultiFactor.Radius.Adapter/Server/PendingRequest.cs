@@ -1,4 +1,8 @@
-﻿using MultiFactor.Radius.Adapter.Core;
+﻿//Copyright(c) 2020 MultiFactor
+//Please see licence at 
+//https://github.com/MultifactorLab/MultiFactor.Radius.Adapter/blob/master/LICENSE.md
+
+using MultiFactor.Radius.Adapter.Core;
 using System;
 using System.Collections.Generic;
 using System.Net;
@@ -14,8 +18,8 @@ namespace MultiFactor.Radius.Adapter.Server
             UserGroups = new List<string>();
         }
         public IPEndPoint RemoteEndpoint { get; set; }
-        public byte[] OriginalUnpackedRequest { get; set; }
-        public IRadiusPacket Packet { get; set; }
+        public IRadiusPacket RequestPacket { get; set; }
+        public IRadiusPacket ResponsePacket { get; set; }
         public DateTime ReceivedAt { get; set; }
         public PacketCode ResponseCode { get; set; }
         public string State { get; set; }

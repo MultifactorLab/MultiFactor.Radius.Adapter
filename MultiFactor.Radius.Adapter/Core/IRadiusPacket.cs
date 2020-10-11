@@ -1,4 +1,8 @@
-﻿//MIT License
+﻿//Copyright(c) 2020 MultiFactor
+//Please see licence at 
+//https://github.com/MultifactorLab/MultiFactor.Radius.Adapter/blob/master/LICENSE.md
+
+//MIT License
 
 //Copyright(c) 2017 Verner Fortelius
 
@@ -20,7 +24,6 @@
 //OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 //SOFTWARE.
 
-using System;
 using System.Collections.Generic;
 using System.Net;
 
@@ -28,15 +31,15 @@ namespace MultiFactor.Radius.Adapter.Core
 {
     public interface IRadiusPacket
     {
-        Byte Identifier
+        byte Identifier
         {
-            get;
+            get;set;
         }
-        Byte[] Authenticator
+        byte[] Authenticator
         {
-            get;
+            get; set;
         }
-        Byte[] SharedSecret
+        byte[] SharedSecret
         {
             get;
         }
@@ -44,22 +47,25 @@ namespace MultiFactor.Radius.Adapter.Core
         {
             get;
         }
-        Byte[] RequestAuthenticator
+        byte[] RequestAuthenticator
         {
             get;
         }
+        bool IsEapMessageChallenge { get; }
         IRadiusPacket CreateResponsePacket(PacketCode responseCode);
 
-        T GetAttribute<T>(String name);
+        T GetAttribute<T>(string name);
 
-        void AddAttribute(String name, String value);
-        void AddAttribute(String name, UInt32 value);
-        void AddAttribute(String name, IPAddress value);
-        void AddAttribute(String name, Byte[] value);
+        void AddAttribute(string name, string value);
+        void AddAttribute(string name, uint value);
+        void AddAttribute(string name, IPAddress value);
+        void AddAttribute(string name, byte[] value);
 
-        IDictionary<String, List<Object>> Attributes
+        void CopyTo(IRadiusPacket packet);
+
+        IDictionary<string, List<object>> Attributes
         {
-            get;
+            get; set;
         }
     }
 }

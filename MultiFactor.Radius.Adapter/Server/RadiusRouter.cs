@@ -1,4 +1,8 @@
-﻿using MultiFactor.Radius.Adapter.Core;
+﻿//Copyright(c) 2020 MultiFactor
+//Please see licence at 
+//https://github.com/MultifactorLab/MultiFactor.Radius.Adapter/blob/master/LICENSE.md
+
+using MultiFactor.Radius.Adapter.Core;
 using Serilog;
 using System;
 using System.Net;
@@ -30,28 +34,31 @@ namespace MultiFactor.Radius.Adapter.Server
 
         public void HandleRequest(PendingRequest request)
         {
-            if (request.Packet.Code != PacketCode.AccessRequest)
+            if (request.RequestPacket.Code != PacketCode.AccessRequest)
             {
-                _logger.Warning($"Unprocessable packet type: {request.Packet.Code}");
+                _logger.Warning($"Unprocessable packet type: {request.RequestPacket.Code}");
                 return;
             }
 
-            if (request.Packet.Attributes.ContainsKey("State"))
+            if (request.RequestPacket.Attributes.ContainsKey("State")) //Access-Challenge response 
             {
-                //second request with state and one time password
-                var mulfactorRequestId = Encoding.ASCII.GetString(request.Packet.GetAttribute<byte[]>("State"));
-                request.ResponseCode = VerifySecondFactorOtpCode(request, mulfactorRequestId);
-                request.State = mulfactorRequestId;  //state for Access-Challenge message if otp is wrong (3 times allowed)
+                if (request.RequestPacket.Attributes.ContainsKey("User-Password")) //With OTP code
+                {
+                    //second request with state and one time password
+                    var mulfactorRequestId = Encoding.ASCII.GetString(request.RequestPacket.GetAttribute<byte[]>("State"));
+                    request.ResponseCode = VerifySecondFactorOtpCode(request, mulfactorRequestId);
+                    request.State = mulfactorRequestId;  //state for Access-Challenge message if otp is wrong (3 times allowed)
 
-                RequestProcessed?.Invoke(this, request);
-                return; //stop authentication process after otp code verification
+                    RequestProcessed?.Invoke(this, request);
+                    return; //stop authentication process after otp code verification
+                }
             }
 
             var firstFactorAuthenticationResultCode = ProcessFirstAuthenticationFactor(request);
             if (firstFactorAuthenticationResultCode != PacketCode.AccessAccept)
             {
                 //first factor authentication rejected
-                request.ResponseCode = PacketCode.AccessReject;
+                request.ResponseCode = firstFactorAuthenticationResultCode;
                 RequestProcessed?.Invoke(this, request);
 
                 //stop authencation process
@@ -61,7 +68,7 @@ namespace MultiFactor.Radius.Adapter.Server
             if (request.Bypass2Fa)
             {
                 //second factor not trquired
-                var userName = request.Packet.GetAttribute<string>("User-Name");
+                var userName = request.RequestPacket.GetAttribute<string>("User-Name");
                 _logger.Information($"Bypass second factor for user {userName}");
 
                 request.ResponseCode = PacketCode.AccessAccept;
@@ -99,20 +106,20 @@ namespace MultiFactor.Radius.Adapter.Server
         /// </summary>
         private PacketCode ProcessActiveDirectoryAuthentication(PendingRequest request)
         {
-            var userName = request.Packet.GetAttribute<string>("User-Name");
+            var userName = request.RequestPacket.GetAttribute<string>("User-Name");
 
             if (string.IsNullOrEmpty(userName))
             {
-                _logger.Warning($"Can't find User-Name in message Id={request.Packet.Identifier} from {request.RemoteEndpoint}");
+                _logger.Warning($"Can't find User-Name in message Id={request.RequestPacket.Identifier} from {request.RemoteEndpoint}");
                 return PacketCode.AccessReject;
             }
 
             //user-password attribute hold second request otp from user
-            var password = request.Packet.GetAttribute<string>("User-Password");
+            var password = request.RequestPacket.GetAttribute<string>("User-Password");
 
             if (string.IsNullOrEmpty(password))
             {
-                _logger.Warning($"Can't find User-Password in message Id={request.Packet.Identifier} from {request.RemoteEndpoint}");
+                _logger.Warning($"Can't find User-Password in message Id={request.RequestPacket.Identifier} from {request.RemoteEndpoint}");
                 return PacketCode.AccessReject;
             }
 
@@ -126,40 +133,43 @@ namespace MultiFactor.Radius.Adapter.Server
         /// </summary>
         private PacketCode ProcessRadiusAuthentication(PendingRequest request)
         {
-            var originalRequest = request.Packet;
-
-            var npsRequestPacket = new RadiusPacket(PacketCode.AccessRequest, originalRequest.Identifier, _configuration.MultiFactorSharedSecret);
-
-            //copy all attributes but not Message-Authenticator
-            foreach (var attr in originalRequest.Attributes)
+            try
             {
-                if (attr.Key != "Message-Authenticator")
+                //sending request as is to Network Policy Server
+                using (var client = new RadiusClient(_configuration.ServiceClientEndpoint, _logger))
                 {
-                    npsRequestPacket.Attributes.Add(attr.Key, attr.Value);
+                    _logger.Debug($"Sending Access-Request message with Id={request.RequestPacket.Identifier} to Network Policy Server {_configuration.NpsServerEndpoint}");
+
+                    var requestBytes = _packetParser.GetBytes(request.RequestPacket);
+                    var response = client.SendPacketAsync(request.RequestPacket.Identifier, requestBytes, _configuration.NpsServerEndpoint, TimeSpan.FromSeconds(5)).Result;
+
+                    if (response != null)
+                    {
+                        var responsePacket = _packetParser.Parse(response, request.RequestPacket.SharedSecret, request.RequestPacket.Authenticator);
+                        _logger.Debug($"Received {responsePacket.Code} message with Id={responsePacket.Identifier} from Network Policy Server");
+                        
+                        if (responsePacket.Code == PacketCode.AccessAccept)
+                        {
+                            var userName = request.RequestPacket.GetAttribute<string>("User-Name");
+                            _logger.Information($"User '{userName}' credential and status verified successfully at {_configuration.NpsServerEndpoint}");
+                        }
+
+                        request.ResponsePacket = responsePacket;
+                        return responsePacket.Code; //Code received from NPS
+                    }
+                    else
+                    {
+                        _logger.Warning($"Network Policy Server did not respond on message with Id={request.RequestPacket.Identifier}");
+                        return PacketCode.AccessReject; //reject by default
+                    }
                 }
             }
-
-            //add nas-id
-            npsRequestPacket.AddAttribute("NAS-Identifier", _configuration.NasIdentifier);
-
-            //sending request as is to Network Policy Server
-            using (var client = new RadiusClient(_configuration.ServiceClientEndpoint, _packetParser, _logger))
+            catch (Exception ex)
             {
-                _logger.Information($"Sending Access-Request message with Id={npsRequestPacket.Identifier} to Network Policy Server {_configuration.NpsServerEndpoint}");
-
-                var response = client.SendPacketAsync(npsRequestPacket, _configuration.NpsServerEndpoint, TimeSpan.FromSeconds(5), request.OriginalUnpackedRequest).Result;
-
-                if (response != null)
-                {
-                    _logger.Information($"Received {response.Code} message with Id={response.Identifier} from Network Policy Server");
-                    return response.Code; //Code received from NPS
-                }
-                else
-                {
-                    _logger.Warning($"Network Policy Server did not respond on message with Id={npsRequestPacket.Identifier}");
-                    return PacketCode.AccessReject; //reject by default
-                }
+                _logger.Error(ex, "Radius authentication error");
             }
+            
+            return PacketCode.AccessReject; //reject by default
         }
 
         /// <summary>
@@ -168,20 +178,27 @@ namespace MultiFactor.Radius.Adapter.Server
         private PacketCode ProcessSecondAuthenticationFactor(PendingRequest request, out string state)
         {
             state = null;
-            var userName = request.Packet.GetAttribute<string>("User-Name");
+            var userName = request.RequestPacket.GetAttribute<string>("User-Name");
 
             if (string.IsNullOrEmpty(userName))
             {
-                _logger.Warning($"Can't find User-Name in message Id={request.Packet.Identifier} from {request.RemoteEndpoint}");
+                _logger.Warning($"Can't find User-Name in message Id={request.RequestPacket.Identifier} from {request.RemoteEndpoint}");
                 return PacketCode.AccessReject;
             }
 
-            var remoteHost = request.Packet.GetAttribute<string>("MS-Client-Machine-Account-Name");
-            var userPassword = request.Packet.GetAttribute<string>("User-Password");
+            var remoteHost = request.RequestPacket.GetAttribute<string>("MS-Client-Machine-Account-Name");
+            remoteHost = remoteHost ?? request.RequestPacket.GetAttribute<string>("MS-RAS-Client-Name");
 
+            var userPassword = request.RequestPacket.GetAttribute<string>("User-Password");
 
             var response = _multifactorApiClient.CreateSecondFactorRequest(remoteHost, userName, userPassword, request.EmailAddress, request.UserPhone, out var multifactorStateId);
             state = multifactorStateId;
+
+            if (response == PacketCode.AccessAccept)
+            {
+                _logger.Information($"Second factor for user '{userName}' verifyed successfully");
+            }
+
             return response;
         }
 
@@ -190,24 +207,30 @@ namespace MultiFactor.Radius.Adapter.Server
         /// </summary>
         private PacketCode VerifySecondFactorOtpCode(PendingRequest request, string state)
         {
-            var userName = request.Packet.GetAttribute<string>("User-Name");
+            var userName = request.RequestPacket.GetAttribute<string>("User-Name");
 
             if (string.IsNullOrEmpty(userName))
             {
-                _logger.Warning($"Can't find User-Name in message Id={request.Packet.Identifier} from {request.RemoteEndpoint}");
+                _logger.Warning($"Can't find User-Name in message Id={request.RequestPacket.Identifier} from {request.RemoteEndpoint}");
                 return PacketCode.AccessReject;
             }
 
             //user-password attribute hold second request otp from user
-            var otpCode = request.Packet.GetAttribute<string>("User-Password");
+            var otpCode = request.RequestPacket.GetAttribute<string>("User-Password");
 
             if (string.IsNullOrEmpty(otpCode))
             {
-                _logger.Warning($"Can't find User-Password with OTP code in message Id={request.Packet.Identifier} from {request.RemoteEndpoint}");
+                _logger.Warning($"Can't find User-Password with OTP code in message Id={request.RequestPacket.Identifier} from {request.RemoteEndpoint}");
                 return PacketCode.AccessReject;
             }
 
             var response = _multifactorApiClient.VerifyOtpCode(userName, otpCode, state);
+
+            if (response == PacketCode.AccessAccept)
+            {
+                _logger.Information($"Second factor for user '{userName}' verifyed successfully");
+            }
+
             return response;
         }
     }
