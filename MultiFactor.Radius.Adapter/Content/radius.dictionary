@@ -22,7 +22,7 @@ Attribute	21	Expiration	date
 Attribute	22	Framed-Route	string
 Attribute	23	Framed-IPX-Network	ipaddr
 Attribute	24	State	octet
-Attribute	25	Class	octet
+Attribute	25	Class	string
 Attribute	26	Vendor-Specific	string
 Attribute	27	Session-Timeout	integer
 Attribute	28	Idle-Timeout	integer
@@ -1723,6 +1723,8 @@ VendorSpecificAttribute	12902	2	Client-BW-Info	string
 
 # VendorId 12356
 VendorSpecificAttribute	12356	1	Fortinet-Group-Name	string
+VendorSpecificAttribute	12356	3	Fortinet-Vdom-Name	string
+VendorSpecificAttribute	12356	6	Fortinet-Access-Profile	string
 
 # VendorId 13209
 VendorSpecificAttribute	13209	1	Ipass-13209-1	string

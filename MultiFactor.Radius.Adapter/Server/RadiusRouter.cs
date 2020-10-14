@@ -5,7 +5,7 @@
 using MultiFactor.Radius.Adapter.Core;
 using Serilog;
 using System;
-using System.Net;
+using System.Collections.Concurrent;
 using System.Text;
 
 namespace MultiFactor.Radius.Adapter.Server
@@ -21,6 +21,7 @@ namespace MultiFactor.Radius.Adapter.Server
         private ActiveDirectoryService _activeDirectoryService;
         private MultiFactorApiClient _multifactorApiClient;
         public event EventHandler<PendingRequest> RequestProcessed;
+        private readonly ConcurrentDictionary<string, PendingRequest> _stateChallengependingRequests = new ConcurrentDictionary<string, PendingRequest>();
 
         public RadiusRouter(Configuration configuration, IRadiusPacketParser packetParser, ILogger logger)
         {
@@ -82,6 +83,11 @@ namespace MultiFactor.Radius.Adapter.Server
 
             request.ResponseCode = secondFactorAuthenticationResultCode;
             request.State = state;  //state for Access-Challenge message
+
+            if (request.ResponseCode == PacketCode.AccessChallenge)
+            {
+                AddStateChallengePendingRequest(state, request);
+            }
 
             RequestProcessed?.Invoke(this, request);
         }
@@ -226,12 +232,56 @@ namespace MultiFactor.Radius.Adapter.Server
 
             var response = _multifactorApiClient.VerifyOtpCode(userName, otpCode, state);
 
-            if (response == PacketCode.AccessAccept)
+            switch (response)
             {
-                _logger.Information($"Second factor for user '{userName}' verifyed successfully");
+                case PacketCode.AccessAccept:
+                    _logger.Information($"Second factor for user '{userName}' verifyed successfully");
+                    var stateChallengePendingRequest = GetStateChallengeRequest(state);
+                    if (stateChallengePendingRequest != null)
+                    {
+                        request.UserGroups = stateChallengePendingRequest.UserGroups;
+                    }
+                    break;
+                case PacketCode.AccessReject:
+                    RemoveStateChallengeRequest(state);
+                    break;
             }
 
             return response;
+        }
+
+        /// <summary>
+        /// Add authenticated request to local cache for otp/challenge
+        /// </summary>
+        private void AddStateChallengePendingRequest(string state, PendingRequest request)
+        {
+            if (!_stateChallengependingRequests.TryAdd(state, request))
+            {
+                _logger.Error($"Unable to cache request Id={request.RequestPacket.Identifier}");
+            }
+        }
+
+        /// <summary>
+        /// Get authenticated request from local cache for otp/challenge
+        /// </summary>
+        private PendingRequest GetStateChallengeRequest(string state)
+        {
+            if (_stateChallengependingRequests.TryRemove(state, out PendingRequest request))
+            {
+                return request;
+            }
+
+            _logger.Error($"Unable to get cached request with state={state}");
+            return null;
+        }
+
+        /// <summary>
+        /// Remove authenticated request from local cache
+        /// </summary>
+        /// <param name="state"></param>
+        private void RemoveStateChallengeRequest(string state)
+        {
+            _stateChallengependingRequests.TryRemove(state, out PendingRequest _);
         }
     }
 }

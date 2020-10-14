@@ -226,11 +226,6 @@ namespace MultiFactor.Radius.Adapter.Server
                         responsePacket.Attributes.Add(attr.Key, matched.ToList());
                     }
                 }
-                ////for remote radius dont use any custom attrinutes, just proxy reply as is
-                //if (_configuration.FirstFactorAuthenticationSource != AuthenticationSource.Radius)
-                //{
-
-                //}
             }
 
             Send(responsePacket, request.RemoteEndpoint);

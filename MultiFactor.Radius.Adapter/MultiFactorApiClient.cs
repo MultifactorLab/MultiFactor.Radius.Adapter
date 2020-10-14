@@ -190,6 +190,12 @@ namespace MultiFactor.Radius.Adapter
 
         private string GetPassCodeOrNull(string userPassword)
         {
+            //only if first authentication factor is None, assuming that Password contains OTP code
+            if (_configuration.FirstFactorAuthenticationSource != AuthenticationSource.None)
+            {
+                return null;
+            }
+            
             /* valid passcodes:
              *  6 digits: otp
              *  t: Telegram
