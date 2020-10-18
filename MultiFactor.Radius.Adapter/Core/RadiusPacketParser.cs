@@ -187,7 +187,12 @@ namespace MultiFactor.Radius.Adapter.Core
             {
                 case DictionaryAttribute.TYPE_STRING:
                 case DictionaryAttribute.TYPE_TAGGED_STRING:
-                    return Encoding.UTF8.GetString(contentBytes);
+                    //couse some NAS (like NPS) send binary within string attributes, check content before unpack to prevent data loss
+                    if (contentBytes.All(b => b >= 32 && b <= 127)) //only if ascii
+                    {
+                        return Encoding.UTF8.GetString(contentBytes);
+                    }
+                    return contentBytes;
 
                 case DictionaryAttribute.TYPE_OCTET:
                     // If this is a password attribute it must be decrypted

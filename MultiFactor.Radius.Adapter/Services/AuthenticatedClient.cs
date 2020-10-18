@@ -3,7 +3,7 @@
 //https://github.com/MultifactorLab/MultiFactor.Radius.Adapter/blob/master/LICENSE.md
 
 using System;
-namespace MultiFactor.Radius.Adapter
+namespace MultiFactor.Radius.Adapter.Services
 {
     /// <summary>
     /// Authenticated client

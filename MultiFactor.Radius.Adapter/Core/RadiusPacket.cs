@@ -65,9 +65,25 @@ namespace MultiFactor.Radius.Adapter.Core
         {
             get
             {
-                return Code == PacketCode.AccessChallenge && Attributes.ContainsKey("EAP-Message");
+                return Code == PacketCode.AccessChallenge && AuthenticationType == AuthenticationType.EAP;
             }
         }
+
+        public AuthenticationType AuthenticationType
+        {
+            get
+            {
+                if (Attributes.ContainsKey("EAP-Message")) return AuthenticationType.EAP;
+                if (Attributes.ContainsKey("User-Password")) return AuthenticationType.PAP;
+                if (Attributes.ContainsKey("CHAP-Password")) return AuthenticationType.CHAP;
+                if (Attributes.ContainsKey("MS-CHAP-Response")) return AuthenticationType.MSCHAP;
+                if (Attributes.ContainsKey("MS-CHAP2-Response")) return AuthenticationType.MSCHAP2;
+
+                return AuthenticationType.Unknown;
+            }
+        }
+
+        public string UserName => GetString("User-Name");
 
         internal RadiusPacket()
         {
@@ -125,9 +141,6 @@ namespace MultiFactor.Radius.Adapter.Core
         /// Gets a single attribute value with name cast to type
         /// Throws an exception if multiple attributes with the same name are found
         /// </summary>
-        /// <typeparam name="T"></typeparam>
-        /// <param name="name"></param>
-        /// <returns></returns>
         public T GetAttribute<T>(String name)
         {
             if (Attributes.ContainsKey(name))
@@ -135,7 +148,34 @@ namespace MultiFactor.Radius.Adapter.Core
                 return (T)Attributes[name].Single();
             }
 
-            return default(T);
+            return default;
+        }
+
+        /// <summary>
+        /// Gets a single string attribute value
+        /// Throws an exception if multiple attributes with the same name are found
+        /// </summary>
+        public string GetString(string name)
+        {
+            if (Attributes.ContainsKey(name))
+            {
+                var value = Attributes[name].Single();
+
+                if (value != null)
+                {
+                    switch (value)
+                    {
+                        case byte[] _value:
+                            return Encoding.UTF8.GetString(_value);
+                        case string _value:
+                            return _value;
+                        default:
+                            return value.ToString();
+                    }
+                }
+            }
+
+            return null;
         }
 
 
@@ -156,12 +196,8 @@ namespace MultiFactor.Radius.Adapter.Core
 
         public void CopyTo(IRadiusPacket packet)
         {
-            packet.Authenticator = Authenticator;
             packet.Attributes = Attributes;
-            //if (packet.Attributes.ContainsKey("Message-Authenticator"))
-            //{
-            //    packet.Attributes.Remove("Message-Authenticator");
-            //}
+            packet.Attributes.Remove("Proxy-State"); //should be newer
         }
 
 

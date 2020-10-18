@@ -3,6 +3,7 @@
 //https://github.com/MultifactorLab/MultiFactor.Radius.Adapter/blob/master/LICENSE.md
 
 using MultiFactor.Radius.Adapter.Core;
+using MultiFactor.Radius.Adapter.Server;
 using Serilog;
 using System;
 using System.DirectoryServices;
@@ -12,7 +13,7 @@ using System.Linq;
 using System.Net;
 using System.Text.RegularExpressions;
 
-namespace MultiFactor.Radius.Adapter.Server
+namespace MultiFactor.Radius.Adapter.Services
 {
     /// <summary>
     /// Service to interact with Active Directory
@@ -89,11 +90,6 @@ namespace MultiFactor.Radius.Adapter.Server
                         }
 
                         //check groups membership for radius reply conditional attributes
-                        var radiusReplyValuesMatchedUserGroup = _configuration
-                            .RadiusReplyAttributes
-                            .SelectMany(attr => attr.Value.Where(val => val.UserGroupCondition != null).Select(val => val.UserGroupCondition))
-                            .Distinct();
-
                         foreach(var attribute in _configuration.RadiusReplyAttributes)
                         {
                             foreach(var value in attribute.Value.Where(val => val.UserGroupCondition != null))

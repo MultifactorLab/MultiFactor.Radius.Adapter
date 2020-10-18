@@ -158,7 +158,7 @@ namespace MultiFactor.Radius.Adapter.Server
         /// </summary>
         internal void ParseAndProcess(byte[] packetBytes, IPEndPoint remoteEndpoint)
         {
-            var requestPacket = _radiusPacketParser.Parse(packetBytes, Encoding.ASCII.GetBytes(_configuration.RadiusSharedSecret));
+            var requestPacket = _radiusPacketParser.Parse(packetBytes, Encoding.UTF8.GetBytes(_configuration.RadiusSharedSecret));
             _logger.Debug($"Received {requestPacket.Code} from {remoteEndpoint} Id={requestPacket.Identifier}");
 
             var request = new PendingRequest { RemoteEndpoint = remoteEndpoint, RequestPacket = requestPacket };
@@ -180,7 +180,7 @@ namespace MultiFactor.Radius.Adapter.Server
         {
             if (request.ResponsePacket?.IsEapMessageChallenge == true)
             {
-                //ms-chap authentication in process, just proxy response
+                //EAP authentication in process, just proxy response
                 _logger.Debug($"Proxying EAP-Message Challenge to {request.RemoteEndpoint} Id={request.RequestPacket.Identifier}");
                 Send(request.ResponsePacket, request.RemoteEndpoint);
                 
@@ -209,7 +209,6 @@ namespace MultiFactor.Radius.Adapter.Server
 
             if (request.ResponseCode == PacketCode.AccessChallenge)
             {
-                //OTP from user required to process
                 responsePacket.AddAttribute("Reply-Message", "Enter OTP code");
                 responsePacket.AddAttribute("State", request.State); //state to match user authentication session
             }
@@ -233,7 +232,6 @@ namespace MultiFactor.Radius.Adapter.Server
             //request processed, clear all
             GC.Collect();
         }
-
 
         /// <summary>
         /// Dispose

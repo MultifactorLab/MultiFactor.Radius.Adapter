@@ -13,7 +13,7 @@ using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace MultiFactor.Radius.Adapter
+namespace MultiFactor.Radius.Adapter.Services
 {
     /// <summary>
     /// Service to interact with multifactor web api
@@ -54,10 +54,12 @@ namespace MultiFactor.Radius.Adapter
                 PassCode = GetPassCodeOrNull(userPassword)
             };
 
-            var response = SendRequest(url, payload, out var requestId);
-            state = requestId;
+            var response = SendRequest(url, payload);
+            var responseCode = ConvertToRadiusCode(response);
 
-            if (response == PacketCode.AccessAccept)
+            state = response?.Id;
+
+            if (responseCode == PacketCode.AccessAccept)
             {
                 if (_configuration.BypassSecondFactorPeriod > 0)
                 {
@@ -65,7 +67,7 @@ namespace MultiFactor.Radius.Adapter
                 }
             }
 
-            return response;
+            return responseCode;
         }
 
         public PacketCode VerifyOtpCode(string userName, string otpCode, string state)
@@ -78,15 +80,12 @@ namespace MultiFactor.Radius.Adapter
                 RequestId = state
             };
 
-            var response = SendRequest(url, payload, out var requestId);
-
-            return response;
+            var response = SendRequest(url, payload);
+            return ConvertToRadiusCode(response);
         }
 
-        private PacketCode SendRequest(string url, object payload, out string requestId)
+        private MultiFactorAccessRequest SendRequest(string url, object payload)
         {
-            requestId = null;
-
             try
             {
                 //make sure we can communicate securely
@@ -118,27 +117,35 @@ namespace MultiFactor.Radius.Adapter
                 if (!response.Success)
                 {
                     _logger.Warning($"Got unsuccessful response from API: {json}");
-                    return PacketCode.AccessReject; //access denied
                 }
 
-                switch (response.Model.Status)
-                {
-                    case "Granted":     //authenticated by push
-                        return PacketCode.AccessAccept;
-                    case "Denied":
-                        return PacketCode.AccessReject; //access denied
-                    case "AwaitingAuthentication":
-                        requestId = response.Model.Id;
-                        return PacketCode.AccessChallenge;  //otp code required
-                    default:
-                        _logger.Warning($"Got unexpected status from API: {response.Model.Status}");
-                        return PacketCode.AccessReject; //access denied
-                }
+                return response.Model;
             }
             catch (Exception ex)
             {
                 _logger.Error(ex, $"Multifactor API host unreachable: {url}");
-                return PacketCode.AccessReject; //access denied
+                return null;
+            }
+        }
+
+        private PacketCode ConvertToRadiusCode(MultiFactorAccessRequest multifactorAccessRequest)
+        {
+            if (multifactorAccessRequest == null)
+            {
+                return PacketCode.AccessReject;
+            }
+            
+            switch (multifactorAccessRequest.Status)
+            {
+                case "Granted":     //authenticated by push
+                    return PacketCode.AccessAccept;
+                case "Denied":
+                    return PacketCode.AccessReject; //access denied
+                case "AwaitingAuthentication":
+                    return PacketCode.AccessChallenge;  //otp code required
+                default:
+                    _logger.Warning($"Got unexpected status from API: {multifactorAccessRequest.Status}");
+                    return PacketCode.AccessReject; //access denied
             }
         }
 
@@ -236,6 +243,7 @@ namespace MultiFactor.Radius.Adapter
     {
         public string Id { get; set; }
         public string Status { get; set; }
+        public byte[] AuthenticatorResponse { get; set; }
     }
 
 }

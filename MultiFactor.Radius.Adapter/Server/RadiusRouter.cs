@@ -3,9 +3,11 @@
 //https://github.com/MultifactorLab/MultiFactor.Radius.Adapter/blob/master/LICENSE.md
 
 using MultiFactor.Radius.Adapter.Core;
+using MultiFactor.Radius.Adapter.Services;
 using Serilog;
 using System;
 using System.Collections.Concurrent;
+using System.Linq;
 using System.Text;
 
 namespace MultiFactor.Radius.Adapter.Server
@@ -21,7 +23,7 @@ namespace MultiFactor.Radius.Adapter.Server
         private ActiveDirectoryService _activeDirectoryService;
         private MultiFactorApiClient _multifactorApiClient;
         public event EventHandler<PendingRequest> RequestProcessed;
-        private readonly ConcurrentDictionary<string, PendingRequest> _stateChallengependingRequests = new ConcurrentDictionary<string, PendingRequest>();
+        private readonly ConcurrentDictionary<string, PendingRequest> _stateChallengePendingRequests = new ConcurrentDictionary<string, PendingRequest>();
 
         public RadiusRouter(Configuration configuration, IRadiusPacketParser packetParser, ILogger logger)
         {
@@ -35,61 +37,70 @@ namespace MultiFactor.Radius.Adapter.Server
 
         public void HandleRequest(PendingRequest request)
         {
-            if (request.RequestPacket.Code != PacketCode.AccessRequest)
+            try
             {
-                _logger.Warning($"Unprocessable packet type: {request.RequestPacket.Code}");
-                return;
-            }
-
-            if (request.RequestPacket.Attributes.ContainsKey("State")) //Access-Challenge response 
-            {
-                if (request.RequestPacket.Attributes.ContainsKey("User-Password")) //With OTP code
+                if (request.RequestPacket.Code != PacketCode.AccessRequest)
                 {
-                    //second request with state and one time password
-                    var mulfactorRequestId = Encoding.ASCII.GetString(request.RequestPacket.GetAttribute<byte[]>("State"));
-                    request.ResponseCode = VerifySecondFactorOtpCode(request, mulfactorRequestId);
-                    request.State = mulfactorRequestId;  //state for Access-Challenge message if otp is wrong (3 times allowed)
-
-                    RequestProcessed?.Invoke(this, request);
-                    return; //stop authentication process after otp code verification
+                    _logger.Warning($"Unprocessable packet type: {request.RequestPacket.Code}");
+                    return;
                 }
-            }
 
-            var firstFactorAuthenticationResultCode = ProcessFirstAuthenticationFactor(request);
-            if (firstFactorAuthenticationResultCode != PacketCode.AccessAccept)
-            {
-                //first factor authentication rejected
-                request.ResponseCode = firstFactorAuthenticationResultCode;
+                if (request.RequestPacket.Attributes.ContainsKey("State")) //Access-Challenge response 
+                {
+                    var receivedState = request.RequestPacket.GetString("State");
+
+                    if (_stateChallengePendingRequests.ContainsKey(receivedState))
+                    {
+                        //second request with Multifactor challenge
+                        request.ResponseCode = VerifySecondFactorOtpCode(request, receivedState);
+                        request.State = receivedState;  //state for Access-Challenge message if otp is wrong (3 times allowed)
+
+                        RequestProcessed?.Invoke(this, request);
+                        return; //stop authentication process after otp code verification
+                    }
+                }
+
+                var firstFactorAuthenticationResultCode = ProcessFirstAuthenticationFactor(request);
+                if (firstFactorAuthenticationResultCode != PacketCode.AccessAccept)
+                {
+                    //first factor authentication rejected
+                    request.ResponseCode = firstFactorAuthenticationResultCode;
+                    RequestProcessed?.Invoke(this, request);
+
+                    //stop authencation process
+                    return;
+                }
+
+                if (request.Bypass2Fa)
+                {
+                    //second factor not trquired
+                    var userName = request.RequestPacket.UserName;
+                    _logger.Information($"Bypass second factor for user {userName}");
+
+                    request.ResponseCode = PacketCode.AccessAccept;
+                    RequestProcessed?.Invoke(this, request);
+
+                    //stop authencation process
+                    return;
+                }
+
+                var secondFactorAuthenticationResultCode = ProcessSecondAuthenticationFactor(request, out var state);
+
+                request.ResponseCode = secondFactorAuthenticationResultCode;
+                request.State = state;  //state for Access-Challenge message
+
+                if (request.ResponseCode == PacketCode.AccessChallenge)
+                {
+                    AddStateChallengePendingRequest(state, request);
+                }
+
                 RequestProcessed?.Invoke(this, request);
 
-                //stop authencation process
-                return; 
             }
-
-            if (request.Bypass2Fa)
+            catch(Exception ex)
             {
-                //second factor not trquired
-                var userName = request.RequestPacket.GetAttribute<string>("User-Name");
-                _logger.Information($"Bypass second factor for user {userName}");
-
-                request.ResponseCode = PacketCode.AccessAccept;
-                RequestProcessed?.Invoke(this, request);
-
-                //stop authencation process
-                return;
+                _logger.Error(ex, "HandleRequest");
             }
-
-            var secondFactorAuthenticationResultCode = ProcessSecondAuthenticationFactor(request, out var state);
-
-            request.ResponseCode = secondFactorAuthenticationResultCode;
-            request.State = state;  //state for Access-Challenge message
-
-            if (request.ResponseCode == PacketCode.AccessChallenge)
-            {
-                AddStateChallengePendingRequest(state, request);
-            }
-
-            RequestProcessed?.Invoke(this, request);
         }
 
         private PacketCode ProcessFirstAuthenticationFactor(PendingRequest request)
@@ -112,7 +123,7 @@ namespace MultiFactor.Radius.Adapter.Server
         /// </summary>
         private PacketCode ProcessActiveDirectoryAuthentication(PendingRequest request)
         {
-            var userName = request.RequestPacket.GetAttribute<string>("User-Name");
+            var userName = request.RequestPacket.UserName;
 
             if (string.IsNullOrEmpty(userName))
             {
@@ -121,7 +132,7 @@ namespace MultiFactor.Radius.Adapter.Server
             }
 
             //user-password attribute hold second request otp from user
-            var password = request.RequestPacket.GetAttribute<string>("User-Password");
+            var password = request.RequestPacket.GetString("User-Password");
 
             if (string.IsNullOrEmpty(password))
             {
@@ -156,7 +167,7 @@ namespace MultiFactor.Radius.Adapter.Server
                         
                         if (responsePacket.Code == PacketCode.AccessAccept)
                         {
-                            var userName = request.RequestPacket.GetAttribute<string>("User-Name");
+                            var userName = request.RequestPacket.UserName;
                             _logger.Information($"User '{userName}' credential and status verified successfully at {_configuration.NpsServerEndpoint}");
                         }
 
@@ -184,7 +195,7 @@ namespace MultiFactor.Radius.Adapter.Server
         private PacketCode ProcessSecondAuthenticationFactor(PendingRequest request, out string state)
         {
             state = null;
-            var userName = request.RequestPacket.GetAttribute<string>("User-Name");
+            var userName = request.RequestPacket.UserName;
 
             if (string.IsNullOrEmpty(userName))
             {
@@ -192,10 +203,10 @@ namespace MultiFactor.Radius.Adapter.Server
                 return PacketCode.AccessReject;
             }
 
-            var remoteHost = request.RequestPacket.GetAttribute<string>("MS-Client-Machine-Account-Name");
-            remoteHost = remoteHost ?? request.RequestPacket.GetAttribute<string>("MS-RAS-Client-Name");
+            var remoteHost = request.RequestPacket.GetString("MS-Client-Machine-Account-Name");
+            remoteHost = remoteHost ?? request.RequestPacket.GetString("MS-RAS-Client-Name");
 
-            var userPassword = request.RequestPacket.GetAttribute<string>("User-Password");
+            var userPassword = request.RequestPacket.GetString("User-Password");
 
             var response = _multifactorApiClient.CreateSecondFactorRequest(remoteHost, userName, userPassword, request.EmailAddress, request.UserPhone, out var multifactorStateId);
             state = multifactorStateId;
@@ -213,7 +224,7 @@ namespace MultiFactor.Radius.Adapter.Server
         /// </summary>
         private PacketCode VerifySecondFactorOtpCode(PendingRequest request, string state)
         {
-            var userName = request.RequestPacket.GetAttribute<string>("User-Name");
+            var userName = request.RequestPacket.UserName;
 
             if (string.IsNullOrEmpty(userName))
             {
@@ -221,16 +232,42 @@ namespace MultiFactor.Radius.Adapter.Server
                 return PacketCode.AccessReject;
             }
 
-            //user-password attribute hold second request otp from user
-            var otpCode = request.RequestPacket.GetAttribute<string>("User-Password");
-
-            if (string.IsNullOrEmpty(otpCode))
+            PacketCode response;
+            switch (request.RequestPacket.AuthenticationType)
             {
-                _logger.Warning($"Can't find User-Password with OTP code in message Id={request.RequestPacket.Identifier} from {request.RemoteEndpoint}");
-                return PacketCode.AccessReject;
+                case AuthenticationType.PAP:
+                    //user-password attribute holds second request otp from user
+                    var otpCode = request.RequestPacket.GetString("User-Password");
+
+                    if (string.IsNullOrEmpty(otpCode))
+                    {
+                        _logger.Warning($"Can't find User-Password with OTP code in message Id={request.RequestPacket.Identifier} from {request.RemoteEndpoint}");
+                        return PacketCode.AccessReject;
+                    }
+
+                    response = _multifactorApiClient.VerifyOtpCode(userName, otpCode, state);
+                    
+                    break;
+                case AuthenticationType.MSCHAP2:
+                    var msChapResponse = request.RequestPacket.GetAttribute<byte[]>("MS-CHAP2-Response");
+
+                    if (msChapResponse == null)
+                    {
+                        _logger.Warning($"Can't find MS-CHAP2-Response with OTP code in message Id={request.RequestPacket.Identifier} from {request.RemoteEndpoint}");
+                        return PacketCode.AccessReject;
+                    }
+
+                    //forti behaviour
+                    var otpData = msChapResponse.Skip(2).Take(6).ToArray();
+                    var code = Encoding.ASCII.GetString(otpData);
+                    response = _multifactorApiClient.VerifyOtpCode(userName, code, state);
+
+                    break;
+                default:
+                    _logger.Warning($"Unable to process {request.RequestPacket.AuthenticationType} challange in message Id={request.RequestPacket.Identifier} from {request.RemoteEndpoint}");
+                    return PacketCode.AccessReject;
             }
 
-            var response = _multifactorApiClient.VerifyOtpCode(userName, otpCode, state);
 
             switch (response)
             {
@@ -240,6 +277,7 @@ namespace MultiFactor.Radius.Adapter.Server
                     if (stateChallengePendingRequest != null)
                     {
                         request.UserGroups = stateChallengePendingRequest.UserGroups;
+                        request.ResponsePacket = stateChallengePendingRequest.ResponsePacket;
                     }
                     break;
                 case PacketCode.AccessReject:
@@ -255,7 +293,7 @@ namespace MultiFactor.Radius.Adapter.Server
         /// </summary>
         private void AddStateChallengePendingRequest(string state, PendingRequest request)
         {
-            if (!_stateChallengependingRequests.TryAdd(state, request))
+            if (!_stateChallengePendingRequests.TryAdd(state, request))
             {
                 _logger.Error($"Unable to cache request Id={request.RequestPacket.Identifier}");
             }
@@ -266,7 +304,7 @@ namespace MultiFactor.Radius.Adapter.Server
         /// </summary>
         private PendingRequest GetStateChallengeRequest(string state)
         {
-            if (_stateChallengependingRequests.TryRemove(state, out PendingRequest request))
+            if (_stateChallengePendingRequests.TryRemove(state, out PendingRequest request))
             {
                 return request;
             }
@@ -281,7 +319,7 @@ namespace MultiFactor.Radius.Adapter.Server
         /// <param name="state"></param>
         private void RemoveStateChallengeRequest(string state)
         {
-            _stateChallengependingRequests.TryRemove(state, out PendingRequest _);
+            _stateChallengePendingRequests.TryRemove(state, out PendingRequest _);
         }
     }
 }

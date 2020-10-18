@@ -2,11 +2,10 @@
 //Please see licence at 
 //https://github.com/MultifactorLab/MultiFactor.Radius.Adapter/blob/master/LICENSE.md
 
-using MultiFactor.Radius.Adapter.Server;
 using System;
 using System.Linq;
 
-namespace MultiFactor.Radius.Adapter
+namespace MultiFactor.Radius.Adapter.Server
 {
     /// <summary>
     /// Radius Access-Accept message extra element

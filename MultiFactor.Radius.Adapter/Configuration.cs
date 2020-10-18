@@ -3,6 +3,7 @@
 //https://github.com/MultifactorLab/MultiFactor.Radius.Adapter/blob/master/LICENSE.md
 
 using MultiFactor.Radius.Adapter.Core;
+using MultiFactor.Radius.Adapter.Server;
 using System;
 using System.Collections.Generic;
 using System.Configuration;

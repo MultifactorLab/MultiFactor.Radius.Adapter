@@ -52,9 +52,13 @@ namespace MultiFactor.Radius.Adapter.Core
             get;
         }
         bool IsEapMessageChallenge { get; }
+        AuthenticationType AuthenticationType { get; }
+        string UserName { get; }
+
         IRadiusPacket CreateResponsePacket(PacketCode responseCode);
 
         T GetAttribute<T>(string name);
+        string GetString(string name);
 
         void AddAttribute(string name, string value);
         void AddAttribute(string name, uint value);
