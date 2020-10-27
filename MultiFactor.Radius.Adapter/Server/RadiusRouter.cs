@@ -211,11 +211,6 @@ namespace MultiFactor.Radius.Adapter.Server
             var response = _multifactorApiClient.CreateSecondFactorRequest(remoteHost, userName, userPassword, request.EmailAddress, request.UserPhone, out var multifactorStateId);
             state = multifactorStateId;
 
-            if (response == PacketCode.AccessAccept)
-            {
-                _logger.Information($"Second factor for user '{userName}' verifyed successfully");
-            }
-
             return response;
         }
 
@@ -268,11 +263,9 @@ namespace MultiFactor.Radius.Adapter.Server
                     return PacketCode.AccessReject;
             }
 
-
             switch (response)
             {
                 case PacketCode.AccessAccept:
-                    _logger.Information($"Second factor for user '{userName}' verifyed successfully");
                     var stateChallengePendingRequest = GetStateChallengeRequest(state);
                     if (stateChallengePendingRequest != null)
                     {

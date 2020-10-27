@@ -59,8 +59,10 @@ namespace MultiFactor.Radius.Adapter.Services
 
             state = response?.Id;
 
-            if (responseCode == PacketCode.AccessAccept)
+            if (responseCode == PacketCode.AccessAccept && !response.Bypassed)
             {
+                _logger.Information($"Second factor for user '{userName}' verifyed successfully");
+
                 if (_configuration.BypassSecondFactorPeriod > 0)
                 {
                     SetCache(remoteHost, userName);
@@ -81,7 +83,14 @@ namespace MultiFactor.Radius.Adapter.Services
             };
 
             var response = SendRequest(url, payload);
-            return ConvertToRadiusCode(response);
+            var responseCode = ConvertToRadiusCode(response);
+
+            if (responseCode == PacketCode.AccessAccept && !response.Bypassed)
+            {
+                _logger.Information($"Second factor for user '{userName}' verifyed successfully");
+            }
+
+            return responseCode;
         }
 
         private MultiFactorAccessRequest SendRequest(string url, object payload)
@@ -90,6 +99,7 @@ namespace MultiFactor.Radius.Adapter.Services
             {
                 //make sure we can communicate securely
                 ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
+                ServicePointManager.DefaultConnectionLimit = 100;
 
                 var json = JsonConvert.SerializeObject(payload);
 
@@ -124,6 +134,13 @@ namespace MultiFactor.Radius.Adapter.Services
             catch (Exception ex)
             {
                 _logger.Error(ex, $"Multifactor API host unreachable: {url}");
+
+                if (_configuration.BypassSecondFactorWhenApiUnreachable)
+                {
+                    _logger.Warning("Bypass second factor");
+                    return MultiFactorAccessRequest.Bypass;
+                }
+
                 return null;
             }
         }
@@ -243,7 +260,15 @@ namespace MultiFactor.Radius.Adapter.Services
     {
         public string Id { get; set; }
         public string Status { get; set; }
-        public byte[] AuthenticatorResponse { get; set; }
-    }
 
+        public bool Bypassed { get; set; }
+
+        public static MultiFactorAccessRequest Bypass
+        {
+            get
+            {
+                return new MultiFactorAccessRequest { Status = "Granted", Bypassed = true };
+            }
+        } 
+    }
 }

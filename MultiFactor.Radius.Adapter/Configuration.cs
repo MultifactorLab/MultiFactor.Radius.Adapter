@@ -16,6 +16,12 @@ namespace MultiFactor.Radius.Adapter
     /// </summary>
     public class Configuration
     {
+        public Configuration()
+        {
+            BypassSecondFactorWhenApiUnreachable = true; //by default
+        }
+
+
         /// <summary>
         /// This service RADIUS UDP Server endpoint
         /// </summary>
@@ -35,6 +41,11 @@ namespace MultiFactor.Radius.Adapter
         /// Bypass second factor within specified minutes period for same client-machine/user-name
         /// </summary>
         public int? BypassSecondFactorPeriod { get; set; }
+
+        /// <summary>
+        /// Bypass second factor when MultiFactor API is unreachable
+        /// </summary>
+        public bool BypassSecondFactorWhenApiUnreachable { get; set; }
 
         #region ActiveDirectory Authentication settings
 
@@ -116,6 +127,7 @@ namespace MultiFactor.Radius.Adapter
             var firstFactorAuthenticationSourceSettings = appSettings["first-factor-authentication-source"];
             var apiUrlSetting = appSettings["multifactor-api-url"];
             var bypassSecondFactorPeriodSetting = appSettings["bypass-second-factor-period"];
+            var bypassSecondFactorWhenApiUnreachableSetting = appSettings["bypass-second-factor-when-api-unreachable"];
             var nasIdentifierSetting = appSettings["multifactor-nas-identifier"];
             var multiFactorSharedSecretSetting = appSettings["multifactor-shared-secret"];
             var logLevelSetting = appSettings["logging-level"];
@@ -158,7 +170,6 @@ namespace MultiFactor.Radius.Adapter
                 throw new Exception("Configuration error: Can't parse 'adapter-server-endpoint' value");
             }
 
-
             var configuration = new Configuration
             {
                 ServiceServerEndpoint = serviceServerEndpoint,
@@ -178,7 +189,15 @@ namespace MultiFactor.Radius.Adapter
                 }
             }
 
-            switch(configuration.FirstFactorAuthenticationSource)
+            if (bypassSecondFactorWhenApiUnreachableSetting != null)
+            {
+                if (bool.TryParse(bypassSecondFactorWhenApiUnreachableSetting, out var bypassSecondFactorWhenApiUnreachable))
+                {
+                    configuration.BypassSecondFactorWhenApiUnreachable = bypassSecondFactorWhenApiUnreachable;
+                }
+            }
+
+            switch (configuration.FirstFactorAuthenticationSource)
             {
                 case AuthenticationSource.ActiveDirectory:
                     LoadActiveDirectoryAuthenticationSourceSettings(configuration);
