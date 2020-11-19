@@ -115,6 +115,13 @@ namespace MultiFactor.Radius.Adapter.Services
                 {
                     web.Headers.Add("Content-Type", "application/json");
                     web.Headers.Add("Authorization", "Basic " + auth);
+
+                    if (!string.IsNullOrEmpty(_configuration.ApiProxy))
+                    {
+                        _logger.Debug("Using proxy " + _configuration.ApiProxy);
+                        web.Proxy = new WebProxy(_configuration.ApiProxy);
+                    }
+
                     responseData = web.UploadData(url, "POST", requestData);
                 }
 

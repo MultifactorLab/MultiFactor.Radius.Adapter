@@ -94,6 +94,11 @@ namespace MultiFactor.Radius.Adapter
         /// </summary>
         public string ApiUrl { get; set; }
         /// <summary>
+        /// HTTP Proxy for API
+        /// </summary>
+        public string ApiProxy { get; set; }
+
+        /// <summary>
         /// Multifactor API KEY
         /// </summary>
         public string NasIdentifier { get; set; }
@@ -126,6 +131,7 @@ namespace MultiFactor.Radius.Adapter
             var radiusSharedSecretSetting = appSettings["radius-shared-secret"];
             var firstFactorAuthenticationSourceSettings = appSettings["first-factor-authentication-source"];
             var apiUrlSetting = appSettings["multifactor-api-url"];
+            var apiProxySetting = appSettings["multifactor-api-proxy"];
             var bypassSecondFactorPeriodSetting = appSettings["bypass-second-factor-period"];
             var bypassSecondFactorWhenApiUnreachableSetting = appSettings["bypass-second-factor-when-api-unreachable"];
             var nasIdentifierSetting = appSettings["multifactor-nas-identifier"];
@@ -176,6 +182,7 @@ namespace MultiFactor.Radius.Adapter
                 RadiusSharedSecret = radiusSharedSecretSetting,
                 FirstFactorAuthenticationSource = firstFactorAuthenticationSource,
                 ApiUrl = apiUrlSetting,
+                ApiProxy = apiProxySetting,
                 NasIdentifier = nasIdentifierSetting,
                 MultiFactorSharedSecret = multiFactorSharedSecretSetting,
                 LogLevel = logLevelSetting
