@@ -21,6 +21,7 @@ namespace MultiFactor.Radius.Adapter
             BypassSecondFactorWhenApiUnreachable = true; //by default
         }
 
+        #region general settings
 
         /// <summary>
         /// This service RADIUS UDP Server endpoint
@@ -46,6 +47,8 @@ namespace MultiFactor.Radius.Adapter
         /// Bypass second factor when MultiFactor API is unreachable
         /// </summary>
         public bool BypassSecondFactorWhenApiUnreachable { get; set; }
+
+        #endregion
 
         #region ActiveDirectory Authentication settings
 
@@ -73,6 +76,21 @@ namespace MultiFactor.Radius.Adapter
         /// Use ActiveDirectory User general properties mobile phone number (Optional)
         /// </summary>
         public bool UseActiveDirectoryMobileUserPhone { get; set; }
+
+        /// <summary>
+        /// Load user profile from AD and check group membership and 
+        /// </summary>
+        public bool CheckMembership
+        {
+            get
+            {
+                return ActiveDirectoryDomain != null &&
+                    (ActiveDirectoryGroup != null || 
+                    ActiveDirectory2FaGroup != null ||
+                    UseActiveDirectoryUserPhone ||
+                    UseActiveDirectoryMobileUserPhone);
+            }
+        }
 
         #endregion
 
@@ -207,10 +225,16 @@ namespace MultiFactor.Radius.Adapter
             switch (configuration.FirstFactorAuthenticationSource)
             {
                 case AuthenticationSource.ActiveDirectory:
-                    LoadActiveDirectoryAuthenticationSourceSettings(configuration);
+                    //active directory authentication and membership settings
+                    LoadActiveDirectoryAuthenticationSourceSettings(configuration, true);
                     break;
                 case AuthenticationSource.Radius:
+                    //radius authentication settings
                     LoadRadiusAuthenticationSourceSettings(configuration);
+                    break;
+                case AuthenticationSource.None:
+                    //active directory membership only settings
+                    LoadActiveDirectoryAuthenticationSourceSettings(configuration, false);
                     break;
             }
 
@@ -219,7 +243,7 @@ namespace MultiFactor.Radius.Adapter
             return configuration;
         }
 
-        private static void LoadActiveDirectoryAuthenticationSourceSettings(Configuration configuration)
+        private static void LoadActiveDirectoryAuthenticationSourceSettings(Configuration configuration, bool mandatory)
         {
             var appSettings = ConfigurationManager.AppSettings;
 
@@ -229,7 +253,7 @@ namespace MultiFactor.Radius.Adapter
             var useActiveDirectoryUserPhoneSetting = appSettings["use-active-directory-user-phone"];
             var useActiveDirectoryMobileUserPhoneSetting = appSettings["use-active-directory-mobile-user-phone"];
 
-            if (string.IsNullOrEmpty(activeDirectoryDomainSetting))
+            if (mandatory && string.IsNullOrEmpty(activeDirectoryDomainSetting))
             {
                 throw new Exception("Configuration error: 'active-directory-domain' element not found");
             }

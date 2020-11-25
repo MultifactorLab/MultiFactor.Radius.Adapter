@@ -112,6 +112,10 @@ namespace MultiFactor.Radius.Adapter.Server
                 case AuthenticationSource.Radius:           //RADIUS auth
                     return ProcessRadiusAuthentication(request);
                 case AuthenticationSource.None:
+                    if (_configuration.CheckMembership)     //check membership without authentication
+                    {
+                        return ProcessActiveDirectoryMembership(request);
+                    }
                     return PacketCode.AccessAccept;         //first factor not required
                 default:                                    //unknown source
                     throw new NotImplementedException(_configuration.FirstFactorAuthenticationSource.ToString());
@@ -140,7 +144,25 @@ namespace MultiFactor.Radius.Adapter.Server
                 return PacketCode.AccessReject;
             }
 
-            var isValid = _activeDirectoryService.VerifyCredential(userName, password, request);
+            var isValid = _activeDirectoryService.VerifyCredentialAndMembership(userName, password, request);
+
+            return isValid ? PacketCode.AccessAccept : PacketCode.AccessReject;
+        }
+
+        /// <summary>
+        /// Validate user membership within Active Directory Domain withoout password authentication
+        /// </summary>
+        private PacketCode ProcessActiveDirectoryMembership(PendingRequest request)
+        {
+            var userName = request.RequestPacket.UserName;
+
+            if (string.IsNullOrEmpty(userName))
+            {
+                _logger.Warning($"Can't find User-Name in message Id={request.RequestPacket.Identifier} from {request.RemoteEndpoint}");
+                return PacketCode.AccessReject;
+            }
+
+            var isValid = _activeDirectoryService.VerifyMembership(userName, request);
 
             return isValid ? PacketCode.AccessAccept : PacketCode.AccessReject;
         }

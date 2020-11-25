@@ -35,7 +35,7 @@ namespace MultiFactor.Radius.Adapter.Services
         /// <summary>
         /// Verify User Name, Password, User Status and Policy against Active Directory
         /// </summary>
-        public bool VerifyCredential(string userName, string password, PendingRequest request)
+        public bool VerifyCredentialAndMembership(string userName, string password, PendingRequest request)
         {
             if (string.IsNullOrEmpty(userName))
             {
@@ -60,79 +60,9 @@ namespace MultiFactor.Radius.Adapter.Services
                     connection.Bind();
 
                     _logger.Information($"User '{user.Name}' credential and status verified successfully at {_configuration.ActiveDirectoryDomain}");
-
-                    var domain = LdapIdentity.FqdnToDn(_configuration.ActiveDirectoryDomain);
-
-                    LoadForestSchema(connection, domain);
-
-                    var isProfileLoaded = LoadProfile(connection, domain, user, out var profile);
-                    if (!isProfileLoaded)
-                    {
-                        return false;
-                    }
-
-                    var checkGroupMembership = !string.IsNullOrEmpty(_configuration.ActiveDirectoryGroup);
-                    //user must be member of security group
-                    if (checkGroupMembership)
-                    {
-                        var isMemberOf = IsMemberOf(connection, profile.BaseDn, user, _configuration.ActiveDirectoryGroup);
-
-                        if (!isMemberOf)
-                        {
-                            _logger.Warning($"User '{user.Name}' is not member of '{_configuration.ActiveDirectoryGroup}' group in {profile.BaseDn.Name}");
-                            return false;
-                        }
-
-                        _logger.Debug($"User '{user.Name}' is member of '{_configuration.ActiveDirectoryGroup}' group in {profile.BaseDn.Name}");
-                    }
-
-                    var onlyMembersOfGroupMustProcess2faAuthentication = !string.IsNullOrEmpty(_configuration.ActiveDirectory2FaGroup);
-                    //only users from group must process 2fa
-                    if (onlyMembersOfGroupMustProcess2faAuthentication)
-                    {
-                        var isMemberOf = IsMemberOf(connection, profile.BaseDn, user, _configuration.ActiveDirectory2FaGroup);
-
-                        if (isMemberOf)
-                        {
-                            _logger.Debug($"User '{user.Name}' is member of '{_configuration.ActiveDirectory2FaGroup}' in {profile.BaseDn.Name}");
-                        }
-                        else
-                        {
-                            _logger.Information($"User '{user.Name}' is not member of '{_configuration.ActiveDirectory2FaGroup}' in {profile.BaseDn.Name}");
-                            request.Bypass2Fa = true;
-                        }
-                    }
-
-                    //check groups membership for radius reply conditional attributes
-                    foreach (var attribute in _configuration.RadiusReplyAttributes)
-                    {
-                        foreach (var value in attribute.Value.Where(val => val.UserGroupCondition != null))
-                        {
-                            if (IsMemberOf(connection, profile.BaseDn, user, value.UserGroupCondition))
-                            {
-                                _logger.Information($"User '{user.Name}' is member of '{value.UserGroupCondition}' in {profile.BaseDn.Name}. Adding attribute '{attribute.Key}:{value.Value}' to reply");
-                                request.UserGroups.Add(value.UserGroupCondition);
-                            }
-                            else
-                            {
-                                _logger.Debug($"User '{user.Name}' is not member of '{value.UserGroupCondition}' in {profile.BaseDn.Name}");
-                            }
-                        }
-                    }
-
-                    if (_configuration.UseActiveDirectoryUserPhone)
-                    {
-                        request.UserPhone = profile.Phone;
-                    }
-                    if (_configuration.UseActiveDirectoryMobileUserPhone)
-                    {
-                        request.UserPhone = profile.Mobile;
-                    }
-                    request.EmailAddress = profile.Email;
+             
+                    return VerifyMembership(connection, user, request);
                 }
-
-
-                return true; //OK
             }
             catch (LdapException lex)
             {
@@ -154,6 +84,110 @@ namespace MultiFactor.Radius.Adapter.Services
             }
 
             return false;
+        }
+
+        public bool VerifyMembership(string userName, PendingRequest request)
+        {
+            if (string.IsNullOrEmpty(userName))
+            {
+                throw new ArgumentNullException(nameof(userName));
+            }
+
+            var user = LdapIdentity.ParseUser(userName);
+
+            try
+            {
+                _logger.Debug($"Verifying user '{user.Name}' membership at {_configuration.ActiveDirectoryDomain}");
+
+                using (var connection = new LdapConnection(_configuration.ActiveDirectoryDomain))
+                {
+                    connection.SessionOptions.RootDseCache = true;
+                    connection.Bind();
+
+                    return VerifyMembership(connection, user, request);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, $"Verification user '{user.Name}' membership at {_configuration.ActiveDirectoryDomain} failed");
+                _logger.Information("Run MultiFactor.Raduis.Adapter as user with domain read permissions (basically any domain user)");
+            }
+
+            return false;
+        }
+
+        private bool VerifyMembership(LdapConnection connection, LdapIdentity user, PendingRequest request)
+        {
+            var domain = LdapIdentity.FqdnToDn(_configuration.ActiveDirectoryDomain);
+
+            LoadForestSchema(connection, domain);
+
+            var isProfileLoaded = LoadProfile(connection, domain, user, out var profile);
+            if (!isProfileLoaded)
+            {
+                return false;
+            }
+
+            var checkGroupMembership = !string.IsNullOrEmpty(_configuration.ActiveDirectoryGroup);
+            //user must be member of security group
+            if (checkGroupMembership)
+            {
+                var isMemberOf = IsMemberOf(connection, profile.BaseDn, user, _configuration.ActiveDirectoryGroup);
+
+                if (!isMemberOf)
+                {
+                    _logger.Warning($"User '{user.Name}' is not member of '{_configuration.ActiveDirectoryGroup}' group in {profile.BaseDn.Name}");
+                    return false;
+                }
+
+                _logger.Debug($"User '{user.Name}' is member of '{_configuration.ActiveDirectoryGroup}' group in {profile.BaseDn.Name}");
+            }
+
+            var onlyMembersOfGroupMustProcess2faAuthentication = !string.IsNullOrEmpty(_configuration.ActiveDirectory2FaGroup);
+            //only users from group must process 2fa
+            if (onlyMembersOfGroupMustProcess2faAuthentication)
+            {
+                var isMemberOf = IsMemberOf(connection, profile.BaseDn, user, _configuration.ActiveDirectory2FaGroup);
+
+                if (isMemberOf)
+                {
+                    _logger.Debug($"User '{user.Name}' is member of '{_configuration.ActiveDirectory2FaGroup}' in {profile.BaseDn.Name}");
+                }
+                else
+                {
+                    _logger.Information($"User '{user.Name}' is not member of '{_configuration.ActiveDirectory2FaGroup}' in {profile.BaseDn.Name}");
+                    request.Bypass2Fa = true;
+                }
+            }
+
+            //check groups membership for radius reply conditional attributes
+            foreach (var attribute in _configuration.RadiusReplyAttributes)
+            {
+                foreach (var value in attribute.Value.Where(val => val.UserGroupCondition != null))
+                {
+                    if (IsMemberOf(connection, profile.BaseDn, user, value.UserGroupCondition))
+                    {
+                        _logger.Information($"User '{user.Name}' is member of '{value.UserGroupCondition}' in {profile.BaseDn.Name}. Adding attribute '{attribute.Key}:{value.Value}' to reply");
+                        request.UserGroups.Add(value.UserGroupCondition);
+                    }
+                    else
+                    {
+                        _logger.Debug($"User '{user.Name}' is not member of '{value.UserGroupCondition}' in {profile.BaseDn.Name}");
+                    }
+                }
+            }
+
+            if (_configuration.UseActiveDirectoryUserPhone)
+            {
+                request.UserPhone = profile.Phone;
+            }
+            if (_configuration.UseActiveDirectoryMobileUserPhone)
+            {
+                request.UserPhone = profile.Mobile;
+            }
+            request.EmailAddress = profile.Email;
+
+            return true;
         }
 
         private void LoadForestSchema(LdapConnection connection, LdapIdentity root)
