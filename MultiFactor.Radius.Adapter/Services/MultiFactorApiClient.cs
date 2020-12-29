@@ -31,7 +31,7 @@ namespace MultiFactor.Radius.Adapter.Services
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
-        public PacketCode CreateSecondFactorRequest(string remoteHost, string userName, string userPassword, string email, string userPhone, out string state)
+        public PacketCode CreateSecondFactorRequest(string remoteHost, string userName, string userPassword, string displayName, string email, string userPhone, out string state)
         {
             state = null;
             
@@ -49,6 +49,7 @@ namespace MultiFactor.Radius.Adapter.Services
             var payload = new
             {
                 Identity = userName,
+                Name = displayName,
                 Email = email,
                 Phone = userPhone,
                 PassCode = GetPassCodeOrNull(userPassword)

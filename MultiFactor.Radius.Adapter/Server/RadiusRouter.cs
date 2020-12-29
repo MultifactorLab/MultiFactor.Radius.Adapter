@@ -230,7 +230,7 @@ namespace MultiFactor.Radius.Adapter.Server
 
             var userPassword = request.RequestPacket.GetString("User-Password");
 
-            var response = _multifactorApiClient.CreateSecondFactorRequest(remoteHost, userName, userPassword, request.EmailAddress, request.UserPhone, out var multifactorStateId);
+            var response = _multifactorApiClient.CreateSecondFactorRequest(remoteHost, userName, userPassword, request.DisplayName, request.EmailAddress, request.UserPhone, out var multifactorStateId);
             state = multifactorStateId;
 
             return response;

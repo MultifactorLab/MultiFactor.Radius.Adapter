@@ -185,6 +185,8 @@ namespace MultiFactor.Radius.Adapter.Services
             {
                 request.UserPhone = profile.Mobile;
             }
+
+            request.DisplayName = profile.DisplayName;
             request.EmailAddress = profile.Email;
 
             return true;
@@ -285,7 +287,7 @@ namespace MultiFactor.Radius.Adapter.Services
         {
             profile = null;
 
-            var attributes = new[] { "DistinguishedName", "mail", "telephoneNumber", "mobile" };
+            var attributes = new[] { "DistinguishedName", "displayName", "mail", "telephoneNumber", "mobile" };
             var searchFilter = $"(&(objectClass=user)({user.TypeName}={user.Name}))";
 
             var baseDn = SelectBestDomainToQuery(user, domain);
@@ -306,6 +308,7 @@ namespace MultiFactor.Radius.Adapter.Services
             {
                 BaseDn = LdapIdentity.BaseDn(entry.DistinguishedName),
                 DistinguishedName = entry.DistinguishedName,
+                DisplayName = entry.Attributes["displayName"]?[0]?.ToString(),
                 Email = entry.Attributes["mail"]?[0]?.ToString(),
                 Phone = entry.Attributes["telephoneNumber"]?[0]?.ToString(),
                 Mobile = entry.Attributes["mobile"]?[0]?.ToString(),
