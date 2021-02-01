@@ -1,49 +1,56 @@
-# Лицензионное соглашение на использование компонента «Multifactor Radius Adapter»
+# License Agreement for the use of the component "Multifactor Radius Adapter".
 
-# ООО «МУЛЬТИФАКТОР»
+_Also available in other languages: [Р СѓСЃСЃРєРёР№](LICENSE.ru.md)_
 
-Уважаемый Пользователь! Перед началом установки, копирования либо иного использования Компонента внимательно ознакомьтесь с условиями настоящего Соглашения, являющегося стандартной формой договора присоединения и заключаемого в письменной или иной форме, предусмотренной действующим законодательством Российской Федерации. Если вы не согласны с условиями настоящего Соглашения, вы не можете использовать Компонент. Установка, запуск или иное начало использования Компонента означает Ваше полное согласие со всеми условиями настоящего Соглашения и его надлежащее заключение в порядке, предусмотренном в пункте 3 статьи 1286 Гражданского Кодекса Российской Федерации. Настоящее Соглашение является юридически обязательным соглашением, если Вы не согласны принять на себя его условия, Вы не имеете права устанавливать Компонент и должны удалить все его компоненты со своего компьютера (ЭВМ). 
+# MULTIFACTOR LLC
 
-### 1. Основные положения
-1.1. Компонент – программа для ЭВМ «Multifactor Radius Adapter» (как в целом, так и ее компоненты, и функции).
+### Preamble
 
-1.2 ООО «МУЛЬТИФАКТОР» (далее — «Лицензиар») предлагает использовать компонент «Multifactor Radius Adapter» (далее — «Компонент»), доступный по адресу: https://github.com/MultifactorLab/MultiFactor.Radius.Adapter по правилам и в пределах условий настоящей лицензии (далее – «Лицензия»).
+IMPORTANT: By installing, running, copying, or otherwise using the Component, you agree to be bound by this License Agreement, which is a standard form of adhesion contract in written or another form as required by the applicable law of the Russian Federation. If you do not agree to the terms of this License Agreement, you may not use the Component. Installing, launching, or otherwise using the Component implies your full consent to all the terms of this Agreement and its proper conclusion as stipulated in paragraph 3 of Article 1286 of the Civil Code of the Russian Federation. This Agreement is legally binding; if you do not agree to be bound by its terms, you may not install the Component and must remove all of its pieces from your computer or storage device.
 
-1.3. Компонент представляет собой программу для ЭВМ - компонент «Multifactor Radius Adapter», позволяющую реализовать следующие программные интерфейсы: прием запросов на аутентификацию по протоколу RADIUS; проверка логина и пароля пользователя; вызов функций многофакторной аутентификации.
+### 1. Main Provisions
 
-1.4. Для целей настоящей Лицензии под Пользователем понимается лицо, использующее Компонент.
+1.1. Component is the "Multifactor Radius Adapter" computer program (as a whole, as well as its components and functions).
 
-1.5. Начиная использовать Компонент, Пользователь считается принявшим условия настоящей Лицензии, а также условий всех документов, на которые условия настоящей Лицензии ссылаются, в полном объеме, без всяких оговорок и исключений. В случае несогласия Пользователя с каким-либо положением указанных документов, Пользователь не вправе использовать Компонент.
+1.2 MULTIFACTOR LLC (hereinafter the "Licensor") offers to use the "Multifactor Radius Adapter" component (hereinafter the "Component") available at https://github.com/MultifactorLab/MultiFactor.Radius.Adapter according to the rules and within the terms of this License Agreement (hereinafter the "License").
 
-1.6. Компонент предоставляется Лицензиаром на условиях «как есть». Пользователь должен самостоятельно оценивать риски и самостоятельно нести всю ответственность за свои действия, связанные с использованием Компонента. Лицензиар не гарантирует соответствие Компонента целям и ожиданиям Пользователя. Лицензиар вправе вносить любые изменения в структуру и алгоритмы работы Компонента.
+1.3. The Component is a computer program - the "Multifactor Radius Adapter" component, which allows you to implement the following programming interfaces: receiving RADIUS authentication requests; verifying user login and password; calling multifactor authentication functions.
 
-### 2. Исключительные права
-2.1. Исключительные права на Компонент принадлежат Лицензиару. Настоящая Лицензия не подразумевает отчуждение таких прав.
+1.4. For this License, the User means a person using the Component.
 
-### 3. Лицензия
-3.1. Лицензиар безвозмездно, на условиях простой (неисключительной) лицензии, предоставляет Пользователю непередаваемое право использования Компонента на территории всего мира следующими способами:
+1.5. By starting to use the Component, the User is deemed to accept the terms of this License, as well as the terms of all the documents to which the terms of this License refer, in full, without any reservations or exceptions. If the User does not agree with any provision of the said documents, the User may not use the Component.
 
-3.1.1. Применять Компонент по прямому функциональному назначению, описанному в п. 1.3 настоящей Лицензии, в целях чего производить его скачивание (копирование) и воспроизведение на устройствах Пользователя под наименованием «Multifactor Radius Adapter». Пользователь вправе использовать Компонент на неограниченном количестве устройств.
+1.6. The Component is provided by the Licensor on an "as is" basis. The User must evaluate the risks and bear all responsibility for its actions related to the use of the Component. The Licensor does not guarantee the compliance of the Component with the purposes and expectations of the User. The Licensor may make any changes to the structure and algorithms of the Component.
 
-3.2. Пользователь не вправе распространять Компонент, изменять наименование Компонента, изменять и/или удалять знаки охраны авторского права или иное указание на Лицензиара, если они включены в состав Компонента.
+### 2. Exclusive rights
 
-3.3. Пользователь, получивший доступ к Компоненту, обязуется соблюдать следующие ограничения Лицензии: не изменять, модифицировать и/или производить иные действия с Компонентом/исходным кодом Компонента, имеющие целью создание производного произведения с использованием Компонента. 
+2.1. The exclusive rights to the Component belong to the Licensor. This License does not imply the assignment of such rights.
 
-3.4 Пользователь, получивший доступ к Компоненту, имеет право предлагать Лицензиару варианты изменения Компонента. Лицензиар имеет право использовать предложенные Пользователем варианты изменения Компонента, но не гарантирует этого. 
+### 3. Licence
 
-### 4. Ограничение использования и ответственность сторон
+3.1. The Licensor grants the User, free of charge, under a simple (non-exclusive) license, a non-transferable right to use the Component globally in the following ways:
 
-4.1. Пользователь предупрежден и согласен с тем, что несет полную ответственность за неправомерное использование Компонента в соответствии с нормами применимого законодательства.
+3.1.1. To use the Component for its direct functional purpose as described in Section 1.3 of this License, for which purpose it shall be downloaded (copied) and reproduced on the User's devices under the "Multifactor Radius Adapter" name. The User may use the Component on an unlimited number of devices.
 
-4.2. В максимальной степени, допустимой действующим законодательством, Лицензиар не несет никакой ответственности за какие-либо прямые или косвенные последствия какого-либо использования или невозможности использования Компонента и/или ущерб, причиненный Пользователю и/или третьим сторонам в результате использования или неиспользования Компонента, в том числе из-за возможных ошибок или сбоев в работе программ, созданных с использованием Компонента.
+3.2. The User may not distribute the Component, change the name of the Component, change and/or delete copyright marks or other indications of the Licensor if they are included in the Component.
 
-### 5. Обновления и новые версии
+3.3. The User, who has accessed the Component, agrees to comply with the following restrictions of the License: not to change, modify and/or perform other actions with the source code of the Component, to create derivative works based on the Component.
 
-5.1. Действие настоящей Лицензии распространяется на все последующие обновления/новые версии Компонента. Получение обновления/новой версии означает принятие Пользователем настоящей Лицензии для соответствующих обновлений/новых версий Компонента, если обновление версии Компонента не сопровождается иным лицензионным соглашением.
+3.4. The User, who has accessed the Component, is authorized to propose Component's modifications to the Licensor. The Licensor is entitled to accept the modifications to the Component proposed by the User but does not guarantee this.
 
-### 6. Изменения условий Лицензии
+### 4. Limitation on Use and Liability of the Parties
 
-6.1. Условия настоящей Лицензии могут изменяться Лицензиаром в одностороннем порядке без предварительного уведомления Пользователя. Действующая версия Лицензии постоянно доступна по адресу https://github.com/MultifactorLab/MultiFactor.Radius.Adapter/blob/master/LICENSE.md 
-Указанные изменения в Лицензии вступают в силу с даты их публикации по указанному адресу, если иное не оговорено в соответствующей публикации.
+4.1. The User is fully responsible for the misuse of the Component by the provisions of applicable law.
 
-6.2. Все вопросы и претензии, связанные с использованием/невозможностью использования Компонента, а также возможным нарушением Компонентом законодательства и/или прав третьих лиц должны по отправлены по адресу support@multifactor.ru 
+4.2. To the maximum extent permitted by applicable law, the Licensor shall not be liable for any direct or indirect consequences of any use or inability to use the Component and/or damage caused to the User and/or third parties due to the use or non-use of the Component, including due to possible errors or malfunctions in the programs created using the Component.
+
+### 5. Updates and New Versions
+
+5.1. This License applies to all subsequent updates/new versions of the Component. Receipt of an update/new version means the User's acceptance of this License for the relevant updates/new versions of the Component unless the Component's version update is accompanied by a different license agreement.
+
+### 6. Changes in the Terms of the License
+
+6.1. The terms and conditions of this License may be changed unilaterally by the Licensor without prior Update Notice to the User. The current version of the License is available at https://github.com/MultifactorLab/MultiFactor.Radius.Adapter/blob/master/LICENSE.md at all times.
+The aforementioned changes to the Licence shall come into force on the date of their publication at the specified Web-address unless otherwise stipulated in the relevant publication.
+
+6.2. Any questions or complaints regarding the use/failure to use the Component, or regarding possible violation of the law and/or third party rights by the Component, shall be sent to support@multifactor.pro.
