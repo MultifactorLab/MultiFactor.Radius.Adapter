@@ -6,10 +6,16 @@ using MultiFactor.Radius.Adapter.Core;
 using Serilog;
 using Serilog.Core;
 using Serilog.Events;
+using Serilog.Sinks.Syslog;
 using System;
+using System.Configuration;
 using System.IO;
+using System.Linq;
+using System.Net;
+using System.Net.Sockets;
 using System.Reflection;
 using System.ServiceProcess;
+using System.Threading;
 
 namespace MultiFactor.Radius.Adapter
 {
@@ -28,6 +34,8 @@ namespace MultiFactor.Radius.Adapter
                 .MinimumLevel.ControlledBy(levelSwitch)
                 .WriteTo.Console(LogEventLevel.Debug)
                 .WriteTo.File($"{path}Logs{Path.DirectorySeparatorChar}log-.txt", rollingInterval: RollingInterval.Day);
+
+            ConfigureSyslog(loggerConfiguration, out var syslogInfoMessage);
 
             Log.Logger = loggerConfiguration.CreateLogger();
 
@@ -57,7 +65,10 @@ namespace MultiFactor.Radius.Adapter
                 var configuration = Configuration.Load(dictionary);
 
                 SetLogLevel(configuration.LogLevel, levelSwitch);
-
+                if (syslogInfoMessage != null)
+                {
+                    Log.Logger.Information(syslogInfoMessage);
+                }
 
                 var adapterService = new AdapterService(configuration, dictionary, Log.Logger);
 
@@ -67,11 +78,20 @@ namespace MultiFactor.Radius.Adapter
                     Log.Logger.Information("Console mode");
                     Log.Logger.Information("Press CTRL+C to exit");
 
-                    Console.CancelKeyPress += delegate { adapterService.StopServer(); };
+                    Serilog.Debugging.SelfLog.Enable(Console.Error);
+
+                    var cts = new CancellationTokenSource();
+
+                    Console.CancelKeyPress += (sender, eventArgs) =>
+                    {
+                        adapterService.StopServer();
+                        eventArgs.Cancel = true;
+                        cts.Cancel();
+                    };
                     
                     adapterService.StartServer();
 
-                    Console.ReadLine();
+                    cts.Token.WaitHandle.WaitOne();
                 }
                 else
                 {
@@ -93,17 +113,17 @@ namespace MultiFactor.Radius.Adapter
 
         private static void InstallService()
         {
-            Log.Logger.Information("Installing service MFRadiusAdapter");
+            Log.Logger.Information($"Installing service {Configuration.ServiceUnitName}");
             System.Configuration.Install.ManagedInstallerClass.InstallHelper(new string[] { "/i", Assembly.GetExecutingAssembly().Location });
             Log.Logger.Information("Service installed");
-            Log.Logger.Information("Use 'net start MFRadiusAdapter' to run");
+            Log.Logger.Information($"Use 'net start {Configuration.ServiceUnitName}' to run");
             Log.Logger.Information("Press any key to exit");
             Console.ReadKey();
         }
 
         public static void UnInstallService()
         {
-            Log.Logger.Information("UnInstalling service MFRadiusAdapter");
+            Log.Logger.Information($"UnInstalling service {Configuration.ServiceUnitName}");
             System.Configuration.Install.ManagedInstallerClass.InstallHelper(new string[] { "/u", Assembly.GetExecutingAssembly().Location });
             Log.Logger.Information("Service uninstalled");
             Log.Logger.Information("Press any key to exit");
@@ -129,6 +149,94 @@ namespace MultiFactor.Radius.Adapter
             }
 
             Log.Logger.Information($"Logging level: {levelSwitch.MinimumLevel}");
+        }
+
+        private static void ConfigureSyslog(LoggerConfiguration loggerConfiguration, out string logMessage)
+        {
+            logMessage = null;
+
+            var appSettings = ConfigurationManager.AppSettings;
+            var sysLogServer = appSettings["syslog-server"];
+            var sysLogFormatSetting = appSettings["syslog-format"];
+            var sysLogFramerSetting = appSettings["syslog-framer"];
+            var sysLogFacilitySetting = appSettings["syslog-facility"];
+            var sysLogAppName = appSettings["syslog-app-name"] ?? "multifactor-radius";
+
+            var facility = ParseSettingOrDefault(sysLogFacilitySetting, Facility.Auth);
+            var format = ParseSettingOrDefault(sysLogFormatSetting, SyslogFormat.RFC5424);
+            var framer = ParseSettingOrDefault(sysLogFramerSetting, FramingType.OCTET_COUNTING);
+
+            ISyslogFormatter formatter;
+            switch (format)
+            {
+                case SyslogFormat.RFC5424:
+                    formatter = new Rfc5424Formatter(facility: facility, applicationName: sysLogAppName);
+                    break;
+                case SyslogFormat.RFC3164:
+                    formatter = new Rfc3164Formatter(facility: facility, applicationName: sysLogAppName);
+                    break;
+                default:
+                    throw new NotImplementedException($"Unknown syslog format {format}");
+            }
+
+            if (sysLogServer != null)
+            {
+                var uri = new Uri(sysLogServer);
+
+                if (uri.Port == -1)
+                {
+                    throw new ConfigurationErrorsException($"Invalid port number for syslog-server {sysLogServer}");
+                }
+
+                switch (uri.Scheme)
+                {
+                    case "udp":
+                        var serverIp = ResolveIP(uri.Host);
+                        loggerConfiguration
+                            .WriteTo
+                            .UdpSyslog(serverIp, port: uri.Port, format: format, appName: sysLogAppName, facility: facility);
+                        logMessage = $"Using syslog server: {sysLogServer}, format: {format}, facility: {facility}, appName: {sysLogAppName}";
+                        break;
+                    case "tcp":
+                        var tcpConfig = new SyslogTcpConfig
+                        {
+                            Host = uri.Host,
+                            Port = uri.Port,
+                            Framer = new MessageFramer(framer),
+                            Formatter = formatter,
+                        };
+                        loggerConfiguration
+                            .WriteTo
+                            .TcpSyslog(tcpConfig);
+                        logMessage = $"Using syslog server {sysLogServer}, format: {format}, framing: {framer}, facility: {facility}, appName: {sysLogAppName}";
+                        break;
+                    default:
+                        throw new NotImplementedException($"Unknown scheme {uri.Scheme} for syslog-server {sysLogServer}. Expected udp or tcp");
+                }
+            }
+        }
+
+        private static TEnum ParseSettingOrDefault<TEnum>(string setting, TEnum defaultValue) where TEnum : struct
+        {
+            if (Enum.TryParse<TEnum>(setting, out var val))
+            {
+                return val;
+            }
+
+            return defaultValue;
+        }
+
+        private static string ResolveIP(string host)
+        {
+            if (!IPAddress.TryParse(host, out var addr))
+            {
+                addr = Dns.GetHostAddresses(host)
+                    .First(x => x.AddressFamily == AddressFamily.InterNetwork); //only ipv4
+
+                return addr.ToString();
+            }
+
+            return host;
         }
     }
 }

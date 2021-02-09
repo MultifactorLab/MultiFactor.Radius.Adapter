@@ -1,7 +1,9 @@
 ﻿using MultiFactor.Radius.Adapter.Core;
 using MultiFactor.Radius.Adapter.Server;
 using Serilog;
+using System;
 using System.ServiceProcess;
+using System.Threading.Tasks;
 
 namespace MultiFactor.Radius.Adapter
 {
@@ -25,6 +27,8 @@ namespace MultiFactor.Radius.Adapter
         public void StopServer()
         {
             _radiusServer.Stop();
+            //2 sec delay to flush logs
+            Task.WaitAny(Task.Delay(TimeSpan.FromSeconds(2)));
         }
 
         protected override void OnStart(string[] args)

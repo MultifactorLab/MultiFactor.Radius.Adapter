@@ -27,9 +27,9 @@
             // serviceInstaller1
             // 
             this.serviceInstaller1.DelayedAutoStart = true;
-            this.serviceInstaller1.Description = "MultiFactor Radius Adapter NPS";
-            this.serviceInstaller1.DisplayName = "MFRadiusAdapter";
-            this.serviceInstaller1.ServiceName = "MFRadiusAdapter";
+            this.serviceInstaller1.Description = "MultiFactor Radius Adapter";
+            this.serviceInstaller1.DisplayName = Configuration.ServiceDisplayName;
+            this.serviceInstaller1.ServiceName = Configuration.ServiceUnitName;
             this.serviceInstaller1.StartType = System.ServiceProcess.ServiceStartMode.Automatic;
             // 
             // ServiceInstaller

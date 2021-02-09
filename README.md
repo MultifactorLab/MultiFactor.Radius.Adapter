@@ -50,7 +50,8 @@ Additional features:
 - Activate second factor selectively based on the user's group membership in Active Directory;
 - Use user's phone number from Active Directory profile for one-time SMS passcodes;
 - Configure RADIUS response attributes based on user's Active Directory group membership;
-- Proxy Network Policy Server requests and responses.
+- Proxy Network Policy Server requests and responses;
+- Send logs to Syslog server or SIEM.
 
 ## Prerequisites
 

@@ -107,6 +107,8 @@ namespace MultiFactor.Radius.Adapter
 
         #endregion
 
+        #region API settings
+
         /// <summary>
         /// Multifactor API URL
         /// </summary>
@@ -124,6 +126,9 @@ namespace MultiFactor.Radius.Adapter
         /// RADIUS Shared Secret
         /// </summary>
         public string MultiFactorSharedSecret { get; set; }
+
+        #endregion
+
         /// <summary>
         /// Logging level
         /// </summary>
@@ -133,6 +138,8 @@ namespace MultiFactor.Radius.Adapter
         /// Custom RADIUS reply attributes
         /// </summary>
         public IDictionary<string, List<RadiusReplyAttributeValue>> RadiusReplyAttributes { get; set; }
+
+        #region load config section
 
         /// <summary>
         /// Read and load settings from appSettings configuration section
@@ -385,6 +392,34 @@ namespace MultiFactor.Radius.Adapter
 
             throw new FormatException($"Failed to parse {text} to IPEndPoint");
         }
+
+        #endregion
+
+        #region static members
+
+        /// <summary>
+        /// Windows service unit name
+        /// </summary>
+        public static string ServiceUnitName
+        {
+            get
+            {
+                return ConfigurationManager.AppSettings["service-unit-name"] ?? "MFRadiusAdapter";
+            }
+        }
+
+        /// <summary>
+        /// Windows service display name
+        /// </summary>
+        public static string ServiceDisplayName
+        {
+            get
+            {
+                return ConfigurationManager.AppSettings["service-display-name"] ?? "MultiFactor Radius Adapter";
+            }
+        }
+
+        #endregion
     }
 
     public enum AuthenticationSource

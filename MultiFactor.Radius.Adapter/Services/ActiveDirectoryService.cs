@@ -76,11 +76,11 @@ namespace MultiFactor.Radius.Adapter.Services
                     }
                 }
 
-                _logger.Error(lex, $"Verification user '{user.Name}' at {_configuration.ActiveDirectoryDomain} failed");
+                _logger.Error(lex, $"Verification user '{user.Name}' at {_configuration.ActiveDirectoryDomain} failed: {lex.Message}");
             }
             catch (Exception ex)
             {
-                _logger.Error(ex, $"Verification user '{user.Name}' at {_configuration.ActiveDirectoryDomain} failed");
+                _logger.Error(ex, $"Verification user '{user.Name}' at {_configuration.ActiveDirectoryDomain} failed: {ex.Message}");
             }
 
             return false;
@@ -341,7 +341,7 @@ namespace MultiFactor.Radius.Adapter.Services
 
             var group = LdapIdentity.ParseGroup(groupName);
             var searchFilter = $"(&(objectCategory=group)({group.TypeName}={group.Name}))";
-            var response = Query(connection, domain.Name, searchFilter, SearchScope.Subtree);
+            var response = Query(connection, domain.Name, searchFilter, SearchScope.Subtree, "DistinguishedName");
 
             for (var i=0; i < response.Entries.Count; i++)
             {
