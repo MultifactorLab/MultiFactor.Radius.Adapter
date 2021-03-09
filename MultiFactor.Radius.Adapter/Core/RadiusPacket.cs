@@ -230,7 +230,7 @@ namespace MultiFactor.Radius.Adapter.Core
         public string CreateUniqueKey(IPEndPoint remoteEndpoint)
         {
             var base64Authenticator = Authenticator.Base64();
-            return $"{Code.ToString("d")}:{remoteEndpoint}:{UserName}:{base64Authenticator}";
+            return $"{Code.ToString("d")}:{Identifier}:{remoteEndpoint}:{UserName}:{base64Authenticator}";
         }
     }
 }

@@ -165,7 +165,7 @@ namespace MultiFactor.Radius.Adapter.Server
 
             if (_cacheService.IsRetransmission(requestPacket, remoteEndpoint))
             {
-                _logger.Debug("Retransmissed request, ignoring");
+                _logger.Debug($"Retransmissed request from {remoteEndpoint} Id={requestPacket.Identifier}, ignoring");
                 return;
             }
 
