@@ -25,14 +25,13 @@
 using MultiFactor.Radius.Adapter.Core;
 using Serilog;
 using System;
-using System.Diagnostics;
 using System.Linq;
 using System.Net;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Net.Sockets;
-using System.Collections.Concurrent;
+using MultiFactor.Radius.Adapter.Services;
 
 namespace MultiFactor.Radius.Adapter.Server
 {
@@ -45,6 +44,7 @@ namespace MultiFactor.Radius.Adapter.Server
         private readonly ILogger _logger;
         private RadiusRouter _router;
         private Configuration _configuration;
+        private CacheService _cacheService;
 
         public bool Running
         {
@@ -63,6 +63,8 @@ namespace MultiFactor.Radius.Adapter.Server
 
             _localEndpoint = configuration.ServiceServerEndpoint;
             _router = new RadiusRouter(configuration, radiusPacketParser, logger);
+
+            _cacheService = new CacheService(_logger);
         }
 
         /// <summary>
@@ -160,6 +162,12 @@ namespace MultiFactor.Radius.Adapter.Server
         {
             var requestPacket = _radiusPacketParser.Parse(packetBytes, Encoding.UTF8.GetBytes(_configuration.RadiusSharedSecret));
             _logger.Debug($"Received {requestPacket.Code} from {remoteEndpoint} Id={requestPacket.Identifier}");
+
+            if (_cacheService.IsRetransmission(requestPacket, remoteEndpoint))
+            {
+                _logger.Debug("Retransmissed request, ignoring");
+                return;
+            }
 
             var request = new PendingRequest { RemoteEndpoint = remoteEndpoint, RequestPacket = requestPacket };
 

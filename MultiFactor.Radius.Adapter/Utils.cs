@@ -22,13 +22,24 @@ namespace MultiFactor.Radius.Adapter.Core
             return bytes;
         }
 
-
         /// <summary>
         /// Convert a byte array to a string of hex encoded bytes
         /// </summary>
         public static string ToHexString(this byte[] bytes)
         {
             return bytes != null ? BitConverter.ToString(bytes).ToLowerInvariant().Replace("-", "") : null;    
+        }
+
+        /// <summary>
+        /// Base64 encoded string
+        /// </summary>
+        public static string Base64(this byte[] bytes)
+        {
+            if (bytes != null)
+            {
+                return Convert.ToBase64String(bytes);
+            }
+            return null;
         }
 
         /// <summary>

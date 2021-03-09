@@ -71,5 +71,7 @@ namespace MultiFactor.Radius.Adapter.Core
         {
             get; set;
         }
+
+        string CreateUniqueKey(IPEndPoint remoteEndpoint);
     }
 }
