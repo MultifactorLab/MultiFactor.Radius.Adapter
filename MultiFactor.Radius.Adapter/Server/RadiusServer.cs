@@ -217,7 +217,7 @@ namespace MultiFactor.Radius.Adapter.Server
 
             if (request.ResponseCode == PacketCode.AccessChallenge)
             {
-                responsePacket.AddAttribute("Reply-Message", "Enter OTP code");
+                responsePacket.AddAttribute("Reply-Message", request.ReplyMessage ?? "Enter OTP code: ");
                 responsePacket.AddAttribute("State", request.State); //state to match user authentication session
             }
 

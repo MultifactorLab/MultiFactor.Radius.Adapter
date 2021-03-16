@@ -46,7 +46,8 @@ Key features:
 
 Additional features:
 
-- Set up access based on the user's group membership in Active Directory;
+- Inline enrollment within VPN/VDI client;
+- Conditional access based on the user's group membership in Active Directory;
 - Activate second factor selectively based on the user's group membership in Active Directory;
 - Use user's phone number from Active Directory profile for one-time SMS passcodes;
 - Configure RADIUS response attributes based on user's Active Directory group membership;

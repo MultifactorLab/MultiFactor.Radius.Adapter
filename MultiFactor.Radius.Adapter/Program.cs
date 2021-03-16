@@ -15,6 +15,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Reflection;
 using System.ServiceProcess;
+using System.Text;
 using System.Threading;
 
 namespace MultiFactor.Radius.Adapter
@@ -77,6 +78,8 @@ namespace MultiFactor.Radius.Adapter
                     //start as console
                     Log.Logger.Information("Console mode");
                     Log.Logger.Information("Press CTRL+C to exit");
+
+                    Console.OutputEncoding = Encoding.UTF8;
 
                     Serilog.Debugging.SelfLog.Enable(Console.Error);
 

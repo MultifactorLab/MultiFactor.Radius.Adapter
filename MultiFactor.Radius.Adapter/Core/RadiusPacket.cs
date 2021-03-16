@@ -85,6 +85,17 @@ namespace MultiFactor.Radius.Adapter.Core
 
         public string UserName => GetString("User-Name");
 
+        public string RemoteHostName
+        {
+            get
+            {
+                //MS RDGW and RRAS
+                return GetString("MS-Client-Machine-Account-Name") ?? GetString("MS-RAS-Client-Name");
+            }
+        }
+
+        public string UserPassword => GetString("User-Password");
+
         internal RadiusPacket()
         {
         }

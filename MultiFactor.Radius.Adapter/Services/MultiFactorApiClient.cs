@@ -4,6 +4,7 @@
 
 
 using MultiFactor.Radius.Adapter.Core;
+using MultiFactor.Radius.Adapter.Server;
 using Newtonsoft.Json;
 using Serilog;
 using System;
@@ -31,10 +32,15 @@ namespace MultiFactor.Radius.Adapter.Services
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
-        public PacketCode CreateSecondFactorRequest(string remoteHost, string userName, string userPassword, string displayName, string email, string userPhone, out string state)
+        public PacketCode CreateSecondFactorRequest(PendingRequest request)
         {
-            state = null;
-            
+            var remoteHost = request.RequestPacket.RemoteHostName;
+            var userName = request.RequestPacket.UserName;
+            var userPassword = request.RequestPacket.UserPassword;
+            var displayName = request.DisplayName;
+            var email = request.EmailAddress;
+            var userPhone = request.UserPhone;
+
             //try to get authenticated client to bypass second factor if configured
             if (_configuration.BypassSecondFactorPeriod > 0)
             {
@@ -52,17 +58,22 @@ namespace MultiFactor.Radius.Adapter.Services
                 Name = displayName,
                 Email = email,
                 Phone = userPhone,
-                PassCode = GetPassCodeOrNull(userPassword)
+                PassCode = GetPassCodeOrNull(userPassword),
+                Capabilities = new 
+                {
+                    InlineEnroll = true
+                }
             };
 
             var response = SendRequest(url, payload);
             var responseCode = ConvertToRadiusCode(response);
 
-            state = response?.Id;
+            request.State = response?.Id;
+            request.ReplyMessage = response?.ReplyMessage;
 
             if (responseCode == PacketCode.AccessAccept && !response.Bypassed)
             {
-                _logger.Information($"Second factor for user '{userName}' verifyed successfully");
+                _logger.Information($"Second factor for user '{userName}' verified successfully");
 
                 if (_configuration.BypassSecondFactorPeriod > 0)
                 {
@@ -73,22 +84,24 @@ namespace MultiFactor.Radius.Adapter.Services
             return responseCode;
         }
 
-        public PacketCode VerifyOtpCode(string userName, string otpCode, string state)
+        public PacketCode Challenge(PendingRequest request, string userName, string answer, string state)
         {
             var url = _configuration.ApiUrl + "/access/requests/ra/challenge";
             var payload = new
             {
                 Identity = userName,
-                Challenge = otpCode,
+                Challenge = answer,
                 RequestId = state
             };
 
             var response = SendRequest(url, payload);
             var responseCode = ConvertToRadiusCode(response);
 
+            request.ReplyMessage = response.ReplyMessage;
+
             if (responseCode == PacketCode.AccessAccept && !response.Bypassed)
             {
-                _logger.Information($"Second factor for user '{userName}' verifyed successfully");
+                _logger.Information($"Second factor for user '{userName}' verified successfully");
             }
 
             return responseCode;
@@ -268,6 +281,7 @@ namespace MultiFactor.Radius.Adapter.Services
     {
         public string Id { get; set; }
         public string Status { get; set; }
+        public string ReplyMessage { get; set; }
 
         public bool Bypassed { get; set; }
 

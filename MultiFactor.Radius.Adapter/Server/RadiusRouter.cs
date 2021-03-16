@@ -52,7 +52,7 @@ namespace MultiFactor.Radius.Adapter.Server
                     if (_stateChallengePendingRequests.ContainsKey(receivedState))
                     {
                         //second request with Multifactor challenge
-                        request.ResponseCode = VerifySecondFactorOtpCode(request, receivedState);
+                        request.ResponseCode = ProcessChallenge(request, receivedState);
                         request.State = receivedState;  //state for Access-Challenge message if otp is wrong (3 times allowed)
 
                         RequestProcessed?.Invoke(this, request);
@@ -84,14 +84,13 @@ namespace MultiFactor.Radius.Adapter.Server
                     return;
                 }
 
-                var secondFactorAuthenticationResultCode = ProcessSecondAuthenticationFactor(request, out var state);
+                var secondFactorAuthenticationResultCode = ProcessSecondAuthenticationFactor(request);
 
                 request.ResponseCode = secondFactorAuthenticationResultCode;
-                request.State = state;  //state for Access-Challenge message
 
                 if (request.ResponseCode == PacketCode.AccessChallenge)
                 {
-                    AddStateChallengePendingRequest(state, request);
+                    AddStateChallengePendingRequest(request.State, request);
                 }
 
                 RequestProcessed?.Invoke(this, request);
@@ -128,15 +127,13 @@ namespace MultiFactor.Radius.Adapter.Server
         private PacketCode ProcessActiveDirectoryAuthentication(PendingRequest request)
         {
             var userName = request.RequestPacket.UserName;
+            var password = request.RequestPacket.UserPassword;
 
             if (string.IsNullOrEmpty(userName))
             {
                 _logger.Warning($"Can't find User-Name in message Id={request.RequestPacket.Identifier} from {request.RemoteEndpoint}");
                 return PacketCode.AccessReject;
             }
-
-            //user-password attribute hold second request otp from user
-            var password = request.RequestPacket.GetString("User-Password");
 
             if (string.IsNullOrEmpty(password))
             {
@@ -214,9 +211,8 @@ namespace MultiFactor.Radius.Adapter.Server
         /// <summary>
         /// Authenticate request at MultiFactor with user-name only
         /// </summary>
-        private PacketCode ProcessSecondAuthenticationFactor(PendingRequest request, out string state)
+        private PacketCode ProcessSecondAuthenticationFactor(PendingRequest request)
         {
-            state = null;
             var userName = request.RequestPacket.UserName;
 
             if (string.IsNullOrEmpty(userName))
@@ -225,13 +221,9 @@ namespace MultiFactor.Radius.Adapter.Server
                 return PacketCode.AccessReject;
             }
 
-            var remoteHost = request.RequestPacket.GetString("MS-Client-Machine-Account-Name");
-            remoteHost = remoteHost ?? request.RequestPacket.GetString("MS-RAS-Client-Name");
-
-            var userPassword = request.RequestPacket.GetString("User-Password");
-
-            var response = _multifactorApiClient.CreateSecondFactorRequest(remoteHost, userName, userPassword, request.DisplayName, request.EmailAddress, request.UserPhone, out var multifactorStateId);
-            state = multifactorStateId;
+            //var response = _multifactorApiClient.CreateSecondFactorRequest(remoteHost, userName, userPassword, request.DisplayName, request.EmailAddress, request.UserPhone, out var multifactorStateId);
+            var response = _multifactorApiClient.CreateSecondFactorRequest(request);
+            //state = multifactorStateId;
 
             return response;
         }
@@ -239,7 +231,7 @@ namespace MultiFactor.Radius.Adapter.Server
         /// <summary>
         /// Verify one time password from user input
         /// </summary>
-        private PacketCode VerifySecondFactorOtpCode(PendingRequest request, string state)
+        private PacketCode ProcessChallenge(PendingRequest request, string state)
         {
             var userName = request.RequestPacket.UserName;
 
@@ -250,19 +242,19 @@ namespace MultiFactor.Radius.Adapter.Server
             }
 
             PacketCode response;
+            string userAnswer;
+
             switch (request.RequestPacket.AuthenticationType)
             {
                 case AuthenticationType.PAP:
-                    //user-password attribute holds second request otp from user
-                    var otpCode = request.RequestPacket.GetString("User-Password");
+                    //user-password attribute holds second request challenge from user
+                    userAnswer = request.RequestPacket.GetString("User-Password");
 
-                    if (string.IsNullOrEmpty(otpCode))
+                    if (string.IsNullOrEmpty(userAnswer))
                     {
-                        _logger.Warning($"Can't find User-Password with OTP code in message Id={request.RequestPacket.Identifier} from {request.RemoteEndpoint}");
+                        _logger.Warning($"Can't find User-Password with user response in message Id={request.RequestPacket.Identifier} from {request.RemoteEndpoint}");
                         return PacketCode.AccessReject;
                     }
-
-                    response = _multifactorApiClient.VerifyOtpCode(userName, otpCode, state);
                     
                     break;
                 case AuthenticationType.MSCHAP2:
@@ -270,20 +262,21 @@ namespace MultiFactor.Radius.Adapter.Server
 
                     if (msChapResponse == null)
                     {
-                        _logger.Warning($"Can't find MS-CHAP2-Response with OTP code in message Id={request.RequestPacket.Identifier} from {request.RemoteEndpoint}");
+                        _logger.Warning($"Can't find MS-CHAP2-Response in message Id={request.RequestPacket.Identifier} from {request.RemoteEndpoint}");
                         return PacketCode.AccessReject;
                     }
 
                     //forti behaviour
                     var otpData = msChapResponse.Skip(2).Take(6).ToArray();
-                    var code = Encoding.ASCII.GetString(otpData);
-                    response = _multifactorApiClient.VerifyOtpCode(userName, code, state);
+                    userAnswer = Encoding.ASCII.GetString(otpData);
 
                     break;
                 default:
                     _logger.Warning($"Unable to process {request.RequestPacket.AuthenticationType} challange in message Id={request.RequestPacket.Identifier} from {request.RemoteEndpoint}");
                     return PacketCode.AccessReject;
             }
+
+            response = _multifactorApiClient.Challenge(request, userName, userAnswer, state);
 
             switch (response)
             {
