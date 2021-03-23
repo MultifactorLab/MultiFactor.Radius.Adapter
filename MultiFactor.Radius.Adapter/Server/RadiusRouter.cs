@@ -109,9 +109,17 @@ namespace MultiFactor.Radius.Adapter.Server
                 case AuthenticationSource.ActiveDirectory:  //AD auth
                     return ProcessActiveDirectoryAuthentication(request);
                 case AuthenticationSource.Radius:           //RADIUS auth
-                    return ProcessRadiusAuthentication(request);
+                    var radiusResponse = ProcessRadiusAuthentication(request);
+                    if (radiusResponse == PacketCode.AccessAccept)
+                    {
+                        if (_configuration.CheckMembership)     //check membership without AD authentication
+                        {
+                            return ProcessActiveDirectoryMembership(request);
+                        }
+                    }
+                    return radiusResponse;
                 case AuthenticationSource.None:
-                    if (_configuration.CheckMembership)     //check membership without authentication
+                    if (_configuration.CheckMembership)     //check membership without AD authentication
                     {
                         return ProcessActiveDirectoryMembership(request);
                     }

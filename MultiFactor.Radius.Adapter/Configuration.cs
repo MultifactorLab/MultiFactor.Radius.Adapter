@@ -238,6 +238,8 @@ namespace MultiFactor.Radius.Adapter
                 case AuthenticationSource.Radius:
                     //radius authentication settings
                     LoadRadiusAuthenticationSourceSettings(configuration);
+                    //active directory membership only settings
+                    LoadActiveDirectoryAuthenticationSourceSettings(configuration, false);
                     break;
                 case AuthenticationSource.None:
                     //active directory membership only settings
