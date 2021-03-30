@@ -24,12 +24,14 @@ namespace MultiFactor.Radius.Adapter.Server
         private MultiFactorApiClient _multifactorApiClient;
         public event EventHandler<PendingRequest> RequestProcessed;
         private readonly ConcurrentDictionary<string, PendingRequest> _stateChallengePendingRequests = new ConcurrentDictionary<string, PendingRequest>();
+        private CacheService _cacheService;
 
-        public RadiusRouter(Configuration configuration, IRadiusPacketParser packetParser, ILogger logger)
+        public RadiusRouter(Configuration configuration, IRadiusPacketParser packetParser, CacheService cacheService, ILogger logger)
         {
             _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
             _packetParser = packetParser ?? throw new ArgumentNullException(nameof(packetParser));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _cacheService = cacheService ?? throw new ArgumentNullException(nameof(cacheService));
 
             _activeDirectoryService = new ActiveDirectoryService(configuration, logger);
             _multifactorApiClient = new MultiFactorApiClient(configuration, logger);
@@ -73,7 +75,7 @@ namespace MultiFactor.Radius.Adapter.Server
 
                 if (request.Bypass2Fa)
                 {
-                    //second factor not trquired
+                    //second factor not required
                     var userName = request.RequestPacket.UserName;
                     _logger.Information($"Bypass second factor for user {userName}");
 
@@ -84,13 +86,31 @@ namespace MultiFactor.Radius.Adapter.Server
                     return;
                 }
 
+                if (_cacheService.IsContinuousAutoReconnect(request.RequestPacket))
+                {
+                    _logger.Debug("Auto-reconnect without user response. Attempt #3, aborting");
+
+                    request.ResponseCode = PacketCode.AccessReject;
+                    RequestProcessed?.Invoke(this, request);
+
+                    return;
+                }
+
                 var secondFactorAuthenticationResultCode = ProcessSecondAuthenticationFactor(request);
 
                 request.ResponseCode = secondFactorAuthenticationResultCode;
 
-                if (request.ResponseCode == PacketCode.AccessChallenge)
+                switch (request.ResponseCode)
                 {
-                    AddStateChallengePendingRequest(request.State, request);
+                    case PacketCode.AccessChallenge:
+                        AddStateChallengePendingRequest(request.State, request);
+                        break;
+                    case PacketCode.AccessReject:
+                        if (request.ReplyMessage == "Timeout")
+                        {
+                            _cacheService.RegisterTimeout(request.RequestPacket);
+                        }
+                        break;
                 }
 
                 RequestProcessed?.Invoke(this, request);
@@ -229,9 +249,7 @@ namespace MultiFactor.Radius.Adapter.Server
                 return PacketCode.AccessReject;
             }
 
-            //var response = _multifactorApiClient.CreateSecondFactorRequest(remoteHost, userName, userPassword, request.DisplayName, request.EmailAddress, request.UserPhone, out var multifactorStateId);
             var response = _multifactorApiClient.CreateSecondFactorRequest(request);
-            //state = multifactorStateId;
 
             return response;
         }

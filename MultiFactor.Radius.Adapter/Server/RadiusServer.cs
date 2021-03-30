@@ -61,10 +61,10 @@ namespace MultiFactor.Radius.Adapter.Server
             _radiusPacketParser = radiusPacketParser ?? throw new ArgumentNullException(nameof(radiusPacketParser));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
-            _localEndpoint = configuration.ServiceServerEndpoint;
-            _router = new RadiusRouter(configuration, radiusPacketParser, logger);
-
             _cacheService = new CacheService(_logger);
+
+            _localEndpoint = configuration.ServiceServerEndpoint;
+            _router = new RadiusRouter(configuration, radiusPacketParser, _cacheService, logger);
         }
 
         /// <summary>
