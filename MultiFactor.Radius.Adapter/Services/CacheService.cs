@@ -3,6 +3,7 @@
 //https://github.com/MultifactorLab/MultiFactor.Radius.Adapter/blob/master/LICENSE.md
 
 using MultiFactor.Radius.Adapter.Core;
+using MultiFactor.Radius.Adapter.Server;
 using Serilog;
 using System;
 using System.Net;
@@ -41,45 +42,25 @@ namespace MultiFactor.Radius.Adapter.Services
             return false;
         }
 
-        public void RegisterTimeout(IRadiusPacket packet)
+        public void RegisterPasswordChangeRequest(PasswordChangeRequest request)
         {
-            if (IsMicrosoftRDGateway(packet))
+            if (request == null) throw new ArgumentNullException(nameof(request));
+
+            _cache.Set(request.Id, request, DateTimeOffset.UtcNow.AddMinutes(5));
+        }
+
+        public void Remove(string id)
+        {
+            if (!string.IsNullOrEmpty(id))
             {
-                var key = $"rdgw:r:{packet.UserName}:{packet.RemoteHostName}";
-
-                var attemptNumber = (_cache[key] as int? ?? 0) + 1;
-
-                _cache.Set(key, attemptNumber, DateTimeOffset.UtcNow.AddMinutes(2));
+                _cache.Remove(id);
             }
         }
 
-        public bool IsContinuousAutoReconnect(IRadiusPacket packet)
+        public PasswordChangeRequest GetPasswordChangeRequest(string id)
         {
-            if (IsMicrosoftRDGateway(packet))
-            {
-                var key = $"rdgw:r:{packet.UserName}:{packet.RemoteHostName}";
-
-                var attemptsCount = _cache[key] as int? ?? 0;
-
-                if (attemptsCount >= MAX_RECONNECT_ATTEMPTS)
-                {
-                    _cache.Remove(key);
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
-        private bool IsMicrosoftRDGateway(IRadiusPacket packet)
-        {
-            var key = "MS-Network-Access-Server-Type";
-            if (packet.Attributes.ContainsKey(key))
-            {
-                var attr = packet.Attributes["MS-Network-Access-Server-Type"];
-                return attr[0] as uint? == 1;
-            }
-            return false;
+            if (id == null) return null;
+            return _cache.Get(id) as PasswordChangeRequest;
         }
     }
 }

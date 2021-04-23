@@ -13,7 +13,6 @@ namespace MultiFactor.Radius.Adapter.Server
     {
         public PendingRequest()
         {
-            ReceivedAt = DateTime.Now;
             ResponseCode = PacketCode.AccessReject;
             UserGroups = new List<string>();
         }
@@ -21,7 +20,6 @@ namespace MultiFactor.Radius.Adapter.Server
         public IPEndPoint RemoteEndpoint { get; set; }
         public IRadiusPacket RequestPacket { get; set; }
         public IRadiusPacket ResponsePacket { get; set; }
-        public DateTime ReceivedAt { get; set; }
         public PacketCode ResponseCode { get; set; }
         public string State { get; set; }
         public string ReplyMessage { get; set; }
@@ -30,5 +28,6 @@ namespace MultiFactor.Radius.Adapter.Server
         public string EmailAddress { get; set; }
         public bool Bypass2Fa { get; set; }
         public IList<string> UserGroups { get; set; }
+        public bool MustChangePassword { get; set; }
     }
 }

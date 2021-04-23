@@ -68,7 +68,9 @@ namespace MultiFactor.Radius.Adapter.Services
             {
                 if (lex.ServerErrorMessage != null)
                 {
-                    var dataReason = ExtractErrorReason(lex.ServerErrorMessage);
+                    var dataReason = ExtractErrorReason(lex.ServerErrorMessage, out var mustChangePassword);
+                    request.MustChangePassword = mustChangePassword;
+
                     if (dataReason != null)
                     {
                         _logger.Warning($"Verification user '{user.Name}' at {_configuration.ActiveDirectoryDomain} failed: {dataReason}");
@@ -111,6 +113,59 @@ namespace MultiFactor.Radius.Adapter.Services
             {
                 _logger.Error(ex, $"Verification user '{user.Name}' membership at {_configuration.ActiveDirectoryDomain} failed");
                 _logger.Information("Run MultiFactor.Raduis.Adapter as user with domain read permissions (basically any domain user)");
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Change user password
+        /// </summary>
+        public bool ChangePassword(string userName, string currentPassword, string newPassword, out bool passwordDoesNotMeetRequirements)
+        {
+            var identity = LdapIdentity.ParseUser(userName);
+            passwordDoesNotMeetRequirements = false;
+
+            try
+            {
+                LdapProfile userProfile;
+
+                using (var connection = new LdapConnection(_configuration.ActiveDirectoryDomain))
+                {
+                    connection.Bind();
+
+                    var domain = LdapIdentity.FqdnToDn(_configuration.ActiveDirectoryDomain);
+
+                    var isProfileLoaded = LoadProfile(connection, domain, identity, out var profile);
+                    if (!isProfileLoaded)
+                    {
+                        return false;
+                    }
+                    userProfile = profile;
+                }
+
+                _logger.Debug($"Changing password for user '{identity.Name}' in {userProfile.BaseDn.DnToFqdn()}");
+
+                using (var ctx = new PrincipalContext(ContextType.Domain, userProfile.BaseDn.DnToFqdn(), null, ContextOptions.Negotiate))
+                {
+                    using (var user = UserPrincipal.FindByIdentity(ctx, IdentityType.DistinguishedName, userProfile.DistinguishedName))
+                    {
+                        user.ChangePassword(currentPassword, newPassword);
+                        user.Save();
+                    }
+                }
+
+                _logger.Information($"Password changed for user '{identity.Name}'");
+                return true;
+            }
+            catch (PasswordException pex)
+            {
+                _logger.Warning($"Changing password for user '{identity.Name}' failed: {pex.Message}, {pex.HResult}");
+                passwordDoesNotMeetRequirements = true;
+            }
+            catch (Exception ex)
+            {
+                _logger.Warning($"Changing password for user {identity.Name} failed: {ex.Message}");
             }
 
             return false;
@@ -397,8 +452,10 @@ namespace MultiFactor.Radius.Adapter.Services
             return defaultDomain;
         }
 
-        private string ExtractErrorReason(string errorMessage)
+        private string ExtractErrorReason(string errorMessage, out bool mustChangePassword)
         {
+            mustChangePassword = false;
+
             var pattern = @"data ([0-9a-e]{3})";
             var match = Regex.Match(errorMessage, pattern);
 
@@ -417,12 +474,14 @@ namespace MultiFactor.Radius.Adapter.Services
                     case "531":
                         return "not permitted to logon at this workstation​";
                     case "532":
+                        mustChangePassword = true;
                         return "password expired";
                     case "533":
                         return "account disabled";
                     case "701":
                         return "account expired";
                     case "773":
+                        mustChangePassword = true;
                         return "user must change password";
                     case "775":
                         return "user account locked";

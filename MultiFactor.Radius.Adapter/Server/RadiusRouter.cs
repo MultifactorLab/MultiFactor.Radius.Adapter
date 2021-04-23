@@ -25,6 +25,7 @@ namespace MultiFactor.Radius.Adapter.Server
         public event EventHandler<PendingRequest> RequestProcessed;
         private readonly ConcurrentDictionary<string, PendingRequest> _stateChallengePendingRequests = new ConcurrentDictionary<string, PendingRequest>();
         private CacheService _cacheService;
+        private PasswordChangeHandler _passwordChangeHandler;
 
         public RadiusRouter(Configuration configuration, IRadiusPacketParser packetParser, CacheService cacheService, ILogger logger)
         {
@@ -35,6 +36,7 @@ namespace MultiFactor.Radius.Adapter.Server
 
             _activeDirectoryService = new ActiveDirectoryService(configuration, logger);
             _multifactorApiClient = new MultiFactorApiClient(configuration, logger);
+            _passwordChangeHandler = new PasswordChangeHandler(_cacheService, _configuration, _activeDirectoryService);
         }
 
         public void HandleRequest(PendingRequest request)
@@ -47,9 +49,17 @@ namespace MultiFactor.Radius.Adapter.Server
                     return;
                 }
 
-                if (request.RequestPacket.Attributes.ContainsKey("State")) //Access-Challenge response 
+                var passwordChangeStatusCode = _passwordChangeHandler.HandleRequest(request);
+                if (passwordChangeStatusCode != PacketCode.AccessAccept)
                 {
-                    var receivedState = request.RequestPacket.GetString("State");
+                    request.ResponseCode = passwordChangeStatusCode;
+                    RequestProcessed?.Invoke(this, request);
+                    return;
+                }
+
+                if (request.RequestPacket.State != null) //Access-Challenge response 
+                {
+                    var receivedState = request.RequestPacket.State;
 
                     if (_stateChallengePendingRequests.ContainsKey(receivedState))
                     {
@@ -65,6 +75,15 @@ namespace MultiFactor.Radius.Adapter.Server
                 var firstFactorAuthenticationResultCode = ProcessFirstAuthenticationFactor(request);
                 if (firstFactorAuthenticationResultCode != PacketCode.AccessAccept)
                 {
+                    //User password expired ot must be changed
+                    if (request.MustChangePassword)
+                    {
+                        request.MustChangePassword = true;
+                        request.ResponseCode = _passwordChangeHandler.HandleRequest(request);
+                        RequestProcessed?.Invoke(this, request);
+                        return;
+                    }
+
                     //first factor authentication rejected
                     request.ResponseCode = firstFactorAuthenticationResultCode;
                     RequestProcessed?.Invoke(this, request);
@@ -86,35 +105,16 @@ namespace MultiFactor.Radius.Adapter.Server
                     return;
                 }
 
-                if (_cacheService.IsContinuousAutoReconnect(request.RequestPacket))
-                {
-                    _logger.Debug("Auto-reconnect without user response. Attempt #3, aborting");
-
-                    request.ResponseCode = PacketCode.AccessReject;
-                    RequestProcessed?.Invoke(this, request);
-
-                    return;
-                }
-
                 var secondFactorAuthenticationResultCode = ProcessSecondAuthenticationFactor(request);
 
                 request.ResponseCode = secondFactorAuthenticationResultCode;
 
-                switch (request.ResponseCode)
+                if (request.ResponseCode == PacketCode.AccessChallenge)
                 {
-                    case PacketCode.AccessChallenge:
-                        AddStateChallengePendingRequest(request.State, request);
-                        break;
-                    case PacketCode.AccessReject:
-                        if (request.ReplyMessage == "Timeout")
-                        {
-                            _cacheService.RegisterTimeout(request.RequestPacket);
-                        }
-                        break;
+                    AddStateChallengePendingRequest(request.State, request);
                 }
 
                 RequestProcessed?.Invoke(this, request);
-
             }
             catch(Exception ex)
             {
@@ -274,7 +274,7 @@ namespace MultiFactor.Radius.Adapter.Server
             {
                 case AuthenticationType.PAP:
                     //user-password attribute holds second request challenge from user
-                    userAnswer = request.RequestPacket.GetString("User-Password");
+                    userAnswer = request.RequestPacket.UserPassword;
 
                     if (string.IsNullOrEmpty(userAnswer))
                     {

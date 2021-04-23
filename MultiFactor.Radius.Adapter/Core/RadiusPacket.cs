@@ -96,6 +96,8 @@ namespace MultiFactor.Radius.Adapter.Core
 
         public string UserPassword => GetString("User-Password");
 
+        public string State => GetString("State");
+
         internal RadiusPacket()
         {
         }
