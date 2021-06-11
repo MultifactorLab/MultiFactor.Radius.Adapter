@@ -80,7 +80,7 @@ namespace MultiFactor.Radius.Adapter.Server
             _cache.RegisterPasswordChangeRequest(passwordChangeRequest);
 
             request.State = passwordChangeRequest.Id;
-            request.ReplyMessage = "Пожалуйста, смените пароль для продолжения работы. Введите новый пароль: ";
+            request.ReplyMessage = "Please change password to continue. Enter new password: ";
             return PacketCode.AccessChallenge;
         }
 
@@ -91,7 +91,7 @@ namespace MultiFactor.Radius.Adapter.Server
             _cache.RegisterPasswordChangeRequest(passwordChangeRequest);
 
             request.State = passwordChangeRequest.Id;
-            request.ReplyMessage = "Пароли не совпадают. Пожалуйста, введите новый пароль: ";
+            request.ReplyMessage = "Passwords not match. Please enter new password: ";
             return PacketCode.AccessChallenge;
         }
 
@@ -102,7 +102,7 @@ namespace MultiFactor.Radius.Adapter.Server
             _cache.RegisterPasswordChangeRequest(passwordChangeRequest);
 
             request.State = passwordChangeRequest.Id;
-            request.ReplyMessage = "Пожалуйста, введите новый пароль еще раз: ";
+            request.ReplyMessage = "Please repeat new password: ";
             return PacketCode.AccessChallenge;
         }
 
@@ -113,7 +113,7 @@ namespace MultiFactor.Radius.Adapter.Server
             _cache.RegisterPasswordChangeRequest(passwordChangeRequest);
 
             request.State = passwordChangeRequest.Id;
-            request.ReplyMessage = "Пароль недостаточно сложный. Пожалуйста, введите новый пароль: ";
+            request.ReplyMessage = "New password is not complex enough. Please enter new password: ";
             return PacketCode.AccessChallenge;
         }
     }
