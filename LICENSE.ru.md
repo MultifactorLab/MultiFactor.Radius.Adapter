@@ -1,6 +1,6 @@
 # Лицензионное соглашение на использование компонента «Multifactor Radius Adapter»
 
-_Also available in other languages: [English](README.md)_
+_Also available in other languages: [English](LICENSE.md)_
 
 # ООО «МУЛЬТИФАКТОР»
 
