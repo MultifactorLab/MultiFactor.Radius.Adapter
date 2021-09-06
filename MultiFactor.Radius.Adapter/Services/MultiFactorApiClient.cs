@@ -40,6 +40,7 @@ namespace MultiFactor.Radius.Adapter.Services
             var displayName = request.DisplayName;
             var email = request.EmailAddress;
             var userPhone = request.UserPhone;
+            var callingStationId = request.RequestPacket.CallingStationId;
 
             //try to get authenticated client to bypass second factor if configured
             if (_configuration.BypassSecondFactorPeriod > 0)
@@ -59,6 +60,7 @@ namespace MultiFactor.Radius.Adapter.Services
                 Email = email,
                 Phone = userPhone,
                 PassCode = GetPassCodeOrNull(userPassword),
+                CallingStationId = callingStationId,
                 Capabilities = new 
                 {
                     InlineEnroll = true

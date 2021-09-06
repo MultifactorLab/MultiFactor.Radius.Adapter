@@ -94,6 +94,8 @@ namespace MultiFactor.Radius.Adapter.Core
             }
         }
 
+        public string CallingStationId => GetString("Calling-Station-Id") ?? RemoteHostName;
+
         public string UserPassword => GetString("User-Password");
 
         public string State => GetString("State");
