@@ -68,7 +68,6 @@ namespace MultiFactor.Radius.Adapter.Core
             }
         }
 
-
         /// <summary>
         /// Decrypt user password
         /// </summary>
@@ -78,6 +77,14 @@ namespace MultiFactor.Radius.Adapter.Core
         /// <returns></returns>
         public static String Decrypt(Byte[] sharedSecret, Byte[] authenticator, Byte[] passwordBytes)
         {
+            return Decrypt(sharedSecret, authenticator, passwordBytes, Encoding.UTF8);
+        }
+
+        /// <summary>
+        /// Decrypt user password
+        /// </summary>
+        public static String Decrypt(Byte[] sharedSecret, Byte[] authenticator, Byte[] passwordBytes, Encoding encoding)
+        {
             var sb = new StringBuilder();
             var key = CreateKey(sharedSecret, authenticator);
 
@@ -85,13 +92,12 @@ namespace MultiFactor.Radius.Adapter.Core
             {
                 var temp = new Byte[16];
                 Buffer.BlockCopy(passwordBytes, (n - 1) * 16, temp, 0, 16);
-                sb.Append(Encoding.UTF8.GetString(EncryptDecrypt(temp, key)));
+                sb.Append(encoding.GetString(EncryptDecrypt(temp, key)));
                 key = CreateKey(sharedSecret, temp);
             }
 
             return sb.ToString().Replace("\0", "");
         }
-
 
         /// <summary>
         /// Encrypt a password

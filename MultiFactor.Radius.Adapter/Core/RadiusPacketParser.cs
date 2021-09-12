@@ -39,16 +39,18 @@ namespace MultiFactor.Radius.Adapter.Core
     {
         private readonly ILogger _logger;
         private readonly IRadiusDictionary _radiusDictionary;
+        private readonly Configuration _configuration;
 
 
         /// <summary>
         /// RadiusPacketParser
         /// </summary>
         /// <param name="logger"></param>
-        public RadiusPacketParser(ILogger logger, IRadiusDictionary radiusDictionary)
+        public RadiusPacketParser(ILogger logger, IRadiusDictionary radiusDictionary, Configuration configuration)
         {
             _logger = logger;
             _radiusDictionary = radiusDictionary;
+            _configuration = configuration;
         }
 
 
@@ -198,6 +200,11 @@ namespace MultiFactor.Radius.Adapter.Core
                     // If this is a password attribute it must be decrypted
                     if (code == 2)
                     {
+                        if (!string.IsNullOrEmpty(_configuration.RadiusPapEncoding))
+                        {
+                            //windows rras client use windows-1251 instead of utf-8, thats why
+                            return RadiusPassword.Decrypt(sharedSecret, authenticator, contentBytes, Encoding.GetEncoding(_configuration.RadiusPapEncoding));
+                        }
                         return RadiusPassword.Decrypt(sharedSecret, authenticator, contentBytes);
                     }
                     return contentBytes;

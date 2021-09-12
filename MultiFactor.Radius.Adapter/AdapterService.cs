@@ -13,7 +13,7 @@ namespace MultiFactor.Radius.Adapter
 
         public AdapterService(Configuration configuration, IRadiusDictionary dictionary, ILogger logger)
         {
-            var packetParser = new RadiusPacketParser(logger, dictionary);
+            var packetParser = new RadiusPacketParser(logger, dictionary, configuration);
             _radiusServer = new RadiusServer(configuration, packetParser, logger);
 
             InitializeComponent();

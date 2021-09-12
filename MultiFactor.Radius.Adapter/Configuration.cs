@@ -8,6 +8,7 @@ using System;
 using System.Collections.Generic;
 using System.Configuration;
 using System.Net;
+using System.Text;
 
 namespace MultiFactor.Radius.Adapter
 {
@@ -32,6 +33,11 @@ namespace MultiFactor.Radius.Adapter
         /// Shared secret between this service and Radius client
         /// </summary>
         public string RadiusSharedSecret { get; set; }
+
+        /// <summary>
+        /// Custom encoding name for pap password (eg windows-1251)
+        /// </summary>
+        public string RadiusPapEncoding { get; set; }
 
         /// <summary>
         /// Where to handle first factor (UserName and Password)
@@ -154,6 +160,7 @@ namespace MultiFactor.Radius.Adapter
             var appSettings = ConfigurationManager.AppSettings;
             var serviceServerEndpointSetting = appSettings["adapter-server-endpoint"];
             var radiusSharedSecretSetting = appSettings["radius-shared-secret"];
+            var radiusPapEncodingSetting = appSettings["radius-pap-encoding"];
             var firstFactorAuthenticationSourceSettings = appSettings["first-factor-authentication-source"];
             var apiUrlSetting = appSettings["multifactor-api-url"];
             var apiProxySetting = appSettings["multifactor-api-proxy"];
@@ -201,10 +208,23 @@ namespace MultiFactor.Radius.Adapter
                 throw new Exception("Configuration error: Can't parse 'adapter-server-endpoint' value");
             }
 
+            if (!string.IsNullOrEmpty(radiusPapEncodingSetting))
+            {
+                try
+                {
+                    var customPapEncoding = Encoding.GetEncoding(radiusPapEncodingSetting);
+                }
+                catch
+                {
+                    throw new Exception($"Can't find encoding {radiusPapEncodingSetting}");
+                }
+            }
+
             var configuration = new Configuration
             {
                 ServiceServerEndpoint = serviceServerEndpoint,
                 RadiusSharedSecret = radiusSharedSecretSetting,
+                RadiusPapEncoding = radiusPapEncodingSetting,
                 FirstFactorAuthenticationSource = firstFactorAuthenticationSource,
                 ApiUrl = apiUrlSetting,
                 ApiProxy = apiProxySetting,
