@@ -4,6 +4,7 @@
 
 using MultiFactor.Radius.Adapter.Core;
 using MultiFactor.Radius.Adapter.Services;
+using MultiFactor.Radius.Adapter.Services.Ldap;
 using Serilog;
 using System;
 using System.Collections.Concurrent;
@@ -127,7 +128,9 @@ namespace MultiFactor.Radius.Adapter.Server
             switch(_configuration.FirstFactorAuthenticationSource)
             {
                 case AuthenticationSource.ActiveDirectory:  //AD auth
-                    return ProcessActiveDirectoryAuthentication(request);
+                    return ProcessLdapAuthentication(request, _activeDirectoryService);
+                case AuthenticationSource.AdLds:            //AD LDS internal auth
+                    return ProcessLdapAuthentication(request, new AdLdsService(_configuration, _logger));
                 case AuthenticationSource.Radius:           //RADIUS auth
                     var radiusResponse = ProcessRadiusAuthentication(request);
                     if (radiusResponse == PacketCode.AccessAccept)
@@ -152,7 +155,7 @@ namespace MultiFactor.Radius.Adapter.Server
         /// <summary>
         /// Authenticate request at Active Directory Domain with user-name and password
         /// </summary>
-        private PacketCode ProcessActiveDirectoryAuthentication(PendingRequest request)
+        private PacketCode ProcessLdapAuthentication(PendingRequest request, ILdapService service)
         {
             var userName = request.RequestPacket.UserName;
             var password = request.RequestPacket.UserPassword;
@@ -169,7 +172,7 @@ namespace MultiFactor.Radius.Adapter.Server
                 return PacketCode.AccessReject;
             }
 
-            var isValid = _activeDirectoryService.VerifyCredentialAndMembership(userName, password, request);
+            var isValid = service.VerifyCredentialAndMembership(userName, password, request);
 
             return isValid ? PacketCode.AccessAccept : PacketCode.AccessReject;
         }

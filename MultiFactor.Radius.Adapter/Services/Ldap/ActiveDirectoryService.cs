@@ -13,12 +13,12 @@ using System.Linq;
 using System.Net;
 using System.Text.RegularExpressions;
 
-namespace MultiFactor.Radius.Adapter.Services
+namespace MultiFactor.Radius.Adapter.Services.Ldap
 {
     /// <summary>
     /// Service to interact with Active Directory
     /// </summary>
-    public class ActiveDirectoryService
+    public class ActiveDirectoryService : ILdapService
     {
         private Configuration _configuration;
         private ILogger _logger;

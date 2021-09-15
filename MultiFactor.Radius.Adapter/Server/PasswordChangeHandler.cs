@@ -1,6 +1,6 @@
 ﻿using MultiFactor.Radius.Adapter.Core;
 using MultiFactor.Radius.Adapter.Services;
-using Serilog;
+using MultiFactor.Radius.Adapter.Services.Ldap;
 using System;
 
 namespace MultiFactor.Radius.Adapter.Server

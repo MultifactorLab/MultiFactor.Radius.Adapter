@@ -111,6 +111,7 @@
   <ItemGroup>
     <Compile Include="Server\PasswordChangeHandler.cs" />
     <Compile Include="Server\PasswordChangeRequest.cs" />
+    <Compile Include="Services\Ldap\AdLdsService.cs" />
     <Compile Include="Services\AuthenticatedClient.cs" />
     <Compile Include="Configuration.cs" />
     <Compile Include="Core\AuthenticationType.cs" />
@@ -127,11 +128,12 @@
     <Compile Include="Core\RadiusPassword.cs" />
     <Compile Include="Services\CacheService.cs" />
     <Compile Include="Services\DataProtectionService.cs" />
+    <Compile Include="Services\Ldap\ILdapService.cs" />
     <Compile Include="Services\Ldap\LdapIdentity.cs" />
     <Compile Include="Services\Ldap\LdapProfile.cs" />
     <Compile Include="Services\MultiFactorApiClient.cs" />
     <Compile Include="Server\RadiusReplyAttributeValue.cs" />
-    <Compile Include="Services\ActiveDirectoryService.cs" />
+    <Compile Include="Services\Ldap\ActiveDirectoryService.cs" />
     <Compile Include="ServiceInstaller.cs">
       <SubType>Component</SubType>
     </Compile>

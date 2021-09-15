@@ -113,6 +113,12 @@ namespace MultiFactor.Radius.Adapter
 
         #endregion
 
+        #region General LDAP settings
+
+        public Uri LdapUrl { get; set; }
+
+        #endregion
+
         #region API settings
 
         /// <summary>
@@ -199,9 +205,9 @@ namespace MultiFactor.Radius.Adapter
                 throw new Exception("Configuration error: 'logging-level' element not found");
             }
 
-            if (!Enum.TryParse<AuthenticationSource>(firstFactorAuthenticationSourceSettings, out var firstFactorAuthenticationSource))
+            if (!Enum.TryParse<AuthenticationSource>(firstFactorAuthenticationSourceSettings, true, out var firstFactorAuthenticationSource))
             {
-                throw new Exception("Configuration error: Can't parse 'first-factor-authentication-source' value. Must be one of: ActiveDirectory, Radius");
+                throw new Exception("Configuration error: Can't parse 'first-factor-authentication-source' value. Must be one of: ActiveDirectory, ADLDS, Radius");
             }
             if (!TryParseIPEndPoint(serviceServerEndpointSetting, out var serviceServerEndpoint))
             {
@@ -261,6 +267,9 @@ namespace MultiFactor.Radius.Adapter
                     //active directory membership only settings
                     LoadActiveDirectoryAuthenticationSourceSettings(configuration, false);
                     break;
+                case AuthenticationSource.AdLds:
+                    LoadAdLdsAuthenticationSourceSettings(configuration);
+                    break;
                 case AuthenticationSource.None:
                     //active directory membership only settings
                     LoadActiveDirectoryAuthenticationSourceSettings(configuration, false);
@@ -310,6 +319,25 @@ namespace MultiFactor.Radius.Adapter
             configuration.ActiveDirectoryDomain = activeDirectoryDomainSetting;
             configuration.ActiveDirectoryGroup = activeDirectoryGroupSetting;
             configuration.ActiveDirectory2FaGroup = activeDirectory2FaGroupSetting;
+        }
+
+        private static void LoadAdLdsAuthenticationSourceSettings(Configuration configuration)
+        {
+            var appSettings = ConfigurationManager.AppSettings;
+
+            var ldapUrlSetting = appSettings["ldap-url"];
+
+            if (string.IsNullOrEmpty(ldapUrlSetting))
+            {
+                throw new Exception("Configuration error: 'ldap-url' element not found");
+            }
+
+            if (!Uri.IsWellFormedUriString(ldapUrlSetting, UriKind.Absolute))
+            {
+                throw new Exception("Configuration error: 'ldap-url' element is not well formatted. See samples https://ldap.com/ldap-urls/");
+            }
+
+            configuration.LdapUrl = new Uri(ldapUrlSetting);
         }
 
         private static void LoadRadiusAuthenticationSourceSettings(Configuration configuration)
@@ -448,6 +476,7 @@ namespace MultiFactor.Radius.Adapter
     {
         ActiveDirectory,
         Radius,
+        AdLds,
         None
     }
 
