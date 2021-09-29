@@ -160,8 +160,25 @@ namespace MultiFactor.Radius.Adapter.Server
         /// </summary>
         internal void ParseAndProcess(byte[] packetBytes, IPEndPoint remoteEndpoint)
         {
+            IPEndPoint proxyEndpoint = null;
+
+            if (IsProxyProtocol(packetBytes, out var sourceEndpoint, out var requestWithoutProxyHeader))
+            {
+                packetBytes = requestWithoutProxyHeader;
+                proxyEndpoint = remoteEndpoint;
+                remoteEndpoint = sourceEndpoint;
+            }
+
             var requestPacket = _radiusPacketParser.Parse(packetBytes, Encoding.UTF8.GetBytes(_configuration.RadiusSharedSecret));
-            _logger.Debug($"Received {requestPacket.Code} from {remoteEndpoint} Id={requestPacket.Identifier}");
+
+            if (proxyEndpoint != null)
+            {
+                _logger.Debug($"Received {requestPacket.Code} from {remoteEndpoint} proxied by {proxyEndpoint} Id={requestPacket.Identifier}");
+            }
+            else
+            {
+                _logger.Debug($"Received {requestPacket.Code} from {remoteEndpoint} Id={requestPacket.Identifier}");
+            }
 
             if (_cacheService.IsRetransmission(requestPacket, remoteEndpoint))
             {
@@ -169,7 +186,7 @@ namespace MultiFactor.Radius.Adapter.Server
                 return;
             }
 
-            var request = new PendingRequest { RemoteEndpoint = remoteEndpoint, RequestPacket = requestPacket };
+            var request = new PendingRequest { RemoteEndpoint = remoteEndpoint, ProxyEndpoint = proxyEndpoint, RequestPacket = requestPacket };
 
             Task.Run(() => _router.HandleRequest(request));
         }
@@ -177,11 +194,19 @@ namespace MultiFactor.Radius.Adapter.Server
         /// <summary>
         /// Sends a packet
         /// </summary>
-        private void Send(IRadiusPacket responsePacket, IPEndPoint remoteEndpoint)
+        private void Send(IRadiusPacket responsePacket, IPEndPoint remoteEndpoint, IPEndPoint proxyEndpoint)
         {
             var responseBytes = _radiusPacketParser.GetBytes(responsePacket);
-            _server.Send(responseBytes, responseBytes.Length, remoteEndpoint);
-            _logger.Debug($"{responsePacket.Code} sent to {remoteEndpoint} Id={responsePacket.Identifier}");
+            _server.Send(responseBytes, responseBytes.Length, proxyEndpoint ?? remoteEndpoint);
+            
+            if (proxyEndpoint != null)
+            {
+                _logger.Debug($"{responsePacket.Code} sent to {remoteEndpoint} via {proxyEndpoint} Id={responsePacket.Identifier}");
+            }
+            else
+            {
+                _logger.Debug($"{responsePacket.Code} sent to {remoteEndpoint} Id={responsePacket.Identifier}");
+            }
         }
 
         private void RouterRequestProcessed(object sender, PendingRequest request)
@@ -190,7 +215,7 @@ namespace MultiFactor.Radius.Adapter.Server
             {
                 //EAP authentication in process, just proxy response
                 _logger.Debug($"Proxying EAP-Message Challenge to {request.RemoteEndpoint} Id={request.RequestPacket.Identifier}");
-                Send(request.ResponsePacket, request.RemoteEndpoint);
+                Send(request.ResponsePacket, request.RemoteEndpoint, request.ProxyEndpoint);
                 
                 return; //stop processing
             }
@@ -235,8 +260,43 @@ namespace MultiFactor.Radius.Adapter.Server
                 }
             }
 
-            Send(responsePacket, request.RemoteEndpoint);
+            Send(responsePacket, request.RemoteEndpoint, request.ProxyEndpoint);
         }
+
+        private bool IsProxyProtocol(byte[] request, out IPEndPoint sourceEndpoint, out byte[] requestWithoutProxyHeader)
+        {
+            //https://www.haproxy.org/download/1.8/doc/proxy-protocol.txt
+
+            sourceEndpoint = null;
+            requestWithoutProxyHeader = null;
+
+            if (request.Length < 6)
+            {
+                return false;
+            }
+
+            var proxySig = Encoding.ASCII.GetString(request.Take(5).ToArray());
+
+            if (proxySig == "PROXY")
+            {
+                var lf = Array.IndexOf(request, (byte)'\n');
+                var headerBytes = request.Take(lf + 1).ToArray();
+                var header = Encoding.ASCII.GetString(headerBytes);
+
+                var parts = header.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+
+                var sourceIp = parts[2];
+                var sourcePort = int.Parse(parts[4]);
+
+                sourceEndpoint = new IPEndPoint(IPAddress.Parse(sourceIp), sourcePort);
+                requestWithoutProxyHeader = request.Skip(lf + 1).ToArray();
+
+                return true;
+            }
+
+            return false;
+        }
+
 
         /// <summary>
         /// Dispose

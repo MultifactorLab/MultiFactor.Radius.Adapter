@@ -18,6 +18,7 @@ namespace MultiFactor.Radius.Adapter.Server
         }
 
         public IPEndPoint RemoteEndpoint { get; set; }
+        public IPEndPoint ProxyEndpoint { get; set; }
         public IRadiusPacket RequestPacket { get; set; }
         public IRadiusPacket ResponsePacket { get; set; }
         public PacketCode ResponseCode { get; set; }

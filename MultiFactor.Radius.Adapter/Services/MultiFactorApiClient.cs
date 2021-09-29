@@ -83,6 +83,11 @@ namespace MultiFactor.Radius.Adapter.Services
                 }
             }
 
+            if (responseCode == PacketCode.AccessReject)
+            {
+                _logger.Warning($"Second factor verification for user '{userName}' failed");
+            }
+
             return responseCode;
         }
 
