@@ -229,6 +229,10 @@ namespace MultiFactor.Radius.Adapter.Server
                 {
                     request.ResponsePacket.CopyTo(responsePacket);
                 }
+                if (request.RequestPacket.Code == PacketCode.StatusServer)
+                {
+                    responsePacket.AddAttribute("Reply-Message", request.ReplyMessage);
+                }
             }
 
             //proxy echo required

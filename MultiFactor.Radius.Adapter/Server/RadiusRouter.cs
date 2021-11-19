@@ -28,6 +28,8 @@ namespace MultiFactor.Radius.Adapter.Server
         private CacheService _cacheService;
         private PasswordChangeHandler _passwordChangeHandler;
 
+        private DateTime _startedAt = DateTime.Now;
+
         public RadiusRouter(Configuration configuration, IRadiusPacketParser packetParser, CacheService cacheService, ILogger logger)
         {
             _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
@@ -44,6 +46,16 @@ namespace MultiFactor.Radius.Adapter.Server
         {
             try
             {
+                if (request.RequestPacket.Code == PacketCode.StatusServer)
+                {
+                    //status
+                    var uptime = (DateTime.Now - _startedAt);
+                    request.ReplyMessage = $"Server up {uptime.Days} days {uptime.ToString("hh\\:mm\\:ss")}";
+                    request.ResponseCode = PacketCode.AccessAccept;
+                    RequestProcessed?.Invoke(this, request);
+                    return;
+                }
+
                 if (request.RequestPacket.Code != PacketCode.AccessRequest)
                 {
                     _logger.Warning($"Unprocessable packet type: {request.RequestPacket.Code}");
