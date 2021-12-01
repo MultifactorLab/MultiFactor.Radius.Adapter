@@ -7,6 +7,7 @@ using MultiFactor.Radius.Adapter.Services.Ldap;
 using Serilog;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.DirectoryServices.AccountManagement;
 using System.DirectoryServices.Protocols;
 using System.Linq;
@@ -49,6 +50,16 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
 
             var user = LdapIdentity.ParseUser(userName);
 
+            if (user.Type == IdentityType.UserPrincipalName)
+            {
+                var suffix = user.UpnToSuffix();
+                if (!_configuration.IsPermittedDomain(suffix))
+                {
+                    _logger.Warning($"User domain {suffix} not permitted");
+                    return false;
+                }
+            }
+
             try
             {
                 _logger.Debug($"Verifying user '{user.Name}' credential and status at {_configuration.ActiveDirectoryDomain}");
@@ -87,7 +98,6 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
 
             return false;
         }
-
         public bool VerifyMembership(string userName, PendingRequest request)
         {
             if (string.IsNullOrEmpty(userName))
@@ -187,7 +197,7 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
             //user must be member of security group
             if (checkGroupMembership)
             {
-                var isMemberOf = IsMemberOf(connection, profile.BaseDn, user, _configuration.ActiveDirectoryGroup);
+                var isMemberOf = IsMemberOf(connection, profile, user, _configuration.ActiveDirectoryGroup);
 
                 if (!isMemberOf)
                 {
@@ -202,7 +212,7 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
             //only users from group must process 2fa
             if (onlyMembersOfGroupMustProcess2faAuthentication)
             {
-                var isMemberOf = IsMemberOf(connection, profile.BaseDn, user, _configuration.ActiveDirectory2FaGroup);
+                var isMemberOf = IsMemberOf(connection, profile, user, _configuration.ActiveDirectory2FaGroup);
 
                 if (isMemberOf)
                 {
@@ -220,7 +230,7 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
             {
                 foreach (var value in attribute.Value.Where(val => val.UserGroupCondition != null))
                 {
-                    if (IsMemberOf(connection, profile.BaseDn, user, value.UserGroupCondition))
+                    if (IsMemberOf(connection, profile, user, value.UserGroupCondition))
                     {
                         _logger.Information($"User '{user.Name}' is member of '{value.UserGroupCondition}' in {profile.BaseDn.Name}. Adding attribute '{attribute.Key}:{value.Value}' to reply");
                         request.UserGroups.Add(value.UserGroupCondition);
@@ -266,6 +276,7 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
                         "CN=System," + root.Name,
                         "objectClass=trustedDomain",
                         SearchScope.OneLevel,
+                        true,
                         "cn");
 
                     var schema = new List<LdapIdentity>
@@ -279,13 +290,17 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
                         var attribute = entry.Attributes["cn"];
                         if (attribute != null)
                         {
-                            var trustPartner = LdapIdentity.FqdnToDn(attribute[0].ToString());
-
-                            _logger.Debug($"Found trusted domain {trustPartner.Name}");
-
-                            if (!trustPartner.IsChildOf(root))
+                            var domain = attribute[0].ToString();
+                            if (_configuration.IsPermittedDomain(domain))
                             {
-                                schema.Add(trustPartner);
+                                var trustPartner = LdapIdentity.FqdnToDn(domain);
+
+                                _logger.Debug($"Found trusted domain {trustPartner.Name}");
+
+                                if (!schema.Contains(trustPartner))
+                                {
+                                    schema.Add(trustPartner);
+                                }
                             }
                         }
                     }
@@ -298,36 +313,41 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
                             _domainNameSuffixes.Add(domainSuffix, domain);
                         }
 
-                        try
+                        var isChild = schema.Any(parent => domain.IsChildOf(parent));
+                        if (!isChild)
                         {
-                            var uPNSuffixesResult = Query(connection,
-                                "CN=Partitions,CN=Configuration," + domain.Name,
-                                "objectClass=*",
-                                SearchScope.Base,
-                                "uPNSuffixes");
-
-                            for (var i = 0; i < uPNSuffixesResult.Entries.Count; i++)
+                            try
                             {
-                                var entry = uPNSuffixesResult.Entries[i];
-                                var attribute = entry.Attributes["uPNSuffixes"];
-                                if (attribute != null)
-                                {
-                                    for (var j = 0; j < attribute.Count; j++)
-                                    {
-                                        var suffix = attribute[j].ToString();
+                                var uPNSuffixesResult = Query(connection,
+                                    "CN=Partitions,CN=Configuration," + domain.Name,
+                                    "objectClass=*",
+                                    SearchScope.Base,
+                                    true,
+                                    "uPNSuffixes");
 
-                                        if (!_domainNameSuffixes.ContainsKey(suffix))
+                                for (var i = 0; i < uPNSuffixesResult.Entries.Count; i++)
+                                {
+                                    var entry = uPNSuffixesResult.Entries[i];
+                                    var attribute = entry.Attributes["uPNSuffixes"];
+                                    if (attribute != null)
+                                    {
+                                        for (var j = 0; j < attribute.Count; j++)
                                         {
-                                            _domainNameSuffixes.Add(suffix, domain);
-                                            _logger.Debug($"Found alternative UPN suffix {suffix} for domain {domain.Name}");
+                                            var suffix = attribute[j].ToString();
+
+                                            if (!_domainNameSuffixes.ContainsKey(suffix))
+                                            {
+                                                _domainNameSuffixes.Add(suffix, domain);
+                                                _logger.Debug($"Found alternative UPN suffix {suffix} for domain {domain.Name}");
+                                            }
                                         }
                                     }
                                 }
                             }
-                        }
-                        catch(Exception ex)
-                        {
-                            _logger.Warning($"Unable to query {domain.Name}: {ex.Message}");
+                            catch (Exception ex)
+                            {
+                                _logger.Warning($"Unable to query {domain.Name}: {ex.Message}");
+                            }
                         }
                     }
                 }
@@ -349,7 +369,14 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
 
             _logger.Debug($"Querying user '{user.Name}' in {baseDn.Name}");
 
-            var response = Query(connection, baseDn.Name, searchFilter, SearchScope.Subtree, attributes);
+            //only this domain
+            var response = Query(connection, baseDn.Name, searchFilter, SearchScope.Subtree, false, attributes);
+
+            if (response.Entries.Count == 0)
+            {
+                //with ReferralChasing 
+                response = Query(connection, baseDn.Name, searchFilter, SearchScope.Subtree, true, attributes);
+            }
 
             if (response.Entries.Count == 0)
             {
@@ -374,18 +401,19 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
             return true;
         }
 
-        private bool IsMemberOf(LdapConnection connection, LdapIdentity domain, LdapIdentity user, string groupName)
+        private bool IsMemberOf(LdapConnection connection, LdapProfile profile, LdapIdentity user, string groupName)
         {
-            var isValidGroup = IsValidGroup(connection, domain, groupName, out var group);
+            var baseDn = SelectBestDomainToQuery(user, profile.BaseDn);
+            var isValidGroup = IsValidGroup(connection, baseDn, groupName, out var group);
 
             if (!isValidGroup)
             {
-                _logger.Warning($"Security group '{groupName}' not exists in {domain.Name}");
+                _logger.Warning($"Security group '{groupName}' not exists in {profile.BaseDn.Name}");
                 return false;
             }
 
             var searchFilter = $"(&({user.TypeName}={user.Name})(memberOf:1.2.840.113556.1.4.1941:={group.Name}))";
-            var response = Query(connection, domain.Name, searchFilter, SearchScope.Subtree);
+            var response = Query(connection, profile.DistinguishedName, searchFilter, SearchScope.Subtree, true, "DistinguishedName");
 
             return response.Entries.Count > 0;
         }
@@ -396,7 +424,12 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
 
             var group = LdapIdentity.ParseGroup(groupName);
             var searchFilter = $"(&(objectCategory=group)({group.TypeName}={group.Name}))";
-            var response = Query(connection, domain.Name, searchFilter, SearchScope.Subtree, "DistinguishedName");
+            
+            var response = Query(connection, domain.Name, searchFilter, SearchScope.Subtree, false, "DistinguishedName");
+            if (response.Entries.Count == 0)
+            {
+                response = Query(connection, domain.Name, searchFilter, SearchScope.Subtree, true, "DistinguishedName");
+            }
 
             for (var i=0; i < response.Entries.Count; i++)
             {
@@ -417,7 +450,7 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
             return false;
         }
 
-        private SearchResponse Query(LdapConnection connection, string baseDn, string filter, SearchScope scope, params string[] attributes)
+        private SearchResponse Query(LdapConnection connection, string baseDn, string filter, SearchScope scope, bool chaseRefs, params string[] attributes)
         {
             var searchRequest = new SearchRequest
                 (baseDn,
@@ -425,7 +458,24 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
                  scope,
                  attributes);
 
+            if (chaseRefs)
+            {
+                connection.SessionOptions.ReferralChasing = ReferralChasingOptions.All;
+            }
+            else
+            {
+                connection.SessionOptions.ReferralChasing = ReferralChasingOptions.None;
+            }
+
+            var sw = Stopwatch.StartNew();
+
             var response = (SearchResponse)connection.SendRequest(searchRequest);
+
+            if (sw.Elapsed.TotalSeconds > 2)
+            {
+                _logger.Warning($"Slow response while querying {baseDn}. Elapsed {sw.Elapsed}");
+            }
+
             return response;
         }
 
@@ -441,9 +491,21 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
                 return defaultDomain;
             }
 
-            foreach(var key in _domainNameSuffixes.Keys)
+            var userDomainSuffix = user.UpnToSuffix().ToLower();
+            
+            //best match
+            foreach (var key in _domainNameSuffixes.Keys)
             {
-                if (user.Name.ToLower().EndsWith(key.ToLower()))
+                if (userDomainSuffix == key.ToLower())
+                {
+                    return _domainNameSuffixes[key];
+                }
+            }
+
+            //approximately match
+            foreach (var key in _domainNameSuffixes.Keys)
+            {
+                if (userDomainSuffix.EndsWith(key.ToLower()))
                 {
                     return _domainNameSuffixes[key];
                 }

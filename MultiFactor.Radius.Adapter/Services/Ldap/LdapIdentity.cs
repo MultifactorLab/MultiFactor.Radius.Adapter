@@ -113,7 +113,18 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
 
         public bool IsChildOf(LdapIdentity parent)
         {
-            return Name.EndsWith(parent.Name);
+            return Name != parent.Name && Name.EndsWith(parent.Name);
+        }
+
+        public string UpnToSuffix()
+        {
+            if (Type != IdentityType.UserPrincipalName)
+            {
+                throw new InvalidOperationException($"Invalid username format: {Name}. Expected UPN");
+            }
+
+            var index = Name.IndexOf("@");
+            return Name.Substring(index + 1).ToLower();
         }
     }
 }

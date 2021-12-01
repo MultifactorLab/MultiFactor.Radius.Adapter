@@ -240,7 +240,10 @@ namespace MultiFactor.Radius.Adapter.Server
             {
                 if (!responsePacket.Attributes.ContainsKey("Proxy-State"))
                 {
-                    responsePacket.Attributes.Add("Proxy-State", requestPacket.Attributes.SingleOrDefault(o => o.Key == "Proxy-State").Value);
+                    if (!_configuration.RemoveProxyState)
+                    {
+                        responsePacket.Attributes.Add("Proxy-State", requestPacket.Attributes.SingleOrDefault(o => o.Key == "Proxy-State").Value);
+                    }
                 }
             }
 

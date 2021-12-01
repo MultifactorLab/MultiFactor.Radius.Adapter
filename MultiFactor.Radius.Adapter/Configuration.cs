@@ -5,6 +5,7 @@
 using MultiFactor.Radius.Adapter.Core;
 using MultiFactor.Radius.Adapter.Server;
 using System;
+using System.Linq;
 using System.Collections.Generic;
 using System.Configuration;
 using System.Net;
@@ -98,6 +99,35 @@ namespace MultiFactor.Radius.Adapter
             }
         }
 
+        /// <summary>
+        /// Use only these domains within forest(s)
+        /// </summary>
+        public IList<string> IncludedDomains { get; set; }
+
+        /// <summary>
+        /// Use all but not these domains within forest(s)
+        /// </summary>
+        public IList<string> ExcludedDomains { get; set; }
+
+        /// <summary>
+        /// Check if any included domains or exclude domains specified and contains required domain
+        /// </summary>
+        public bool IsPermittedDomain(string domain)
+        {
+            if (string.IsNullOrEmpty(domain)) throw new ArgumentNullException(nameof(domain));
+
+            if (IncludedDomains?.Count > 0)
+            {
+                return IncludedDomains.Any(included => included.ToLower() == domain.ToLower());
+            }
+            if (ExcludedDomains?.Count > 0)
+            {
+                return !ExcludedDomains.Any(excluded => excluded.ToLower() == domain.ToLower());
+            }
+
+            return true;
+        }
+
         #endregion
 
         #region RADIUS Authentication settings
@@ -150,6 +180,11 @@ namespace MultiFactor.Radius.Adapter
         /// Custom RADIUS reply attributes
         /// </summary>
         public IDictionary<string, List<RadiusReplyAttributeValue>> RadiusReplyAttributes { get; set; }
+
+        /// <summary>
+        /// Remove Proxy-State attribute from reply
+        /// </summary>
+        public bool RemoveProxyState { get; set; }
 
         #region load config section
 
@@ -319,6 +354,23 @@ namespace MultiFactor.Radius.Adapter
             configuration.ActiveDirectoryDomain = activeDirectoryDomainSetting;
             configuration.ActiveDirectoryGroup = activeDirectoryGroupSetting;
             configuration.ActiveDirectory2FaGroup = activeDirectory2FaGroupSetting;
+
+            var activeDirectorySection = (ActiveDirectorySection)ConfigurationManager.GetSection("ActiveDirectory");
+            if (activeDirectorySection != null)
+            {
+                var includedDomains = (from object value in activeDirectorySection.IncludedDomains
+                                       select ((ValueElement)value).Name).ToList();
+                var excludeddDomains = (from object value in activeDirectorySection.ExcludedDomains
+                                        select ((ValueElement)value).Name).ToList();
+
+                if (includedDomains.Count > 0 && excludeddDomains.Count > 0)
+                {
+                    throw new Exception("Both IncludedDomains and ExcludedDomains configured.");
+                }
+
+                configuration.IncludedDomains = includedDomains;
+                configuration.ExcludedDomains = excludeddDomains;
+            }
         }
 
         private static void LoadAdLdsAuthenticationSourceSettings(Configuration configuration)
@@ -403,6 +455,7 @@ namespace MultiFactor.Radius.Adapter
             }
 
             configuration.RadiusReplyAttributes = replyAttributes;
+            configuration.RemoveProxyState = section?.ProxyState?.Remove ?? false;
         }
 
         private static object ParseRadiusReplyAttributeValue(DictionaryAttribute attribute, string value)
@@ -515,12 +568,68 @@ namespace MultiFactor.Radius.Adapter
         }
     }
 
+    public class RadiusReplyProxyStateElement : ConfigurationElement
+    {
+        [ConfigurationProperty("remove", IsKey = false, IsRequired = true)]
+        public bool Remove
+        {
+            get { return (bool)this["remove"]; }
+        }
+    }
+
     public class RadiusReplyAttributesSection : ConfigurationSection
     {
         [ConfigurationProperty("Attributes")]
         public RadiusReplyAttributesCollection Members
         {
             get { return (RadiusReplyAttributesCollection)this["Attributes"]; }
+        }
+
+        [ConfigurationProperty("ProxyState")]
+        public RadiusReplyProxyStateElement ProxyState
+        {
+            get
+            {
+                return (RadiusReplyProxyStateElement)this["ProxyState"];
+            }
+        }
+    }
+
+    public class ValueElement : ConfigurationElement
+    {
+        [ConfigurationProperty("name", IsKey = true, IsRequired = true)]
+        public string Name
+        {
+            get { return (string)this["name"]; }
+        }
+    }
+
+    public class ValueElementCollection : ConfigurationElementCollection
+    {
+        protected override ConfigurationElement CreateNewElement()
+        {
+            return new ValueElement();
+        }
+
+
+        protected override object GetElementKey(ConfigurationElement element)
+        {
+            return ((ValueElement)element).Name;
+        }
+    }
+
+    public class ActiveDirectorySection : ConfigurationSection
+    {
+        [ConfigurationProperty("ExcludedDomains", IsRequired = false)]
+        public ValueElementCollection ExcludedDomains
+        {
+            get { return (ValueElementCollection)this["ExcludedDomains"]; }
+        }
+
+        [ConfigurationProperty("IncludedDomains", IsRequired = false)]
+        public ValueElementCollection IncludedDomains
+        {
+            get { return (ValueElementCollection)this["IncludedDomains"]; }
         }
     }
 }
