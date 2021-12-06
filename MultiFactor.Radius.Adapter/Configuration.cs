@@ -100,6 +100,11 @@ namespace MultiFactor.Radius.Adapter
         }
 
         /// <summary>
+        /// Only UPN user name format permitted
+        /// </summary>
+        public bool RequiresUpn { get; set; }
+
+        /// <summary>
         /// Use only these domains within forest(s)
         /// </summary>
         public IList<string> IncludedDomains { get; set; }
@@ -180,6 +185,12 @@ namespace MultiFactor.Radius.Adapter
         /// Custom RADIUS reply attributes
         /// </summary>
         public IDictionary<string, List<RadiusReplyAttributeValue>> RadiusReplyAttributes { get; set; }
+
+        public static string GetLogFormat()
+        {
+            var appSettings = ConfigurationManager.AppSettings;
+            return appSettings?["logging-format"];
+        }
 
         /// <summary>
         /// Remove Proxy-State attribute from reply
@@ -370,6 +381,7 @@ namespace MultiFactor.Radius.Adapter
 
                 configuration.IncludedDomains = includedDomains;
                 configuration.ExcludedDomains = excludeddDomains;
+                configuration.RequiresUpn = activeDirectorySection.RequiresUpn;
             }
         }
 
@@ -630,6 +642,12 @@ namespace MultiFactor.Radius.Adapter
         public ValueElementCollection IncludedDomains
         {
             get { return (ValueElementCollection)this["IncludedDomains"]; }
+        }
+
+        [ConfigurationProperty("requiresUserPrincipalName", IsKey = false, IsRequired = false)]
+        public bool RequiresUpn
+        {
+            get { return (bool)this["requiresUserPrincipalName"]; }
         }
     }
 }

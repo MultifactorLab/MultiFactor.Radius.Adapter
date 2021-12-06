@@ -3,9 +3,12 @@
 //https://github.com/MultifactorLab/MultiFactor.Radius.Adapter/blob/master/LICENSE.md
 
 using MultiFactor.Radius.Adapter.Core;
+using MultiFactor.Radius.Adapter.Syslog;
 using Serilog;
 using Serilog.Core;
 using Serilog.Events;
+using Serilog.Formatting;
+using Serilog.Formatting.Compact;
 using Serilog.Sinks.Syslog;
 using System;
 using System.Configuration;
@@ -32,9 +35,21 @@ namespace MultiFactor.Radius.Adapter
             //create logging
             var levelSwitch = new LoggingLevelSwitch(LogEventLevel.Information);
             var loggerConfiguration = new LoggerConfiguration()
-                .MinimumLevel.ControlledBy(levelSwitch)
-                .WriteTo.Console(LogEventLevel.Debug)
-                .WriteTo.File($"{path}Logs{Path.DirectorySeparatorChar}log-.txt", rollingInterval: RollingInterval.Day);
+                .MinimumLevel.ControlledBy(levelSwitch);
+
+            var formatter = GetLogFormatter();
+            if (formatter != null)
+            {
+                loggerConfiguration
+                    .WriteTo.Console(formatter, LogEventLevel.Debug)
+                    .WriteTo.File(formatter, $"{path}Logs{Path.DirectorySeparatorChar}log-.txt", rollingInterval: RollingInterval.Day);
+            }
+            else
+            {
+                loggerConfiguration
+                    .WriteTo.Console(LogEventLevel.Debug)
+                    .WriteTo.File($"{path}Logs{Path.DirectorySeparatorChar}log-.txt", rollingInterval: RollingInterval.Day);
+            }
 
             ConfigureSyslog(loggerConfiguration, out var syslogInfoMessage);
 
@@ -137,6 +152,9 @@ namespace MultiFactor.Radius.Adapter
         {
             switch (level)
             {
+                case "Verbose":
+                    levelSwitch.MinimumLevel = LogEventLevel.Verbose;
+                    break;
                 case "Debug":
                     levelSwitch.MinimumLevel = LogEventLevel.Debug;
                     break;
@@ -165,22 +183,11 @@ namespace MultiFactor.Radius.Adapter
             var sysLogFacilitySetting = appSettings["syslog-facility"];
             var sysLogAppName = appSettings["syslog-app-name"] ?? "multifactor-radius";
 
+            var isJson = Configuration.GetLogFormat() == "json";
+
             var facility = ParseSettingOrDefault(sysLogFacilitySetting, Facility.Auth);
             var format = ParseSettingOrDefault(sysLogFormatSetting, SyslogFormat.RFC5424);
             var framer = ParseSettingOrDefault(sysLogFramerSetting, FramingType.OCTET_COUNTING);
-
-            ISyslogFormatter formatter;
-            switch (format)
-            {
-                case SyslogFormat.RFC5424:
-                    formatter = new Rfc5424Formatter(facility: facility, applicationName: sysLogAppName);
-                    break;
-                case SyslogFormat.RFC3164:
-                    formatter = new Rfc3164Formatter(facility: facility, applicationName: sysLogAppName);
-                    break;
-                default:
-                    throw new NotImplementedException($"Unknown syslog format {format}");
-            }
 
             if (sysLogServer != null)
             {
@@ -197,20 +204,13 @@ namespace MultiFactor.Radius.Adapter
                         var serverIp = ResolveIP(uri.Host);
                         loggerConfiguration
                             .WriteTo
-                            .UdpSyslog(serverIp, port: uri.Port, format: format, appName: sysLogAppName, facility: facility);
+                            .JsonUdpSyslog(serverIp, port: uri.Port, appName: sysLogAppName, format: format, facility: facility, json: isJson);
                         logMessage = $"Using syslog server: {sysLogServer}, format: {format}, facility: {facility}, appName: {sysLogAppName}";
                         break;
                     case "tcp":
-                        var tcpConfig = new SyslogTcpConfig
-                        {
-                            Host = uri.Host,
-                            Port = uri.Port,
-                            Framer = new MessageFramer(framer),
-                            Formatter = formatter,
-                        };
                         loggerConfiguration
                             .WriteTo
-                            .TcpSyslog(tcpConfig);
+                            .JsonTcpSyslog(uri.Host, uri.Port, appName: sysLogAppName, format: format, framingType: framer, facility: facility, json: isJson);
                         logMessage = $"Using syslog server {sysLogServer}, format: {format}, framing: {framer}, facility: {facility}, appName: {sysLogAppName}";
                         break;
                     default:
@@ -240,6 +240,18 @@ namespace MultiFactor.Radius.Adapter
             }
 
             return host;
+        }
+
+        private static ITextFormatter GetLogFormatter()
+        {
+            var format = Configuration.GetLogFormat();
+            switch (format?.ToLower())
+            {
+                case "json":
+                    return new RenderedCompactJsonFormatter();
+                default:
+                    return null;
+            }
         }
     }
 }

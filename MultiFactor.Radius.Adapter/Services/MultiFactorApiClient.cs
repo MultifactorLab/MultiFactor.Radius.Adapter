@@ -47,7 +47,7 @@ namespace MultiFactor.Radius.Adapter.Services
             {
                 if (TryHitCache(remoteHost, userName))
                 {
-                    _logger.Information($"Bypass second factor for user {userName} from {remoteHost}");
+                    _logger.Information("Bypass second factor for user '{user:l}' from {host:l}:{port}", userName, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
                     return PacketCode.AccessAccept;
                 }
             }
@@ -75,7 +75,7 @@ namespace MultiFactor.Radius.Adapter.Services
 
             if (responseCode == PacketCode.AccessAccept && !response.Bypassed)
             {
-                _logger.Information($"Second factor for user '{userName}' verified successfully");
+                _logger.Information("Second factor for user '{user:l}' verified successfully. Authenticator '{authenticator:l}', account '{account:l}'", userName, response?.Authenticator, response?.Account);
 
                 if (_configuration.BypassSecondFactorPeriod > 0)
                 {
@@ -85,7 +85,9 @@ namespace MultiFactor.Radius.Adapter.Services
 
             if (responseCode == PacketCode.AccessReject)
             {
-                _logger.Warning($"Second factor verification for user '{userName}' failed");
+                var reason = response?.ReplyMessage;
+                var phone = response?.Phone;
+                _logger.Warning("Second factor verification for user '{user:l}' from {host:l}:{port} failed with reason='{reason:l}'. User phone {phone:l}", userName, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port, reason, phone);
             }
 
             return responseCode;
@@ -108,7 +110,7 @@ namespace MultiFactor.Radius.Adapter.Services
 
             if (responseCode == PacketCode.AccessAccept && !response.Bypassed)
             {
-                _logger.Information($"Second factor for user '{userName}' verified successfully");
+                _logger.Information("Second factor for user '{user:l}' verified successfully. Authenticator '{authenticator:l}', account '{account:l}'", userName, response?.Authenticator, response?.Account);
             }
 
             return responseCode;
@@ -124,7 +126,7 @@ namespace MultiFactor.Radius.Adapter.Services
 
                 var json = JsonConvert.SerializeObject(payload);
 
-                _logger.Debug($"Sending request to API: {json}");
+                _logger.Debug("Sending request to API: {@payload}", payload);
 
                 var requestData = Encoding.UTF8.GetBytes(json);
                 byte[] responseData = null;
@@ -147,21 +149,20 @@ namespace MultiFactor.Radius.Adapter.Services
                 }
 
                 json = Encoding.UTF8.GetString(responseData);
-
-                _logger.Debug($"Received response from API: {json}");
-
                 var response = JsonConvert.DeserializeObject<MultiFactorApiResponse<MultiFactorAccessRequest>>(json);
+
+                _logger.Debug("Received response from API: {@response}", response);
 
                 if (!response.Success)
                 {
-                    _logger.Warning($"Got unsuccessful response from API: {json}");
+                    _logger.Warning("Got unsuccessful response from API: {@response}", response);
                 }
 
                 return response.Model;
             }
             catch (Exception ex)
             {
-                _logger.Error(ex, $"Multifactor API host unreachable {url}: {ex.Message}");
+                _logger.Error(ex, $"Multifactor API host unreachable: {url}");
 
                 if (_configuration.BypassSecondFactorWhenApiUnreachable)
                 {
@@ -287,10 +288,13 @@ namespace MultiFactor.Radius.Adapter.Services
     public class MultiFactorAccessRequest
     {
         public string Id { get; set; }
+        public string Identity { get; set; }
+        public string Phone { get; set; }
         public string Status { get; set; }
         public string ReplyMessage { get; set; }
-
         public bool Bypassed { get; set; }
+        public string Authenticator { get; set; }
+        public string Account { get; set; }
 
         public static MultiFactorAccessRequest Bypass
         {
