@@ -270,16 +270,21 @@ namespace MultiFactor.Radius.Adapter.Server
             }
 
             //proxy echo required
-            if (requestPacket.Attributes.ContainsKey("Proxy-State"))
+            if (!_configuration.RemoveProxyState)
             {
-                if (!responsePacket.Attributes.ContainsKey("Proxy-State"))
+                if (requestPacket.Attributes.ContainsKey("Proxy-State"))
                 {
-                    if (!_configuration.RemoveProxyState)
+                    if (!responsePacket.Attributes.ContainsKey("Proxy-State"))
                     {
                         responsePacket.Attributes.Add("Proxy-State", requestPacket.Attributes.SingleOrDefault(o => o.Key == "Proxy-State").Value);
                     }
                 }
             }
+            else
+            {
+                responsePacket.Attributes.Remove("Proxy-State");
+            }
+
 
             if (request.ResponseCode == PacketCode.AccessChallenge)
             {
