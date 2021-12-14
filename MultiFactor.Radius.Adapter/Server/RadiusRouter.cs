@@ -214,18 +214,21 @@ namespace MultiFactor.Radius.Adapter.Server
         {
             try
             {
-                //sending request as is to Network Policy Server
+                //sending request to Remote Radius Server
                 using (var client = new RadiusClient(_configuration.ServiceClientEndpoint, _logger))
                 {
-                    _logger.Debug($"Sending AccessRequest message with id={{id}} to Network Policy Server {_configuration.NpsServerEndpoint}", request.RequestPacket.Identifier);
+                    _logger.Debug($"Sending {{code:l}} message with id={{id}} to Remote Radius Server {_configuration.NpsServerEndpoint}", request.RequestPacket.Code.ToString(), request.RequestPacket.Identifier);
 
-                    var requestBytes = _packetParser.GetBytes(request.RequestPacket);
+                    var proxyPacket = new RadiusPacket(request.RequestPacket.Code, request.RequestPacket.Identifier, request.RequestPacket.SharedSecret);
+                    request.RequestPacket.CopyTo(proxyPacket);
+
+                    var requestBytes = _packetParser.GetBytes(proxyPacket);
                     var response = client.SendPacketAsync(request.RequestPacket.Identifier, requestBytes, _configuration.NpsServerEndpoint, TimeSpan.FromSeconds(5)).Result;
 
                     if (response != null)
                     {
                         var responsePacket = _packetParser.Parse(response, request.RequestPacket.SharedSecret, request.RequestPacket.Authenticator);
-                        _logger.Debug("Received {code:l} message with id={id} from Network Policy Server", responsePacket.Code.ToString(), responsePacket.Identifier);
+                        _logger.Debug("Received {code:l} message with id={id} from Remote Radius Server", responsePacket.Code.ToString(), responsePacket.Identifier);
 
                         if (responsePacket.Code == PacketCode.AccessAccept)
                         {
@@ -238,7 +241,7 @@ namespace MultiFactor.Radius.Adapter.Server
                     }
                     else
                     {
-                        _logger.Warning("Network Policy Server did not respond on message with id={id}", request.RequestPacket.Identifier);
+                        _logger.Warning("Remote Radius Server did not respond on message with id={id}", request.RequestPacket.Identifier);
                         return PacketCode.AccessReject; //reject by default
                     }
                 }

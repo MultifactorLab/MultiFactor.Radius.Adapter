@@ -111,12 +111,11 @@ namespace MultiFactor.Radius.Adapter.Core
         /// <param name="code"></param>
         /// <param name="identifier"></param>
         /// <param name="secret"></param>
-        /// <param name="authenticator">Set authenticator for testing</param>
-        public RadiusPacket(PacketCode code, Byte identifier, String secret)
+        public RadiusPacket(PacketCode code, Byte identifier, byte[] secret)
         {
             Code = code;
             Identifier = identifier;
-            SharedSecret = Encoding.UTF8.GetBytes(secret);
+            SharedSecret = secret;
 
             // Generate random authenticator for access request packets
             if (Code == PacketCode.AccessRequest || Code == PacketCode.StatusServer)
@@ -211,10 +210,10 @@ namespace MultiFactor.Radius.Adapter.Core
 
         public void CopyTo(IRadiusPacket packet)
         {
-            packet.Attributes = Attributes;
+            //clone attrs
+            packet.Attributes = new Dictionary<string, List<object>>(Attributes);
             packet.Attributes.Remove("Proxy-State"); //should be newer
         }
-
 
         public void AddAttribute(String name, String value)
         {

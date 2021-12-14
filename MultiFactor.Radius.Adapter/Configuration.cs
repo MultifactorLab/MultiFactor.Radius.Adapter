@@ -192,11 +192,6 @@ namespace MultiFactor.Radius.Adapter
             return appSettings?["logging-format"];
         }
 
-        /// <summary>
-        /// Remove Proxy-State attribute from reply
-        /// </summary>
-        public bool RemoveProxyState { get; set; }
-
         #region load config section
 
         /// <summary>
@@ -467,7 +462,6 @@ namespace MultiFactor.Radius.Adapter
             }
 
             configuration.RadiusReplyAttributes = replyAttributes;
-            configuration.RemoveProxyState = section?.ProxyState?.Remove ?? false;
         }
 
         private static object ParseRadiusReplyAttributeValue(DictionaryAttribute attribute, string value)
