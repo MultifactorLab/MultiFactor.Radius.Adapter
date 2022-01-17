@@ -1349,6 +1349,8 @@ VendorSpecificAttribute	3076	134	Altiga-Part-Mobile-IP-Address-G	ipaddr
 VendorSpecificAttribute	3076	135	Altiga-General-Strip-Realm-G	integer
 VendorSpecificAttribute	3076	136	Altiga-Part-Strip-Realm-G	integer
 VendorSpecificAttribute	3076	137	Altiga-Part-Group-ID-G	integer
+VendorSpecificAttribute	3076	146	ASA-TunnelGroupName	string
+VendorSpecificAttribute	3076	150	ASA-ClientType	integer
 
 # VendorId 3199
 VendorSpecificAttribute	3199	1	Shasta-User-Priv	integer
