@@ -219,10 +219,7 @@ namespace MultiFactor.Radius.Adapter.Server
                 {
                     _logger.Debug($"Sending {{code:l}} message with id={{id}} to Remote Radius Server {_configuration.NpsServerEndpoint}", request.RequestPacket.Code.ToString(), request.RequestPacket.Identifier);
 
-                    var proxyPacket = new RadiusPacket(request.RequestPacket.Code, request.RequestPacket.Identifier, request.RequestPacket.SharedSecret);
-                    request.RequestPacket.CopyTo(proxyPacket);
-
-                    var requestBytes = _packetParser.GetBytes(proxyPacket);
+                    var requestBytes = _packetParser.GetBytes(request.RequestPacket);
                     var response = client.SendPacketAsync(request.RequestPacket.Identifier, requestBytes, _configuration.NpsServerEndpoint, TimeSpan.FromSeconds(5)).Result;
 
                     if (response != null)
@@ -330,6 +327,7 @@ namespace MultiFactor.Radius.Adapter.Server
                     {
                         request.UserGroups = stateChallengePendingRequest.UserGroups;
                         request.ResponsePacket = stateChallengePendingRequest.ResponsePacket;
+                        request.LdapAttrs = stateChallengePendingRequest.LdapAttrs;
                     }
                     break;
                 case PacketCode.AccessReject:

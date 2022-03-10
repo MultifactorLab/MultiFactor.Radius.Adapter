@@ -68,5 +68,18 @@ namespace MultiFactor.Radius.Adapter.Core
 
             return identity;
         }
+
+        /// <summary>
+        /// Check if username does not contains domain prefix or suffix
+        /// </summary>
+        public static bool IsCanicalUserName(string userName)
+        {
+            if (string.IsNullOrEmpty(userName))
+            {
+                throw new ArgumentNullException(nameof(userName));
+            }
+
+            return userName.IndexOfAny(new[] { '\\', '@' }) == -1;
+        }
     }
 }

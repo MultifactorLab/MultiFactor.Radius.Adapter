@@ -256,12 +256,7 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
                 {
                     if (IsMemberOf(connection, profile, user, value.UserGroupCondition))
                     {
-                        _logger.Information($"User '{{user:l}}' is member of '{value.UserGroupCondition}' in {profile.BaseDn.Name}. Adding attribute '{attribute.Key}:{value.Value}' to reply", user.Name);
                         request.UserGroups.Add(value.UserGroupCondition);
-                    }
-                    else
-                    {
-                        _logger.Debug($"User '{{user:l}}' is not member of '{value.UserGroupCondition}' in {profile.BaseDn.Name}", user.Name);
                     }
                 }
             }
@@ -277,6 +272,7 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
 
             request.DisplayName = profile.DisplayName;
             request.EmailAddress = profile.Email;
+            request.LdapAttrs = profile.LdapAttrs;
 
             return true;
         }
@@ -384,9 +380,20 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
 
         private bool LoadProfile(LdapConnection connection, LdapIdentity domain, LdapIdentity user, out LdapProfile profile)
         {
-            profile = null;
+            profile = new LdapProfile();
 
-            var attributes = new[] { "DistinguishedName", "displayName", "mail", "telephoneNumber", "mobile" };
+            var queryAttributes = new List<string> { "DistinguishedName", "displayName", "mail", "telephoneNumber", "mobile", "memberOf" };
+
+            var ldapReplyAttributes = _configuration.GetLdapReplyAttributes();
+            foreach (var ldapReplyAttribute in ldapReplyAttributes)
+            {
+                if (!profile.LdapAttrs.ContainsKey(ldapReplyAttribute))
+                {
+                    profile.LdapAttrs.Add(ldapReplyAttribute, null);
+                    queryAttributes.Add(ldapReplyAttribute);
+                }
+            }
+
             var searchFilter = $"(&(objectClass=user)({user.TypeName}={user.Name}))";
 
             var baseDn = SelectBestDomainToQuery(user, domain);
@@ -394,12 +401,12 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
             _logger.Debug($"Querying user '{{user:l}}' in {baseDn.Name}", user.Name);
 
             //only this domain
-            var response = Query(connection, baseDn.Name, searchFilter, SearchScope.Subtree, false, attributes);
+            var response = Query(connection, baseDn.Name, searchFilter, SearchScope.Subtree, false, queryAttributes.ToArray());
 
             if (response.Entries.Count == 0)
             {
                 //with ReferralChasing 
-                response = Query(connection, baseDn.Name, searchFilter, SearchScope.Subtree, true, attributes);
+                response = Query(connection, baseDn.Name, searchFilter, SearchScope.Subtree, true, queryAttributes.ToArray());
             }
 
             if (response.Entries.Count == 0)
@@ -410,15 +417,24 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
 
             var entry = response.Entries[0];
 
-            profile = new LdapProfile
+            profile.BaseDn = LdapIdentity.BaseDn(entry.DistinguishedName);
+            profile.DistinguishedName = entry.DistinguishedName;
+            profile.DisplayName = entry.Attributes["displayName"]?[0]?.ToString();
+            profile.Email = entry.Attributes["mail"]?[0]?.ToString();
+            profile.Phone = entry.Attributes["telephoneNumber"]?[0]?.ToString();
+            profile.Mobile = entry.Attributes["mobile"]?[0]?.ToString();
+
+            foreach (var key in profile.LdapAttrs.Keys.ToList()) //to list to avoid collection was modified exception
             {
-                BaseDn = LdapIdentity.BaseDn(entry.DistinguishedName),
-                DistinguishedName = entry.DistinguishedName,
-                DisplayName = entry.Attributes["displayName"]?[0]?.ToString(),
-                Email = entry.Attributes["mail"]?[0]?.ToString(),
-                Phone = entry.Attributes["telephoneNumber"]?[0]?.ToString(),
-                Mobile = entry.Attributes["mobile"]?[0]?.ToString(),
-            };
+                if (entry.Attributes.Contains(key))
+                {
+                    profile.LdapAttrs[key] = entry.Attributes[key][0]?.ToString();
+                }
+                else
+                {
+                    _logger.Warning($"Can't load attribute '{key}' from user '{profile.DistinguishedName}'");
+                }
+            }
 
             _logger.Debug($"User '{{user:l}}' profile loaded: {profile.DistinguishedName}", user.Name);
 

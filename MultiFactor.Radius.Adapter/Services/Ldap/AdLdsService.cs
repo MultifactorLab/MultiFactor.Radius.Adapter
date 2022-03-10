@@ -107,18 +107,6 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
             return "CN=" + user.Name;
         }
 
-        private SearchResponse Query(LdapConnection connection, string baseDn, string filter, SearchScope scope, params string[] attributes)
-        {
-            var searchRequest = new SearchRequest
-                (baseDn,
-                 filter,
-                 scope,
-                 attributes);
-
-            var response = (SearchResponse)connection.SendRequest(searchRequest);
-            return response;
-        }
-
         private string ExtractErrorReason(string errorMessage)
         {
             var pattern = @"data ([0-9a-e]{3})";
