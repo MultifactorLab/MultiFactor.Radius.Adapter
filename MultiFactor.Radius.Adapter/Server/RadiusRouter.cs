@@ -10,6 +10,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace MultiFactor.Radius.Adapter.Server
 {
@@ -262,6 +263,15 @@ namespace MultiFactor.Radius.Adapter.Server
             {
                 _logger.Warning("Can't find User-Name in message id={id} from {host:l}:{port}", request.RequestPacket.Identifier, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
                 return PacketCode.AccessReject;
+            }
+
+            if (!string.IsNullOrEmpty(_configuration.BypassSecondFactorWhenUserNameMatchTemplate))
+            {
+                if (Regex.IsMatch(userName, _configuration.BypassSecondFactorWhenUserNameMatchTemplate))
+                {
+                    _logger.Information("Bypass second factor for user {user:l}", userName);
+                    return PacketCode.AccessAccept;
+                }
             }
 
             var response = _multifactorApiClient.CreateSecondFactorRequest(request);
