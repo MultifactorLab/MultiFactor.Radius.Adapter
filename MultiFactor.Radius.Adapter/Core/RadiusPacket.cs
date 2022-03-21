@@ -61,11 +61,25 @@ namespace MultiFactor.Radius.Adapter.Core
             internal set;
         }
 
+        /// <summary>
+        /// EAP session challenge in progress (ie. wpa2-ent)
+        /// </summary>
         public bool IsEapMessageChallenge
         {
             get
             {
                 return Code == PacketCode.AccessChallenge && AuthenticationType == AuthenticationType.EAP;
+            }
+        }
+
+        /// <summary>
+        /// ACL and other rules transfer
+        /// </summary>
+        public bool IsVendorAclRequest
+        {
+            get
+            {
+                return UserName?.StartsWith("#ACSACL#-IP") == true;
             }
         }
 

@@ -52,6 +52,7 @@ namespace MultiFactor.Radius.Adapter.Core
             get;
         }
         bool IsEapMessageChallenge { get; }
+        bool IsVendorAclRequest { get; }
         AuthenticationType AuthenticationType { get; }
         string UserName { get; }
         string UserPassword { get; }

@@ -49,7 +49,6 @@ namespace MultiFactor.Radius.Adapter.Server
         private Configuration _configuration;
         private CacheService _cacheService;
 
-
         public bool Running
         {
             get;
@@ -254,6 +253,15 @@ namespace MultiFactor.Radius.Adapter.Server
             {
                 //EAP authentication in process, just proxy response
                 _logger.Debug("Proxying EAP-Message Challenge to {host:l}:{port} id={id}", request.RemoteEndpoint.Address, request.RemoteEndpoint.Port, request.RequestPacket.Identifier);
+                Send(request.ResponsePacket, request.RequestPacket?.UserName, request.RemoteEndpoint, request.ProxyEndpoint, true);
+
+                return; //stop processing
+            }
+
+            if (request.RequestPacket.IsVendorAclRequest == true && request.ResponsePacket != null)
+            {
+                //ACL and other rules transfer, just proxy response
+                _logger.Debug("Proxying #ACSACL# to {host:l}:{port} id={id}", request.RemoteEndpoint.Address, request.RemoteEndpoint.Port, request.RequestPacket.Identifier);
                 Send(request.ResponsePacket, request.RequestPacket?.UserName, request.RemoteEndpoint, request.ProxyEndpoint, true);
 
                 return; //stop processing

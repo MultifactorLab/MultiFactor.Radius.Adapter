@@ -3,7 +3,6 @@
 //https://github.com/MultifactorLab/MultiFactor.Radius.Adapter/blob/master/LICENSE.md
 
 using MultiFactor.Radius.Adapter.Server;
-using MultiFactor.Radius.Adapter.Services.Ldap;
 using Serilog;
 using System;
 using System.Collections.Generic;
@@ -75,6 +74,7 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
                 {
                     connection.Credential = new NetworkCredential(user.Name, password);
 				    connection.SessionOptions.RootDseCache = true;
+                    connection.SessionOptions.ProtocolVersion = 3;
                     connection.Bind();
 
                     _logger.Information($"User '{{user:l}}' credential and status verified successfully in {_configuration.ActiveDirectoryDomain}", user.Name);
@@ -137,6 +137,7 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
 
                 using (var connection = new LdapConnection(_configuration.ActiveDirectoryDomain))
                 {
+                    connection.SessionOptions.ProtocolVersion = 3;
                     connection.SessionOptions.RootDseCache = true;
                     connection.Bind();
 
@@ -166,6 +167,8 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
 
                 using (var connection = new LdapConnection(_configuration.ActiveDirectoryDomain))
                 {
+                    connection.SessionOptions.ProtocolVersion = 3;
+                    connection.SessionOptions.RootDseCache = true;
                     connection.Bind();
 
                     var domain = LdapIdentity.FqdnToDn(_configuration.ActiveDirectoryDomain);

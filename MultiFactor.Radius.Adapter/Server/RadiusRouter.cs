@@ -265,9 +265,10 @@ namespace MultiFactor.Radius.Adapter.Server
                 return PacketCode.AccessReject;
             }
 
-            if (!string.IsNullOrEmpty(_configuration.BypassSecondFactorWhenUserNameMatchTemplate))
+            if (request.RequestPacket?.IsVendorAclRequest == true)
             {
-                if (Regex.IsMatch(userName, _configuration.BypassSecondFactorWhenUserNameMatchTemplate))
+                //security check
+                if (_configuration.FirstFactorAuthenticationSource == AuthenticationSource.Radius)
                 {
                     _logger.Information("Bypass second factor for user {user:l}", userName);
                     return PacketCode.AccessAccept;

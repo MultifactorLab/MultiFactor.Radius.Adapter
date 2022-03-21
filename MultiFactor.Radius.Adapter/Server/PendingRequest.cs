@@ -16,9 +16,24 @@ namespace MultiFactor.Radius.Adapter.Server
             UserGroups = new List<string>();
         }
 
+        /// <summary>
+        /// Client endpoint
+        /// </summary>
         public IPEndPoint RemoteEndpoint { get; set; }
+        
+        /// <summary>
+        /// Proxy endpoint (if proxied)
+        /// </summary>
         public IPEndPoint ProxyEndpoint { get; set; }
+
+        /// <summary>
+        /// Radius request packet
+        /// </summary>
         public IRadiusPacket RequestPacket { get; set; }
+
+        /// <summary>
+        /// Radius resonse packet (for radius remote first factor)
+        /// </summary>
         public IRadiusPacket ResponsePacket { get; set; }
         public PacketCode ResponseCode { get; set; }
         public string State { get; set; }

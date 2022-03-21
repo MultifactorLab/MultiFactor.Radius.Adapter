@@ -55,11 +55,6 @@ namespace MultiFactor.Radius.Adapter
         /// </summary>
         public bool BypassSecondFactorWhenApiUnreachable { get; set; }
 
-        /// <summary>
-        /// Bypass second factor when user name match regex template
-        /// </summary>
-        public string BypassSecondFactorWhenUserNameMatchTemplate { get; set; }
-
         #endregion
 
         #region ActiveDirectory Authentication settings
@@ -228,7 +223,6 @@ namespace MultiFactor.Radius.Adapter
             var apiProxySetting = appSettings["multifactor-api-proxy"];
             var bypassSecondFactorPeriodSetting = appSettings["bypass-second-factor-period"];
             var bypassSecondFactorWhenApiUnreachableSetting = appSettings["bypass-second-factor-when-api-unreachable"];
-            var bypassSecondFactorWhenUserNameMatchTemplateSetting = appSettings["bypass-second-factor-when-username-match-template"];
             var nasIdentifierSetting = appSettings["multifactor-nas-identifier"];
             var multiFactorSharedSecretSetting = appSettings["multifactor-shared-secret"];
             var logLevelSetting = appSettings["logging-level"];
@@ -294,7 +288,6 @@ namespace MultiFactor.Radius.Adapter
                 NasIdentifier = nasIdentifierSetting,
                 MultiFactorSharedSecret = multiFactorSharedSecretSetting,
                 LogLevel = logLevelSetting,
-                BypassSecondFactorWhenUserNameMatchTemplate = bypassSecondFactorWhenUserNameMatchTemplateSetting
             };
 
             if (bypassSecondFactorPeriodSetting != null)
