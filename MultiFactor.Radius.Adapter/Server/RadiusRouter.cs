@@ -8,6 +8,7 @@ using MultiFactor.Radius.Adapter.Services.Ldap;
 using Serilog;
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -22,7 +23,7 @@ namespace MultiFactor.Radius.Adapter.Server
         private Configuration _configuration;
         private ILogger _logger;
         private IRadiusPacketParser _packetParser;
-        private ActiveDirectoryService _activeDirectoryService;
+        private IList<ActiveDirectoryService> _activeDirectoryServices;
         private MultiFactorApiClient _multifactorApiClient;
         public event EventHandler<PendingRequest> RequestProcessed;
         private readonly ConcurrentDictionary<string, PendingRequest> _stateChallengePendingRequests = new ConcurrentDictionary<string, PendingRequest>();
@@ -37,10 +38,17 @@ namespace MultiFactor.Radius.Adapter.Server
             _packetParser = packetParser ?? throw new ArgumentNullException(nameof(packetParser));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _cacheService = cacheService ?? throw new ArgumentNullException(nameof(cacheService));
-
-            _activeDirectoryService = new ActiveDirectoryService(configuration, logger);
             _multifactorApiClient = new MultiFactorApiClient(configuration, logger);
-            _passwordChangeHandler = new PasswordChangeHandler(_cacheService, _configuration, _activeDirectoryService);
+
+            //stanalone AD service instance for each domain/forest
+            _activeDirectoryServices = new List<ActiveDirectoryService>();
+            var domains = _configuration.ActiveDirectoryDomain.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
+            foreach(var domain in domains)
+            {
+                _activeDirectoryServices.Add(new ActiveDirectoryService(_configuration, _logger, domain.Trim()));
+            }
+
+            _passwordChangeHandler = new PasswordChangeHandler(_cacheService, _configuration, _activeDirectoryServices);
         }
 
         public void HandleRequest(PendingRequest request)
@@ -141,7 +149,7 @@ namespace MultiFactor.Radius.Adapter.Server
             switch(_configuration.FirstFactorAuthenticationSource)
             {
                 case AuthenticationSource.ActiveDirectory:  //AD auth
-                    return ProcessLdapAuthentication(request, _activeDirectoryService);
+                    return ProcessActiveDirectoryAuthentication(request);
                 case AuthenticationSource.AdLds:            //AD LDS internal auth
                     return ProcessLdapAuthentication(request, new AdLdsService(_configuration, _logger));
                 case AuthenticationSource.Radius:           //RADIUS auth
@@ -168,7 +176,7 @@ namespace MultiFactor.Radius.Adapter.Server
         /// <summary>
         /// Authenticate request at Active Directory Domain with user-name and password
         /// </summary>
-        private PacketCode ProcessLdapAuthentication(PendingRequest request, ILdapService service)
+        private PacketCode ProcessActiveDirectoryAuthentication(PendingRequest request)
         {
             var userName = request.RequestPacket.UserName;
             var password = request.RequestPacket.UserPassword;
@@ -185,8 +193,40 @@ namespace MultiFactor.Radius.Adapter.Server
                 return PacketCode.AccessReject;
             }
 
-            var isValid = service.VerifyCredentialAndMembership(userName, password, request);
+            //trying to authenticate for each domain/forest
+            foreach(var activeDirectoryService in _activeDirectoryServices)
+            {
+                var isValid = activeDirectoryService.VerifyCredentialAndMembership(userName, password, request);
+                if (isValid)
+                {
+                    return PacketCode.AccessAccept;
+                }
+            }
 
+            return PacketCode.AccessReject;
+        }
+
+        /// <summary>
+        /// Authenticate request at LDAP with user-name and password
+        /// </summary>
+        private PacketCode ProcessLdapAuthentication(PendingRequest request, ILdapService ldapService)
+        {
+            var userName = request.RequestPacket.UserName;
+            var password = request.RequestPacket.UserPassword;
+
+            if (string.IsNullOrEmpty(userName))
+            {
+                _logger.Warning("Can't find User-Name in message id={id} from {host:l}:{port}", request.RequestPacket.Identifier, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
+                return PacketCode.AccessReject;
+            }
+
+            if (string.IsNullOrEmpty(password))
+            {
+                _logger.Warning("Can't find User-Password in message id={id} from {host:l}:{port}", request.RequestPacket.Identifier, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
+                return PacketCode.AccessReject;
+            }
+
+            var isValid = ldapService.VerifyCredentialAndMembership(userName, password, request);
             return isValid ? PacketCode.AccessAccept : PacketCode.AccessReject;
         }
 
@@ -203,9 +243,16 @@ namespace MultiFactor.Radius.Adapter.Server
                 return PacketCode.AccessReject;
             }
 
-            var isValid = _activeDirectoryService.VerifyMembership(userName, request);
+            foreach(var activeDirectoryService in _activeDirectoryServices)
+            {
+                var isValid = activeDirectoryService.VerifyMembership(userName, request);
+                if (isValid)
+                {
+                    return PacketCode.AccessAccept;
+                }
+            }
 
-            return isValid ? PacketCode.AccessAccept : PacketCode.AccessReject;
+            return PacketCode.AccessReject;
         }
 
         /// <summary>

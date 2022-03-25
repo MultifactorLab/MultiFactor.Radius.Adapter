@@ -2,6 +2,7 @@
 using MultiFactor.Radius.Adapter.Services;
 using MultiFactor.Radius.Adapter.Services.Ldap;
 using System;
+using System.Collections.Generic;
 
 namespace MultiFactor.Radius.Adapter.Server
 {
@@ -11,13 +12,13 @@ namespace MultiFactor.Radius.Adapter.Server
         private Configuration _configuration;
 
         private DataProtectionService _dataProtectionService;
-        private ActiveDirectoryService _activeDirectoryService;
+        private IList<ActiveDirectoryService> _activeDirectoryServices;
 
-        public PasswordChangeHandler(CacheService cache, Configuration configuration, ActiveDirectoryService activeDirectoryService)
+        public PasswordChangeHandler(CacheService cache, Configuration configuration, IList<ActiveDirectoryService> activeDirectoryServices)
         {
             _cache = cache ?? throw new ArgumentNullException(nameof(cache));
             _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
-            _activeDirectoryService = activeDirectoryService ?? throw new ArgumentNullException(nameof(activeDirectoryService));
+            _activeDirectoryServices = activeDirectoryServices ?? throw new ArgumentNullException(nameof(activeDirectoryServices));
 
             _dataProtectionService = new DataProtectionService(_configuration);
         }
@@ -53,15 +54,19 @@ namespace MultiFactor.Radius.Adapter.Server
                 }
 
                 var currentPassword = _dataProtectionService.Unprotect(passwordChangeRequest.CurrentPasswordEncryptedData);
-                if (_activeDirectoryService.ChangePassword(request.RequestPacket.UserName, currentPassword, newPassword, out var passwordDoesNotMeetRequirements))
-                {
-                    _cache.Remove(request.RequestPacket.State);
-                    return PacketCode.AccessAccept;
-                }
 
-                if (passwordDoesNotMeetRequirements)
+                foreach(var activeDirectoryService in _activeDirectoryServices)
                 {
-                    return PasswordDoesNotMeetRequirementsChallenge(request, passwordChangeRequest);
+                    if (activeDirectoryService.ChangePassword(request.RequestPacket.UserName, currentPassword, newPassword, out var passwordDoesNotMeetRequirements))
+                    {
+                        _cache.Remove(request.RequestPacket.State);
+                        return PacketCode.AccessAccept;
+                    }
+
+                    if (passwordDoesNotMeetRequirements)
+                    {
+                        return PasswordDoesNotMeetRequirementsChallenge(request, passwordChangeRequest);
+                    }
                 }
 
                 //some AD error

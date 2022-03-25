@@ -162,7 +162,7 @@ namespace MultiFactor.Radius.Adapter.Services
             }
             catch (Exception ex)
             {
-                _logger.Error(ex, $"Multifactor API host unreachable: {url}");
+                _logger.Error($"Multifactor API host unreachable: {url}\r\n{ex.Message}");
 
                 if (_configuration.BypassSecondFactorWhenApiUnreachable)
                 {

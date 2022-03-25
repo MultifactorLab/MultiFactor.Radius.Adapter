@@ -23,13 +23,16 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
         private Configuration _configuration;
         private ILogger _logger;
 
-        private static IDictionary<string, LdapIdentity> _domainNameSuffixes;
-        private static object _sync = new object();
+        private IDictionary<string, LdapIdentity> _domainNameSuffixes;
+        private readonly object _sync = new object();
 
-        public ActiveDirectoryService(Configuration configuration, ILogger logger)
+        private string _domain;
+
+        public ActiveDirectoryService(Configuration configuration, ILogger logger, string domain)
         {
             _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _domain = domain ?? throw new ArgumentNullException(nameof(domain));
         }
 
         /// <summary>
@@ -68,16 +71,16 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
 
             try
             {
-                _logger.Debug($"Verifying user '{{user:l}}' credential and status at {_configuration.ActiveDirectoryDomain}", user.Name);
+                _logger.Debug($"Verifying user '{{user:l}}' credential and status at {_domain}", user.Name);
 
-                using (var connection = new LdapConnection(_configuration.ActiveDirectoryDomain))
+                using (var connection = new LdapConnection(_domain))
                 {
                     connection.Credential = new NetworkCredential(user.Name, password);
 				    connection.SessionOptions.RootDseCache = true;
                     connection.SessionOptions.ProtocolVersion = 3;
                     connection.Bind();
 
-                    _logger.Information($"User '{{user:l}}' credential and status verified successfully in {_configuration.ActiveDirectoryDomain}", user.Name);
+                    _logger.Information($"User '{{user:l}}' credential and status verified successfully in {_domain}", user.Name);
 
                     return VerifyMembership(connection, user, request);
                 }
@@ -91,16 +94,16 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
 
                     if (dataReason != null)
                     {
-                        _logger.Warning($"Verification user '{{user:l}}' at {_configuration.ActiveDirectoryDomain} failed: {dataReason}", user.Name);
+                        _logger.Warning($"Verification user '{{user:l}}' at {_domain} failed: {dataReason}", user.Name);
                         return false;
                     }
                 }
 
-                _logger.Error(lex, $"Verification user '{{user:l}}' at {_configuration.ActiveDirectoryDomain} failed", user.Name);
+                _logger.Error($"Verification user '{{user:l}}' at {_domain} failed: {lex.Message} {lex.ServerErrorMessage}", user.Name);
             }
             catch (Exception ex)
             {
-                _logger.Error(ex, $"Verification user '{{user:l}}' at {_configuration.ActiveDirectoryDomain} failed", user.Name);
+                _logger.Error($"Verification user '{{user:l}}' at {_domain} failed: {ex.Message}", user.Name);
             }
 
             return false;
@@ -133,9 +136,9 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
 
             try
             {
-                _logger.Debug($"Verifying user '{{user:l}}' membership at {_configuration.ActiveDirectoryDomain}", user.Name);
+                _logger.Debug($"Verifying user '{{user:l}}' membership at {_domain}", user.Name);
 
-                using (var connection = new LdapConnection(_configuration.ActiveDirectoryDomain))
+                using (var connection = new LdapConnection(_domain))
                 {
                     connection.SessionOptions.ProtocolVersion = 3;
                     connection.SessionOptions.RootDseCache = true;
@@ -146,7 +149,7 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
             }
             catch (Exception ex)
             {
-                _logger.Error(ex, $"Verification user '{{user:l}}' membership at {_configuration.ActiveDirectoryDomain} failed", user.Name);
+                _logger.Error(ex, $"Verification user '{{user:l}}' membership at {_domain} failed", user.Name);
                 _logger.Information("Run MultiFactor.Raduis.Adapter as user with domain read permissions (basically any domain user)");
             }
 
@@ -165,19 +168,20 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
             {
                 LdapProfile userProfile;
 
-                using (var connection = new LdapConnection(_configuration.ActiveDirectoryDomain))
+                using (var connection = new LdapConnection(_domain))
                 {
                     connection.SessionOptions.ProtocolVersion = 3;
                     connection.SessionOptions.RootDseCache = true;
                     connection.Bind();
 
-                    var domain = LdapIdentity.FqdnToDn(_configuration.ActiveDirectoryDomain);
+                    var domain = LdapIdentity.FqdnToDn(_domain);
 
-                    var isProfileLoaded = LoadProfile(connection, domain, identity, out var profile);
-                    if (!isProfileLoaded)
+                    var profile = LoadProfile(connection, domain, identity);
+                    if (profile == null)
                     {
                         return false;
                     }
+
                     userProfile = profile;
                 }
 
@@ -210,12 +214,12 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
 
         private bool VerifyMembership(LdapConnection connection, LdapIdentity user, PendingRequest request)
         {
-            var domain = LdapIdentity.FqdnToDn(_configuration.ActiveDirectoryDomain);
+            var domain = LdapIdentity.FqdnToDn(_domain);
 
             LoadForestSchema(connection, domain);
 
-            var isProfileLoaded = LoadProfile(connection, domain, user, out var profile);
-            if (!isProfileLoaded)
+            var profile = LoadProfile(connection, domain, user);
+            if (profile == null)
             {
                 return false;
             }
@@ -381,9 +385,9 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
             }
         }
 
-        private bool LoadProfile(LdapConnection connection, LdapIdentity domain, LdapIdentity user, out LdapProfile profile)
+        private LdapProfile LoadProfile(LdapConnection connection, LdapIdentity domain, LdapIdentity user)
         {
-            profile = new LdapProfile();
+            var profile = new LdapProfile();
 
             var queryAttributes = new List<string> { "DistinguishedName", "displayName", "mail", "telephoneNumber", "mobile", "memberOf" };
 
@@ -415,7 +419,7 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
             if (response.Entries.Count == 0)
             {
                 _logger.Error($"Unable to find user '{{user:l}}' in {baseDn.Name}", user.Name);
-                return false;
+                return null;
             }
 
             var entry = response.Entries[0];
@@ -441,7 +445,7 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
 
             _logger.Debug($"User '{{user:l}}' profile loaded: {profile.DistinguishedName}", user.Name);
 
-            return true;
+            return profile;
         }
 
         private bool IsMemberOf(LdapConnection connection, LdapProfile profile, LdapIdentity user, string groupName)
