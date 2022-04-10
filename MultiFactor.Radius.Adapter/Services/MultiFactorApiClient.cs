@@ -142,7 +142,14 @@ namespace MultiFactor.Radius.Adapter.Services
                     if (!string.IsNullOrEmpty(_configuration.ApiProxy))
                     {
                         _logger.Debug("Using proxy " + _configuration.ApiProxy);
-                        web.Proxy = new WebProxy(_configuration.ApiProxy);
+                        var proxyUri = new Uri(_configuration.ApiProxy);
+                        web.Proxy = new WebProxy(proxyUri);
+
+                        if (!string.IsNullOrEmpty(proxyUri.UserInfo))
+                        {
+                            var credentials = proxyUri.UserInfo.Split(new [] { ':' }, 2);
+                            web.Proxy.Credentials = new NetworkCredential(credentials[0], credentials[1]);
+                        }
                     }
 
                     responseData = web.UploadData(url, "POST", requestData);
