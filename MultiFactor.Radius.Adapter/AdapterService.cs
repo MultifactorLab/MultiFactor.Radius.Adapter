@@ -1,4 +1,5 @@
-﻿using MultiFactor.Radius.Adapter.Core;
+﻿using MultiFactor.Radius.Adapter.Configuration;
+using MultiFactor.Radius.Adapter.Core;
 using MultiFactor.Radius.Adapter.Server;
 using Serilog;
 using System;
@@ -11,9 +12,9 @@ namespace MultiFactor.Radius.Adapter
     {
         private RadiusServer _radiusServer;
 
-        public AdapterService(Configuration configuration, IRadiusDictionary dictionary, ILogger logger)
+        public AdapterService(ServiceConfiguration configuration, IRadiusDictionary dictionary, ILogger logger)
         {
-            var packetParser = new RadiusPacketParser(logger, dictionary, configuration);
+            var packetParser = new RadiusPacketParser(logger, dictionary);
             _radiusServer = new RadiusServer(configuration, dictionary, packetParser, logger);
 
             InitializeComponent();

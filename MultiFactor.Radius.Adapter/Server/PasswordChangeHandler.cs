@@ -1,4 +1,5 @@
-﻿using MultiFactor.Radius.Adapter.Core;
+﻿using MultiFactor.Radius.Adapter.Configuration;
+using MultiFactor.Radius.Adapter.Core;
 using MultiFactor.Radius.Adapter.Services;
 using MultiFactor.Radius.Adapter.Services.Ldap;
 using System;
@@ -9,27 +10,25 @@ namespace MultiFactor.Radius.Adapter.Server
     public class PasswordChangeHandler
     {
         private CacheService _cache;
-        private Configuration _configuration;
 
         private DataProtectionService _dataProtectionService;
-        private IList<ActiveDirectoryService> _activeDirectoryServices;
+        private IDictionary<string, ActiveDirectoryService> _activeDirectoryServices;
 
-        public PasswordChangeHandler(CacheService cache, Configuration configuration, IList<ActiveDirectoryService> activeDirectoryServices)
+        public PasswordChangeHandler(CacheService cache, IDictionary<string, ActiveDirectoryService> activeDirectoryServices)
         {
             _cache = cache ?? throw new ArgumentNullException(nameof(cache));
-            _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
             _activeDirectoryServices = activeDirectoryServices ?? throw new ArgumentNullException(nameof(activeDirectoryServices));
 
-            _dataProtectionService = new DataProtectionService(_configuration);
+            _dataProtectionService = new DataProtectionService();
         }
 
-        public PacketCode HandleRequest(PendingRequest request)
+        public PacketCode HandleRequest(PendingRequest request, ClientConfiguration clientConfig)
         {
             if (request == null) throw new ArgumentNullException(nameof(request));
 
             if (request.MustChangePassword)
             {
-                return CreatePasswordChallenge(request);
+                return CreatePasswordChallenge(request, clientConfig);
             }
 
             var passwordChangeRequest = _cache.GetPasswordChangeRequest(request.RequestPacket.State);
@@ -47,40 +46,39 @@ namespace MultiFactor.Radius.Adapter.Server
             if (passwordChangeRequest.NewPasswordEncryptedData != null)
             {
                 //re-entered new password
-                var newPassword1 = _dataProtectionService.Unprotect(passwordChangeRequest.NewPasswordEncryptedData);
+                var newPassword1 = _dataProtectionService.Unprotect(clientConfig, passwordChangeRequest.NewPasswordEncryptedData);
                 if (newPassword1 != newPassword)
                 {
                     return PasswordsNotMatchChallenge(request, passwordChangeRequest);
                 }
 
-                var currentPassword = _dataProtectionService.Unprotect(passwordChangeRequest.CurrentPasswordEncryptedData);
+                var currentPassword = _dataProtectionService.Unprotect(clientConfig, passwordChangeRequest.CurrentPasswordEncryptedData);
+                var activeDirectoryService = _activeDirectoryServices[passwordChangeRequest.Domain];
 
-                foreach(var activeDirectoryService in _activeDirectoryServices)
+                if (activeDirectoryService.ChangePassword(clientConfig, request.RequestPacket.UserName, currentPassword, newPassword, out var passwordDoesNotMeetRequirements))
                 {
-                    if (activeDirectoryService.ChangePassword(request.RequestPacket.UserName, currentPassword, newPassword, out var passwordDoesNotMeetRequirements))
-                    {
-                        _cache.Remove(request.RequestPacket.State);
-                        return PacketCode.AccessAccept;
-                    }
+                    _cache.Remove(request.RequestPacket.State);
+                    return PacketCode.AccessAccept;
+                }
 
-                    if (passwordDoesNotMeetRequirements)
-                    {
-                        return PasswordDoesNotMeetRequirementsChallenge(request, passwordChangeRequest);
-                    }
+                if (passwordDoesNotMeetRequirements)
+                {
+                    return PasswordDoesNotMeetRequirementsChallenge(request, passwordChangeRequest);
                 }
 
                 //some AD error
                 return PacketCode.AccessReject;
             }
 
-            return RepeatPasswordChallenge(request, passwordChangeRequest);
+            return RepeatPasswordChallenge(request, clientConfig, passwordChangeRequest);
         }
 
-        private PacketCode CreatePasswordChallenge(PendingRequest request)
+        private PacketCode CreatePasswordChallenge(PendingRequest request, ClientConfiguration clientConfig)
         {
             var passwordChangeRequest = new PasswordChangeRequest
             {
-                CurrentPasswordEncryptedData = _dataProtectionService.Protect(request.RequestPacket.UserPassword)
+                Domain = request.MustChangePasswordDomain,
+                CurrentPasswordEncryptedData = _dataProtectionService.Protect(clientConfig, request.RequestPacket.UserPassword)
             };
             _cache.RegisterPasswordChangeRequest(passwordChangeRequest);
 
@@ -100,9 +98,9 @@ namespace MultiFactor.Radius.Adapter.Server
             return PacketCode.AccessChallenge;
         }
 
-        private PacketCode RepeatPasswordChallenge(PendingRequest request, PasswordChangeRequest passwordChangeRequest)
+        private PacketCode RepeatPasswordChallenge(PendingRequest request, ClientConfiguration clientConfig, PasswordChangeRequest passwordChangeRequest)
         {
-            passwordChangeRequest.NewPasswordEncryptedData = _dataProtectionService.Protect(request.RequestPacket.UserPassword);
+            passwordChangeRequest.NewPasswordEncryptedData = _dataProtectionService.Protect(clientConfig, request.RequestPacket.UserPassword);
 
             _cache.RegisterPasswordChangeRequest(passwordChangeRequest);
 

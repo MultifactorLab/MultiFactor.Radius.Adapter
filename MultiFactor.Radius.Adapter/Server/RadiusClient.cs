@@ -74,7 +74,7 @@ namespace MultiFactor.Radius.Adapter.Server
                 }
 
                 //timeout
-                _logger.Debug($"Server {remoteEndpoint.ToString()} did not respons within {timeout}");
+                _logger.Debug($"Server {remoteEndpoint.ToString()} did not respond within {timeout}");
                 return null; 
             }
 

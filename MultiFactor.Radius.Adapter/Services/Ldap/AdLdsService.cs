@@ -2,14 +2,12 @@
 //Please see licence at 
 //https://github.com/MultifactorLab/MultiFactor.Radius.Adapter/blob/master/LICENSE.md
 
+using MultiFactor.Radius.Adapter.Configuration;
 using MultiFactor.Radius.Adapter.Server;
-using MultiFactor.Radius.Adapter.Services.Ldap;
 using Serilog;
 using System;
-using System.Collections.Generic;
 using System.DirectoryServices.AccountManagement;
 using System.DirectoryServices.Protocols;
-using System.Linq;
 using System.Net;
 using System.Text.RegularExpressions;
 namespace MultiFactor.Radius.Adapter.Services.Ldap
@@ -17,21 +15,20 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
     /// <summary>
     /// Service to interact with AD LDS service
     /// </summary>
-    public class AdLdsService : ILdapService
+    public class AdLdsService
     {
-        private Configuration _configuration;
         private ILogger _logger;
 
-        public AdLdsService(Configuration configuration, ILogger logger)
+
+        public AdLdsService(ILogger logger)
         {
-            _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
         /// <summary>
         /// Verify User Name, Password and User Status against AD LDS
         /// </summary>
-        public bool VerifyCredentialAndMembership(string userName, string password, PendingRequest request)
+        public bool VerifyCredentialAndMembership(string userName, string password, ClientConfiguration clientConfig)
         {
             if (string.IsNullOrEmpty(userName))
             {
@@ -43,7 +40,7 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
                 return false;
             }
 
-            var ldapUrl = _configuration.LdapUrl;
+            var ldapUrl = clientConfig.LdapUrl;
             var user = LdapIdentity.ParseUser(userName);
             var logonName = FormatBindDn(user, ldapUrl);
 

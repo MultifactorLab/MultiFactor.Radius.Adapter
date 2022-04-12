@@ -115,11 +115,21 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Configuration\ActiveDirectorySection.cs" />
+    <Compile Include="Configuration\AuthenticationSource.cs" />
+    <Compile Include="Configuration\ClientConfiguration.cs" />
+    <Compile Include="Configuration\RadiusReplyAttributeElement.cs" />
+    <Compile Include="Configuration\RadiusReplyAttributesCollection.cs" />
+    <Compile Include="Configuration\RadiusReplyAttributesSection.cs" />
+    <Compile Include="Configuration\RadiusReplyProxyStateElement.cs" />
+    <Compile Include="Configuration\ValueElement.cs" />
+    <Compile Include="Configuration\ValueElementCollection.cs" />
+    <Compile Include="Core\RadiusPacketNasIdentifierParser.cs" />
     <Compile Include="Server\PasswordChangeHandler.cs" />
     <Compile Include="Server\PasswordChangeRequest.cs" />
     <Compile Include="Services\Ldap\AdLdsService.cs" />
     <Compile Include="Services\AuthenticatedClient.cs" />
-    <Compile Include="Configuration.cs" />
+    <Compile Include="Configuration\ServiceConfiguration.cs" />
     <Compile Include="Core\AuthenticationType.cs" />
     <Compile Include="Core\DictionaryAttribute.cs" />
     <Compile Include="Core\DictionaryVendorAttribute.cs" />
@@ -134,7 +144,6 @@
     <Compile Include="Core\RadiusPassword.cs" />
     <Compile Include="Services\CacheService.cs" />
     <Compile Include="Services\DataProtectionService.cs" />
-    <Compile Include="Services\Ldap\ILdapService.cs" />
     <Compile Include="Services\Ldap\LdapIdentity.cs" />
     <Compile Include="Services\Ldap\LdapProfile.cs" />
     <Compile Include="Services\MultiFactorApiClient.cs" />
@@ -182,6 +191,9 @@
     <EmbeddedResource Include="ServiceInstaller.resx">
       <DependentUpon>ServiceInstaller.cs</DependentUpon>
     </EmbeddedResource>
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Clients\" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

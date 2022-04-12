@@ -58,6 +58,7 @@ namespace MultiFactor.Radius.Adapter.Core
         string UserPassword { get; }
         string RemoteHostName { get; }
         string CallingStationId { get; }
+        string NasIdentifier { get; }
         string State { get; }
 
         IRadiusPacket CreateResponsePacket(PacketCode responseCode);

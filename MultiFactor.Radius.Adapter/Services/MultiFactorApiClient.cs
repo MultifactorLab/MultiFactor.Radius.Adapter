@@ -3,6 +3,7 @@
 //https://github.com/MultifactorLab/MultiFactor.Radius.Adapter/blob/master/LICENSE.md
 
 
+using MultiFactor.Radius.Adapter.Configuration;
 using MultiFactor.Radius.Adapter.Core;
 using MultiFactor.Radius.Adapter.Server;
 using Newtonsoft.Json;
@@ -13,6 +14,7 @@ using System.Linq;
 using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 
 namespace MultiFactor.Radius.Adapter.Services
 {
@@ -21,18 +23,18 @@ namespace MultiFactor.Radius.Adapter.Services
     /// </summary>
     public class MultiFactorApiClient
     {
-        private Configuration _configuration;
+        private ServiceConfiguration _serviceConfiguration;
         private ILogger _logger;
 
         private static readonly ConcurrentDictionary<string, AuthenticatedClient> _authenticatedClients = new ConcurrentDictionary<string, AuthenticatedClient>();
 
-        public MultiFactorApiClient(Configuration configuration, ILogger logger)
+        public MultiFactorApiClient(ServiceConfiguration serviceConfiguration, ILogger logger)
         {
-            _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
+            _serviceConfiguration = serviceConfiguration ?? throw new ArgumentNullException(nameof(serviceConfiguration));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
-        public PacketCode CreateSecondFactorRequest(PendingRequest request)
+        public async Task<PacketCode> CreateSecondFactorRequest(PendingRequest request, ClientConfiguration clientConfig)
         {
             var remoteHost = request.RequestPacket.RemoteHostName;
             var userName = request.RequestPacket.UserName;
@@ -43,23 +45,23 @@ namespace MultiFactor.Radius.Adapter.Services
             var callingStationId = request.RequestPacket.CallingStationId;
 
             //try to get authenticated client to bypass second factor if configured
-            if (_configuration.BypassSecondFactorPeriod > 0)
+            if (clientConfig.BypassSecondFactorPeriod > 0)
             {
-                if (TryHitCache(remoteHost, userName))
+                if (TryHitCache(remoteHost, userName, clientConfig))
                 {
                     _logger.Information("Bypass second factor for user '{user:l}' from {host:l}:{port}", userName, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
                     return PacketCode.AccessAccept;
                 }
             }
             
-            var url = _configuration.ApiUrl + "/access/requests/ra";
+            var url = _serviceConfiguration.ApiUrl + "/access/requests/ra";
             var payload = new
             {
                 Identity = userName,
                 Name = displayName,
                 Email = email,
                 Phone = userPhone,
-                PassCode = GetPassCodeOrNull(userPassword),
+                PassCode = GetPassCodeOrNull(userPassword, clientConfig),
                 CallingStationId = callingStationId,
                 Capabilities = new 
                 {
@@ -67,7 +69,7 @@ namespace MultiFactor.Radius.Adapter.Services
                 }
             };
 
-            var response = SendRequest(url, payload);
+            var response = await SendRequest(url, payload, clientConfig);
             var responseCode = ConvertToRadiusCode(response);
 
             request.State = response?.Id;
@@ -77,7 +79,7 @@ namespace MultiFactor.Radius.Adapter.Services
             {
                 _logger.Information("Second factor for user '{user:l}' verified successfully. Authenticator '{authenticator:l}', account '{account:l}'", userName, response?.Authenticator, response?.Account);
 
-                if (_configuration.BypassSecondFactorPeriod > 0)
+                if (clientConfig.BypassSecondFactorPeriod > 0)
                 {
                     SetCache(remoteHost, userName);
                 }
@@ -93,9 +95,9 @@ namespace MultiFactor.Radius.Adapter.Services
             return responseCode;
         }
 
-        public PacketCode Challenge(PendingRequest request, string userName, string answer, string state)
+        public async Task<PacketCode> Challenge(PendingRequest request, ClientConfiguration clientConfig, string userName, string answer, string state)
         {
-            var url = _configuration.ApiUrl + "/access/requests/ra/challenge";
+            var url = _serviceConfiguration.ApiUrl + "/access/requests/ra/challenge";
             var payload = new
             {
                 Identity = userName,
@@ -103,7 +105,7 @@ namespace MultiFactor.Radius.Adapter.Services
                 RequestId = state
             };
 
-            var response = SendRequest(url, payload);
+            var response = await SendRequest(url, payload, clientConfig);
             var responseCode = ConvertToRadiusCode(response);
 
             request.ReplyMessage = response.ReplyMessage;
@@ -116,7 +118,7 @@ namespace MultiFactor.Radius.Adapter.Services
             return responseCode;
         }
 
-        private MultiFactorAccessRequest SendRequest(string url, object payload)
+        private async Task<MultiFactorAccessRequest> SendRequest(string url, object payload, ClientConfiguration clientConfiguration)
         {
             try
             {
@@ -132,27 +134,27 @@ namespace MultiFactor.Radius.Adapter.Services
                 byte[] responseData = null;
 
                 //basic authorization
-                var auth = Convert.ToBase64String(Encoding.ASCII.GetBytes(_configuration.NasIdentifier + ":" + _configuration.MultiFactorSharedSecret));
+                var auth = Convert.ToBase64String(Encoding.ASCII.GetBytes(clientConfiguration.MultifactorApiKey + ":" + clientConfiguration.MultiFactorApiSecret));
 
                 using (var web = new WebClient())
                 {
                     web.Headers.Add("Content-Type", "application/json");
                     web.Headers.Add("Authorization", "Basic " + auth);
 
-                    if (!string.IsNullOrEmpty(_configuration.ApiProxy))
+                    if (!string.IsNullOrEmpty(_serviceConfiguration.ApiProxy))
                     {
-                        _logger.Debug("Using proxy " + _configuration.ApiProxy);
-                        var proxyUri = new Uri(_configuration.ApiProxy);
+                        _logger.Debug("Using proxy " + _serviceConfiguration.ApiProxy);
+                        var proxyUri = new Uri(_serviceConfiguration.ApiProxy);
                         web.Proxy = new WebProxy(proxyUri);
 
                         if (!string.IsNullOrEmpty(proxyUri.UserInfo))
                         {
-                            var credentials = proxyUri.UserInfo.Split(new [] { ':' }, 2);
+                            var credentials = proxyUri.UserInfo.Split(new[] { ':' }, 2);
                             web.Proxy.Credentials = new NetworkCredential(credentials[0], credentials[1]);
                         }
                     }
 
-                    responseData = web.UploadData(url, "POST", requestData);
+                    responseData = await web.UploadDataTaskAsync(url, "POST", requestData);
                 }
 
                 json = Encoding.UTF8.GetString(responseData);
@@ -171,7 +173,7 @@ namespace MultiFactor.Radius.Adapter.Services
             {
                 _logger.Error($"Multifactor API host unreachable: {url}\r\n{ex.Message}");
 
-                if (_configuration.BypassSecondFactorWhenApiUnreachable)
+                if (clientConfiguration.BypassSecondFactorWhenApiUnreachable)
                 {
                     _logger.Warning("Bypass second factor");
                     return MultiFactorAccessRequest.Bypass;
@@ -202,7 +204,7 @@ namespace MultiFactor.Radius.Adapter.Services
             }
         }
 
-        private bool TryHitCache(string remoteHost, string userName)
+        private bool TryHitCache(string remoteHost, string userName, ClientConfiguration clientConfiguration)
         {
             if (string.IsNullOrEmpty(remoteHost))
             {
@@ -213,9 +215,9 @@ namespace MultiFactor.Radius.Adapter.Services
             var id = AuthenticatedClient.CreateId(remoteHost, userName);
             if (_authenticatedClients.TryGetValue(id, out var authenticatedClient))
             {
-                _logger.Debug($"User {userName} from {remoteHost} authenticated {authenticatedClient.Elapsed.ToString("hh\\:mm\\:ss")} ago. Bypass period: {_configuration.BypassSecondFactorPeriod}m");
+                _logger.Debug($"User {userName} from {remoteHost} authenticated {authenticatedClient.Elapsed.ToString("hh\\:mm\\:ss")} ago. Bypass period: {clientConfiguration.BypassSecondFactorPeriod}m");
 
-                if (authenticatedClient.Elapsed.TotalMinutes <= (_configuration.BypassSecondFactorPeriod ?? 0))
+                if (authenticatedClient.Elapsed.TotalMinutes <= (clientConfiguration.BypassSecondFactorPeriod ?? 0))
                 {
                     return true;
                 }
@@ -248,10 +250,10 @@ namespace MultiFactor.Radius.Adapter.Services
             }
         }
 
-        private string GetPassCodeOrNull(string userPassword)
+        private string GetPassCodeOrNull(string userPassword, ClientConfiguration clientConfiguration)
         {
             //only if first authentication factor is None, assuming that Password contains OTP code
-            if (_configuration.FirstFactorAuthenticationSource != AuthenticationSource.None)
+            if (clientConfiguration.FirstFactorAuthenticationSource != AuthenticationSource.None)
             {
                 return null;
             }

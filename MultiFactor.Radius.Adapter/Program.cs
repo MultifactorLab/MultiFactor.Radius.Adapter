@@ -2,6 +2,7 @@
 //Please see licence at 
 //https://github.com/MultifactorLab/MultiFactor.Radius.Adapter/blob/master/LICENSE.md
 
+using MultiFactor.Radius.Adapter.Configuration;
 using MultiFactor.Radius.Adapter.Core;
 using MultiFactor.Radius.Adapter.Syslog;
 using Serilog;
@@ -78,7 +79,7 @@ namespace MultiFactor.Radius.Adapter
                 var dictionary = new RadiusDictionary(dictionaryPath, Log.Logger);
 
                 //init configuration
-                var configuration = Configuration.Load(dictionary);
+                var configuration = ServiceConfiguration.Load(dictionary, Log.Logger);
 
                 SetLogLevel(configuration.LogLevel, levelSwitch);
                 if (syslogInfoMessage != null)
@@ -131,17 +132,17 @@ namespace MultiFactor.Radius.Adapter
 
         private static void InstallService()
         {
-            Log.Logger.Information($"Installing service {Configuration.ServiceUnitName}");
+            Log.Logger.Information($"Installing service {ServiceConfiguration.ServiceUnitName}");
             System.Configuration.Install.ManagedInstallerClass.InstallHelper(new string[] { "/i", Assembly.GetExecutingAssembly().Location });
             Log.Logger.Information("Service installed");
-            Log.Logger.Information($"Use 'net start {Configuration.ServiceUnitName}' to run");
+            Log.Logger.Information($"Use 'net start {ServiceConfiguration.ServiceUnitName}' to run");
             Log.Logger.Information("Press any key to exit");
             Console.ReadKey();
         }
 
         public static void UnInstallService()
         {
-            Log.Logger.Information($"UnInstalling service {Configuration.ServiceUnitName}");
+            Log.Logger.Information($"UnInstalling service {ServiceConfiguration.ServiceUnitName}");
             System.Configuration.Install.ManagedInstallerClass.InstallHelper(new string[] { "/u", Assembly.GetExecutingAssembly().Location });
             Log.Logger.Information("Service uninstalled");
             Log.Logger.Information("Press any key to exit");
@@ -183,7 +184,7 @@ namespace MultiFactor.Radius.Adapter
             var sysLogFacilitySetting = appSettings["syslog-facility"];
             var sysLogAppName = appSettings["syslog-app-name"] ?? "multifactor-radius";
 
-            var isJson = Configuration.GetLogFormat() == "json";
+            var isJson = ServiceConfiguration.GetLogFormat() == "json";
 
             var facility = ParseSettingOrDefault(sysLogFacilitySetting, Facility.Auth);
             var format = ParseSettingOrDefault(sysLogFormatSetting, SyslogFormat.RFC5424);
@@ -244,7 +245,7 @@ namespace MultiFactor.Radius.Adapter
 
         private static ITextFormatter GetLogFormatter()
         {
-            var format = Configuration.GetLogFormat();
+            var format = ServiceConfiguration.GetLogFormat();
             switch (format?.ToLower())
             {
                 case "json":

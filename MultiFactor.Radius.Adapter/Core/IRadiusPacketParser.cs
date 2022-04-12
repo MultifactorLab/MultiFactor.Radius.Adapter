@@ -29,6 +29,6 @@ namespace MultiFactor.Radius.Adapter.Core
     public interface IRadiusPacketParser
     {
         byte[] GetBytes(IRadiusPacket packet);
-        IRadiusPacket Parse(byte[] packetBytes, byte[] sharedSecret, byte[] requestAuthenticator = null);
+        IRadiusPacket Parse(byte[] packetBytes, byte[] sharedSecret, byte[] requestAuthenticator = null, string encodingName = null);
     }
 }

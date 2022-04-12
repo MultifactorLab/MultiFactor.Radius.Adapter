@@ -1,4 +1,6 @@
-﻿namespace MultiFactor.Radius.Adapter
+﻿using MultiFactor.Radius.Adapter.Configuration;
+
+namespace MultiFactor.Radius.Adapter
 {
     partial class AdapterService
     {
@@ -16,7 +18,7 @@
         private void InitializeComponent()
         {
             components = new System.ComponentModel.Container();
-            this.ServiceName = Configuration.ServiceUnitName;
+            this.ServiceName = ServiceConfiguration.ServiceUnitName;
         }
     }
 }

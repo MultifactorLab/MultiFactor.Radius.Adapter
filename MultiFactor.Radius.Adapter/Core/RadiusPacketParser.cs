@@ -24,10 +24,10 @@
 //OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 //SOFTWARE.
 
+using MultiFactor.Radius.Adapter.Configuration;
 using Serilog;
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Net;
 using System.Security.Cryptography;
@@ -39,28 +39,22 @@ namespace MultiFactor.Radius.Adapter.Core
     {
         private readonly ILogger _logger;
         private readonly IRadiusDictionary _radiusDictionary;
-        private readonly Configuration _configuration;
-
 
         /// <summary>
         /// RadiusPacketParser
         /// </summary>
         /// <param name="logger"></param>
-        public RadiusPacketParser(ILogger logger, IRadiusDictionary radiusDictionary, Configuration configuration)
+        public RadiusPacketParser(ILogger logger, IRadiusDictionary radiusDictionary)
         {
             _logger = logger;
             _radiusDictionary = radiusDictionary;
-            _configuration = configuration;
         }
 
 
         /// <summary>
         /// Parses packet bytes and returns an IRadiusPacket
         /// </summary>
-        /// <param name="packetBytes"></param>
-        /// <param name="dictionary"></param>
-        /// <param name="sharedSecret"></param>
-        public IRadiusPacket Parse(Byte[] packetBytes, Byte[] sharedSecret, byte[] requestAuthenticator = null)
+        public IRadiusPacket Parse(Byte[] packetBytes, Byte[] sharedSecret, byte[] requestAuthenticator = null, string encodingName = null)
         {
             var packetLength = BitConverter.ToUInt16(packetBytes.Skip(2).Take(2).Reverse().ToArray(), 0);
             if (packetBytes.Length != packetLength)
@@ -114,7 +108,7 @@ namespace MultiFactor.Radius.Adapter.Core
                         {
                             try
                             {
-                                var content = ParseContentBytes(vsa.Value, vendorAttributeDefinition.Type, typecode, packet.Authenticator, packet.SharedSecret);
+                                var content = ParseContentBytes(vsa.Value, vendorAttributeDefinition.Type, typecode, packet.Authenticator, packet.SharedSecret, encodingName);
                                 packet.AddAttributeObject(vendorAttributeDefinition.Name, content);
                             }
                             catch (Exception ex)
@@ -132,7 +126,7 @@ namespace MultiFactor.Radius.Adapter.Core
                         }
                         try
                         {
-                            var content = ParseContentBytes(contentBytes, attributeDefinition.Type, typecode, packet.Authenticator, packet.SharedSecret);
+                            var content = ParseContentBytes(contentBytes, attributeDefinition.Type, typecode, packet.Authenticator, packet.SharedSecret, encodingName);
                             packet.AddAttributeObject(attributeDefinition.Name, content);
                         }
                         catch (Exception ex)
@@ -183,7 +177,7 @@ namespace MultiFactor.Radius.Adapter.Core
         /// <param name="authenticator"></param>
         /// <param name="sharedSecret"></param>
         /// <returns></returns>
-        private Object ParseContentBytes(Byte[] contentBytes, String type, UInt32 code, Byte[] authenticator, Byte[] sharedSecret)
+        private Object ParseContentBytes(Byte[] contentBytes, String type, UInt32 code, Byte[] authenticator, Byte[] sharedSecret, string encodingName)
         {
             switch (type)
             {
@@ -200,10 +194,10 @@ namespace MultiFactor.Radius.Adapter.Core
                     // If this is a password attribute it must be decrypted
                     if (code == 2)
                     {
-                        if (!string.IsNullOrEmpty(_configuration.RadiusPapEncoding))
+                        if (!string.IsNullOrEmpty(encodingName))
                         {
                             //windows rras client use windows-1251 instead of utf-8, thats why
-                            return RadiusPassword.Decrypt(sharedSecret, authenticator, contentBytes, Encoding.GetEncoding(_configuration.RadiusPapEncoding));
+                            return RadiusPassword.Decrypt(sharedSecret, authenticator, contentBytes, Encoding.GetEncoding(encodingName));
                         }
                         return RadiusPassword.Decrypt(sharedSecret, authenticator, contentBytes);
                     }

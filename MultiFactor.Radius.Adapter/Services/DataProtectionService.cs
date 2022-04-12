@@ -1,4 +1,5 @@
-﻿using System;
+﻿using MultiFactor.Radius.Adapter.Configuration;
+using System;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -9,26 +10,22 @@ namespace MultiFactor.Radius.Adapter.Services
     /// </summary>
     public class DataProtectionService
     {
-        private Configuration _configuration;
-
-        public DataProtectionService(Configuration configuration)
+        public string Protect(ClientConfiguration clientConfig, string data)
         {
-            _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
-        }
-
-        private byte[] AdditionalEntropy => StringToBytes(_configuration.MultiFactorSharedSecret);
-
-        public string Protect(string data)
-        {
+            if (clientConfig == null) throw new ArgumentNullException(nameof(clientConfig));
             if (string.IsNullOrEmpty(data)) throw new ArgumentNullException(data);
 
-            return ToBase64(ProtectedData.Protect(StringToBytes(data), AdditionalEntropy, DataProtectionScope.CurrentUser));
+            var additionalEntropy = StringToBytes(clientConfig.MultiFactorApiSecret);
+            return ToBase64(ProtectedData.Protect(StringToBytes(data), additionalEntropy, DataProtectionScope.CurrentUser));
         }
 
-        public string Unprotect(string data)
+        public string Unprotect(ClientConfiguration clientConfig, string data)
         {
+            if (clientConfig == null) throw new ArgumentNullException(nameof(clientConfig));
             if (string.IsNullOrEmpty(data)) throw new ArgumentNullException(data);
-            return BytesToString(ProtectedData.Unprotect(FromBase64(data), AdditionalEntropy, DataProtectionScope.CurrentUser));
+
+            var additionalEntropy = StringToBytes(clientConfig.MultiFactorApiSecret);
+            return BytesToString(ProtectedData.Unprotect(FromBase64(data), additionalEntropy, DataProtectionScope.CurrentUser));
         }
 
         private byte[] StringToBytes(string s)

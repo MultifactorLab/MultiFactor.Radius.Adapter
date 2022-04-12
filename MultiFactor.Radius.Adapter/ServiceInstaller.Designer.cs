@@ -1,4 +1,6 @@
-﻿namespace MultiFactor.Radius.Adapter
+﻿using MultiFactor.Radius.Adapter.Configuration;
+
+namespace MultiFactor.Radius.Adapter
 {
     partial class ServiceInstaller
     {
@@ -28,8 +30,8 @@
             // 
             this.serviceInstaller1.DelayedAutoStart = true;
             this.serviceInstaller1.Description = "MultiFactor Radius Adapter";
-            this.serviceInstaller1.DisplayName = Configuration.ServiceDisplayName;
-            this.serviceInstaller1.ServiceName = Configuration.ServiceUnitName;
+            this.serviceInstaller1.DisplayName = ServiceConfiguration.ServiceDisplayName;
+            this.serviceInstaller1.ServiceName = ServiceConfiguration.ServiceUnitName;
             this.serviceInstaller1.StartType = System.ServiceProcess.ServiceStartMode.Automatic;
             // 
             // ServiceInstaller

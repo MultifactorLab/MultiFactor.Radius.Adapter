@@ -44,6 +44,7 @@ namespace MultiFactor.Radius.Adapter.Server
         public bool Bypass2Fa { get; set; }
         public IList<string> UserGroups { get; set; }
         public bool MustChangePassword { get; set; }
+        public string MustChangePasswordDomain { get; set; }
 
         public IDictionary<string, object> LdapAttrs { get; set; }
     }

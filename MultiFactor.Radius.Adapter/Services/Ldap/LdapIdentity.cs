@@ -58,7 +58,15 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
                 Type = IdentityType.DistinguishedName
             };
         }
-        
+
+        /// <summary>
+        /// Extracts CN from DN
+        /// </summary>
+        public static string DnToCn(string dn)
+        {
+            return dn.Split(',')[0].Split(new[] { '=' })[1];
+        }
+
         /// <summary>
         /// DC part from DN
         /// </summary>

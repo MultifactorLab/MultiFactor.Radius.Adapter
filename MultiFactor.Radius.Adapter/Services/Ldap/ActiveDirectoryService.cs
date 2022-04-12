@@ -2,6 +2,7 @@
 //Please see licence at 
 //https://github.com/MultifactorLab/MultiFactor.Radius.Adapter/blob/master/LICENSE.md
 
+using MultiFactor.Radius.Adapter.Configuration;
 using MultiFactor.Radius.Adapter.Server;
 using Serilog;
 using System;
@@ -18,9 +19,8 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
     /// <summary>
     /// Service to interact with Active Directory
     /// </summary>
-    public class ActiveDirectoryService : ILdapService
+    public class ActiveDirectoryService
     {
-        private Configuration _configuration;
         private ILogger _logger;
 
         private IDictionary<string, LdapIdentity> _domainNameSuffixes;
@@ -28,9 +28,8 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
 
         private string _domain;
 
-        public ActiveDirectoryService(Configuration configuration, ILogger logger, string domain)
+        public ActiveDirectoryService(ILogger logger, string domain)
         {
-            _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _domain = domain ?? throw new ArgumentNullException(nameof(domain));
         }
@@ -38,7 +37,7 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
         /// <summary>
         /// Verify User Name, Password, User Status and Policy against Active Directory
         /// </summary>
-        public bool VerifyCredentialAndMembership(string userName, string password, PendingRequest request)
+        public bool VerifyCredentialAndMembership(ClientConfiguration clientConfig, string userName, string password, PendingRequest request)
         {
             if (string.IsNullOrEmpty(userName))
             {
@@ -54,7 +53,7 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
             if (user.Type == IdentityType.UserPrincipalName)
             {
                 var suffix = user.UpnToSuffix();
-                if (!_configuration.IsPermittedDomain(suffix))
+                if (!clientConfig.IsPermittedDomain(suffix))
                 {
                     _logger.Warning($"User domain {suffix} not permitted");
                     return false;
@@ -62,7 +61,7 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
             }
             else
             {
-                if (_configuration.RequiresUpn)
+                if (clientConfig.RequiresUpn)
                 {
                     _logger.Warning("Only UserPrincipalName format permitted, see configuration");
                     return false;
@@ -82,7 +81,7 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
 
                     _logger.Information($"User '{{user:l}}' credential and status verified successfully in {_domain}", user.Name);
 
-                    return VerifyMembership(connection, user, request);
+                    return VerifyMembership(clientConfig, connection, user, request);
                 }
             }
             catch (LdapException lex)
@@ -108,7 +107,7 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
 
             return false;
         }
-        public bool VerifyMembership(string userName, PendingRequest request)
+        public bool VerifyMembership(ClientConfiguration clientConfig, string userName, PendingRequest request)
         {
             if (string.IsNullOrEmpty(userName))
             {
@@ -119,7 +118,7 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
             if (user.Type == IdentityType.UserPrincipalName)
             {
                 var suffix = user.UpnToSuffix();
-                if (!_configuration.IsPermittedDomain(suffix))
+                if (!clientConfig.IsPermittedDomain(suffix))
                 {
                     _logger.Warning($"User domain {suffix} not permitted");
                     return false;
@@ -127,7 +126,7 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
             }
             else
             {
-                if (_configuration.RequiresUpn)
+                if (clientConfig.RequiresUpn)
                 {
                     _logger.Warning("Only UserPrincipalName format permitted, see configuration");
                     return false;
@@ -144,7 +143,7 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
                     connection.SessionOptions.RootDseCache = true;
                     connection.Bind();
 
-                    return VerifyMembership(connection, user, request);
+                    return VerifyMembership(clientConfig, connection, user, request);
                 }
             }
             catch (Exception ex)
@@ -159,7 +158,7 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
         /// <summary>
         /// Change user password
         /// </summary>
-        public bool ChangePassword(string userName, string currentPassword, string newPassword, out bool passwordDoesNotMeetRequirements)
+        public bool ChangePassword(ClientConfiguration clientConfig, string userName, string currentPassword, string newPassword, out bool passwordDoesNotMeetRequirements)
         {
             var identity = LdapIdentity.ParseUser(userName);
             passwordDoesNotMeetRequirements = false;
@@ -176,7 +175,7 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
 
                     var domain = LdapIdentity.FqdnToDn(_domain);
 
-                    var profile = LoadProfile(connection, domain, identity);
+                    var profile = LoadProfile(clientConfig, connection, domain, identity);
                     if (profile == null)
                     {
                         return false;
@@ -212,67 +211,55 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
             return false;
         }
 
-        private bool VerifyMembership(LdapConnection connection, LdapIdentity user, PendingRequest request)
+        private bool VerifyMembership(ClientConfiguration clientConfig, LdapConnection connection, LdapIdentity user, PendingRequest request)
         {
             var domain = LdapIdentity.FqdnToDn(_domain);
 
-            LoadForestSchema(connection, domain);
+            LoadForestSchema(clientConfig, connection, domain);
 
-            var profile = LoadProfile(connection, domain, user);
+            var profile = LoadProfile(clientConfig, connection, domain, user);
             if (profile == null)
             {
                 return false;
             }
 
-            var checkGroupMembership = !string.IsNullOrEmpty(_configuration.ActiveDirectoryGroup);
+            var checkGroupMembership = !string.IsNullOrEmpty(clientConfig.ActiveDirectoryGroup);
             //user must be member of security group
             if (checkGroupMembership)
             {
-                var isMemberOf = IsMemberOf(connection, profile, user, _configuration.ActiveDirectoryGroup);
+                var isMemberOf = IsMemberOf(connection, profile, user, clientConfig.ActiveDirectoryGroup);
 
                 if (!isMemberOf)
                 {
-                    _logger.Warning($"User '{{user:l}}' is not member of '{_configuration.ActiveDirectoryGroup}' group in {profile.BaseDn.Name}", user.Name);
+                    _logger.Warning($"User '{{user:l}}' is not member of '{clientConfig.ActiveDirectoryGroup}' group in {profile.BaseDn.Name}", user.Name);
                     return false;
                 }
 
-                _logger.Debug($"User '{{user:l}}' is member of '{_configuration.ActiveDirectoryGroup}' group in {profile.BaseDn.Name}", user.Name);
+                _logger.Debug($"User '{{user:l}}' is member of '{clientConfig.ActiveDirectoryGroup}' group in {profile.BaseDn.Name}", user.Name);
             }
 
-            var onlyMembersOfGroupMustProcess2faAuthentication = !string.IsNullOrEmpty(_configuration.ActiveDirectory2FaGroup);
+            var onlyMembersOfGroupMustProcess2faAuthentication = !string.IsNullOrEmpty(clientConfig.ActiveDirectory2FaGroup);
             //only users from group must process 2fa
             if (onlyMembersOfGroupMustProcess2faAuthentication)
             {
-                var isMemberOf = IsMemberOf(connection, profile, user, _configuration.ActiveDirectory2FaGroup);
+                var isMemberOf = IsMemberOf(connection, profile, user, clientConfig.ActiveDirectory2FaGroup);
 
                 if (isMemberOf)
                 {
-                    _logger.Debug($"User '{{user:l}}' is member of '{_configuration.ActiveDirectory2FaGroup}' in {profile.BaseDn.Name}", user.Name);
+                    _logger.Debug($"User '{{user:l}}' is member of '{clientConfig.ActiveDirectory2FaGroup}' in {profile.BaseDn.Name}", user.Name);
                 }
                 else
                 {
-                    _logger.Information($"User '{{user:l}}' is not member of '{_configuration.ActiveDirectory2FaGroup}' in {profile.BaseDn.Name}", user.Name);
+                    _logger.Information($"User '{{user:l}}' is not member of '{clientConfig.ActiveDirectory2FaGroup}' in {profile.BaseDn.Name}", user.Name);
                     request.Bypass2Fa = true;
                 }
             }
 
-            //check groups membership for radius reply conditional attributes
-            foreach (var attribute in _configuration.RadiusReplyAttributes)
-            {
-                foreach (var value in attribute.Value.Where(val => val.UserGroupCondition != null))
-                {
-                    if (IsMemberOf(connection, profile, user, value.UserGroupCondition))
-                    {
-                        request.UserGroups.Add(value.UserGroupCondition);
-                    }
-                }
-            }
-
-            if (_configuration.UseActiveDirectoryUserPhone)
+            if (clientConfig.UseActiveDirectoryUserPhone)
             {
                 request.UserPhone = profile.Phone;
             }
-            if (_configuration.UseActiveDirectoryMobileUserPhone)
+            if (clientConfig.UseActiveDirectoryMobileUserPhone)
             {
                 request.UserPhone = profile.Mobile;
             }
@@ -281,10 +268,15 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
             request.EmailAddress = profile.Email;
             request.LdapAttrs = profile.LdapAttrs;
 
+            if (profile.MemberOf != null)
+            {
+                request.UserGroups = profile.MemberOf.Select(dn => LdapIdentity.DnToCn(dn)).ToList();
+            }
+
             return true;
         }
 
-        private void LoadForestSchema(LdapConnection connection, LdapIdentity root)
+        private void LoadForestSchema(ClientConfiguration clientConfig, LdapConnection connection, LdapIdentity root)
         {
             if (_domainNameSuffixes != null)
             {
@@ -318,7 +310,7 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
                         if (attribute != null)
                         {
                             var domain = attribute[0].ToString();
-                            if (_configuration.IsPermittedDomain(domain))
+                            if (clientConfig.IsPermittedDomain(domain))
                             {
                                 var trustPartner = LdapIdentity.FqdnToDn(domain);
 
@@ -385,13 +377,13 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
             }
         }
 
-        private LdapProfile LoadProfile(LdapConnection connection, LdapIdentity domain, LdapIdentity user)
+        private LdapProfile LoadProfile(ClientConfiguration clientConfig, LdapConnection connection, LdapIdentity domain, LdapIdentity user)
         {
             var profile = new LdapProfile();
 
             var queryAttributes = new List<string> { "DistinguishedName", "displayName", "mail", "telephoneNumber", "mobile", "memberOf" };
 
-            var ldapReplyAttributes = _configuration.GetLdapReplyAttributes();
+            var ldapReplyAttributes = clientConfig.GetLdapReplyAttributes();
             foreach (var ldapReplyAttribute in ldapReplyAttributes)
             {
                 if (!profile.LdapAttrs.ContainsKey(ldapReplyAttribute))
@@ -445,6 +437,10 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
 
             _logger.Debug($"User '{{user:l}}' profile loaded: {profile.DistinguishedName}", user.Name);
 
+            if (clientConfig.ShouldLoadUserGroups())
+            {
+                LoadAllUserGroups(connection, baseDn, profile);
+            }
             return profile;
         }
 
@@ -459,10 +455,7 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
                 return false;
             }
 
-            var searchFilter = $"(&({user.TypeName}={user.Name})(memberOf:1.2.840.113556.1.4.1941:={group.Name}))";
-            var response = Query(connection, profile.DistinguishedName, searchFilter, SearchScope.Subtree, true, "DistinguishedName");
-
-            return response.Entries.Count > 0;
+            return profile.MemberOf?.Any(g => g == group.Name) ?? false;
         }
 
         private bool IsValidGroup(LdapConnection connection, LdapIdentity domain, string groupName, out LdapIdentity validatedGroup)
@@ -560,6 +553,22 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
 
             return defaultDomain;
         }
+
+        private void LoadAllUserGroups(LdapConnection connection, LdapIdentity baseDn, LdapProfile profile)
+        {
+            var searchFilter = $"(member:1.2.840.113556.1.4.1941:={profile.DistinguishedName})";
+            var response = Query(connection, baseDn.Name, searchFilter, SearchScope.Subtree, false, "DistinguishedName");
+
+            var groups = new List<string>(response.Entries.Count);
+            for (var i =0; i < response.Entries.Count; i++)
+            {
+                var entry = response.Entries[i];
+                groups.Add(entry.DistinguishedName);
+            }
+
+            profile.MemberOf = groups;
+        }
+
 
         private string ExtractErrorReason(string errorMessage, out bool mustChangePassword)
         {
