@@ -212,6 +212,13 @@ namespace MultiFactor.Radius.Adapter.Configuration
 
             if (clientConfigFiles.Length == 0)
             {
+                //check if we have anything
+                var ffas = appSettings.Settings["first-factor-authentication-source"]?.Value;
+                if (ffas == null)
+                {
+                    throw new ConfigurationErrorsException("No clients' config files found. Use one of the *.template files in the /clients folder to customize settings. Then save this file as *.config.");
+                }
+
                 var radiusReplyAttributesSection = ConfigurationManager.GetSection("RadiusReply") as RadiusReplyAttributesSection;
                 var activeDirectorySection = ConfigurationManager.GetSection("ActiveDirectory") as ActiveDirectorySection;
 

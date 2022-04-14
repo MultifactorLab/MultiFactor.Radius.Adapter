@@ -285,17 +285,58 @@ namespace MultiFactor.Radius.Adapter.Server
             var requestPacket = request.RequestPacket;
             var responsePacket = requestPacket.CreateResponsePacket(request.ResponseCode);
 
-            if (request.ResponseCode == PacketCode.AccessAccept)
+            switch (request.ResponseCode)
             {
-                if (request.ResponsePacket != null) //copy from remote radius reply
-                {
-                    request.ResponsePacket.CopyTo(responsePacket);
-                }
-                if (request.RequestPacket.Code == PacketCode.StatusServer)
-                {
-                    responsePacket.AddAttribute("Reply-Message", request.ReplyMessage);
-                }
+                case PacketCode.AccessAccept:
+                    if (request.ResponsePacket != null) //copy from remote radius reply
+                    {
+                        request.ResponsePacket.CopyTo(responsePacket);
+                    }
+                    if (request.RequestPacket.Code == PacketCode.StatusServer)
+                    {
+                        responsePacket.AddAttribute("Reply-Message", request.ReplyMessage);
+                    }
+
+                    var clientConfiguration = _serviceConfiguration.GetClient(request);
+                    //add custom reply attributes
+                    if (request.ResponseCode == PacketCode.AccessAccept)
+                    {
+                        foreach (var attr in clientConfiguration.RadiusReplyAttributes)
+                        {
+                            //check condition
+                            var matched = attr.Value.Where(val => val.IsMatch(request)).SelectMany(val => val.GetValues(request));
+                            if (matched.Any())
+                            {
+                                var convertedValues = new List<object>();
+                                foreach (var val in matched.ToList())
+                                {
+                                    _logger.Debug("Added attribute '{attrname:l}:{attrval:l}' to reply", attr.Key, val);
+                                    convertedValues.Add(ConvertType(attr.Key, val));
+                                }
+                                responsePacket.Attributes.Add(attr.Key, convertedValues);
+                            }
+                        }
+                    }
+
+                    break;
+                case PacketCode.AccessChallenge:
+                    responsePacket.AddAttribute("Reply-Message", request.ReplyMessage ?? "Enter OTP code: ");
+                    responsePacket.AddAttribute("State", request.State); //state to match user authentication session
+
+                    break;
+                case PacketCode.AccessReject:
+                    if (request.ResponsePacket != null) //copy from remote radius reply
+                    {
+                        if (request.ResponsePacket.Code == PacketCode.AccessReject) //for mschap pwd change only
+                        {
+                            request.ResponsePacket.CopyTo(responsePacket);
+                        }
+                    }
+                    break;
+                default:
+                    throw new NotImplementedException(request.ResponseCode.ToString());
             }
+
 
             //proxy echo required
             if (requestPacket.Attributes.ContainsKey("Proxy-State"))
@@ -303,33 +344,6 @@ namespace MultiFactor.Radius.Adapter.Server
                 if (!responsePacket.Attributes.ContainsKey("Proxy-State"))
                 {
                     responsePacket.Attributes.Add("Proxy-State", requestPacket.Attributes.SingleOrDefault(o => o.Key == "Proxy-State").Value);
-                }
-            }
-
-            if (request.ResponseCode == PacketCode.AccessChallenge)
-            {
-                responsePacket.AddAttribute("Reply-Message", request.ReplyMessage ?? "Enter OTP code: ");
-                responsePacket.AddAttribute("State", request.State); //state to match user authentication session
-            }
-
-            var clientConfiguration = _serviceConfiguration.GetClient(request);
-            //add custom reply attributes
-            if (request.ResponseCode == PacketCode.AccessAccept)
-            {
-                foreach (var attr in clientConfiguration.RadiusReplyAttributes)
-                {
-                    //check condition
-                    var matched = attr.Value.Where(val => val.IsMatch(request)).SelectMany(val => val.GetValues(request));
-                    if (matched.Any())
-                    {
-                        var convertedValues = new List<object>();
-                        foreach (var val in matched.ToList())
-                        {
-                            _logger.Debug("Added attribute '{attrname:l}:{attrval:l}' to reply", attr.Key, val);
-                            convertedValues.Add(ConvertType(attr.Key, val));
-                        }
-                        responsePacket.Attributes.Add(attr.Key, convertedValues);
-                    }
                 }
             }
 
