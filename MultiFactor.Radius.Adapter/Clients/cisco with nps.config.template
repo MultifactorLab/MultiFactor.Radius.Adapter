@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <appSettings>
+    <!-- cisco asa ip -->
+    <add key="radius-client-ip" value="10.10.10.10"/>
+    <!-- shared secret between this service and cisco -->
+    <add key="radius-shared-secret" value="0000000000"/>
+
+    <!--One of: ActiveDirectory, ADLDS, Radius, None-->
+    <add key="first-factor-authentication-source" value="Radius"/>
+
+    <!-- this service radius client endpoint -->
+    <add key="adapter-client-endpoint" value="0.0.0.0"/>
+
+    <!-- remote radius server endpoint -->
+    <add key="nps-server-endpoint" value="192.168.0.1:1812"/>
+
+    <!-- get it from multifactor management panel -->
+    <add key="multifactor-nas-identifier" value="1"/>
+    <!-- get it from multifactor management panel -->
+    <add key="multifactor-shared-secret" value="2"/>
+  </appSettings>
+</configuration>

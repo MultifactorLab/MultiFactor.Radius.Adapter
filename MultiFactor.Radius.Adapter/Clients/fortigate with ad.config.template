@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <configSections>
+    <section name="ActiveDirectory" type="MultiFactor.Radius.Adapter.ActiveDirectorySection, MultiFactor.Radius.Adapter"/>
+    <section name="RadiusReply" type="MultiFactor.Radius.Adapter.RadiusReplyAttributesSection, MultiFactor.Radius.Adapter"/>
+  </configSections>
+
+  <appSettings>
+    <!-- fortigate ip -->
+    <add key="radius-client-ip" value="10.10.10.10"/>
+    <!-- shared secret between this service and fortigate -->
+    <add key="radius-shared-secret" value="0000000000"/>
+
+    <!--One of: ActiveDirectory, ADLDS, Radius, None-->
+    <add key="first-factor-authentication-source" value="ActiveDirectory"/>
+
+    <!--ActiveDirectory authentication source settings-->
+    <add key="active-directory-domain" value="domain.local"/>
+
+    <!--ActiveDirectory access group (optional);-->
+    <add key="active-directory-group" value="VPN Users"/>
+
+    <!--ActiveDirectory 2FA group (optional);-->
+    <add key="active-directory-2fa-group" value="2FA Users"/>
+
+    <!-- get it from multifactor management panel -->
+    <add key="multifactor-nas-identifier" value="1"/>
+    <!-- get it from multifactor management panel -->
+    <add key="multifactor-shared-secret" value="2"/>
+  </appSettings>
+
+  <RadiusReply>
+    <Attributes>
+      <add name="Fortinet-Group-Name" from="memberOf"/>
+    </Attributes>
+  </RadiusReply>
+
+  <ActiveDirectory requiresUserPrincipalName="false">
+  </ActiveDirectory>
+  
+</configuration>

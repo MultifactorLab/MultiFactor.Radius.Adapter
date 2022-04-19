@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <configSections>
+    <section name="ActiveDirectory" type="MultiFactor.Radius.Adapter.ActiveDirectorySection, MultiFactor.Radius.Adapter"/>
+    <section name="RadiusReply" type="MultiFactor.Radius.Adapter.RadiusReplyAttributesSection, MultiFactor.Radius.Adapter"/>
+  </configSections>
+  
+  <appSettings>
+    <add key="radius-client-nas-identifier" value="linux"/>
+    <!-- shared secret between this service and radius client -->
+    <add key="radius-shared-secret" value="0000000000"/>
+
+    <!--First factor (login/pwd) authentication source -->
+    <!--One of: ActiveDirectory, ADLDS, Radius, None-->
+    <add key="first-factor-authentication-source" value="ActiveDirectory"/>
+
+    <!--ActiveDirectory authentication source settings-->
+    <add key="active-directory-domain" value="domain.local"/>
+
+    <!--ActiveDirectory access group (optional);-->
+    <add key="active-directory-group" value="SSH Users"/>
+
+    <!-- get it from multifactor management panel -->
+    <add key="multifactor-nas-identifier" value=""/>
+    <!-- get it from multifactor management panel -->
+    <add key="multifactor-shared-secret" value=""/>
+  </appSettings>
+  
+</configuration>
