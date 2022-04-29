@@ -446,8 +446,7 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
 
         private bool IsMemberOf(LdapConnection connection, LdapProfile profile, LdapIdentity user, string groupName)
         {
-            var baseDn = SelectBestDomainToQuery(user, profile.BaseDn);
-            var isValidGroup = IsValidGroup(connection, baseDn, groupName, out var group);
+            var isValidGroup = IsValidGroup(connection, profile.BaseDn, groupName, out var group);
 
             if (!isValidGroup)
             {
@@ -458,33 +457,30 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
             return profile.MemberOf?.Any(g => g == group.Name) ?? false;
         }
 
-        private bool IsValidGroup(LdapConnection connection, LdapIdentity domain, string groupName, out LdapIdentity validatedGroup)
+        private bool IsValidGroup(LdapConnection connection, LdapIdentity baseDn, string groupName, out LdapIdentity validatedGroup)
         {
             validatedGroup = null;
 
             var group = LdapIdentity.ParseGroup(groupName);
             var searchFilter = $"(&(objectCategory=group)({group.TypeName}={group.Name}))";
             
-            var response = Query(connection, domain.Name, searchFilter, SearchScope.Subtree, false, "DistinguishedName");
+            var response = Query(connection, baseDn.Name, searchFilter, SearchScope.Subtree, false, "DistinguishedName");
             if (response.Entries.Count == 0)
             {
-                response = Query(connection, domain.Name, searchFilter, SearchScope.Subtree, true, "DistinguishedName");
+                response = Query(connection, baseDn.Name, searchFilter, SearchScope.Subtree, true, "DistinguishedName");
             }
 
-            for (var i=0; i < response.Entries.Count; i++)
+            if (response.Entries.Count > 0)
             {
-                var entry = response.Entries[i];
-                var baseDn = LdapIdentity.BaseDn(entry.DistinguishedName);
-                if (baseDn.Name == domain.Name) //only from user domain
-                {
-                    validatedGroup = new LdapIdentity
-                    {
-                        Name = entry.DistinguishedName,
-                        Type = IdentityType.DistinguishedName
-                    };
+                var entry = response.Entries[0];
 
-                    return true;
-                }
+                validatedGroup = new LdapIdentity
+                {
+                    Name = entry.DistinguishedName,
+                    Type = IdentityType.DistinguishedName
+                };
+
+                return true;
             }
 
             return false;

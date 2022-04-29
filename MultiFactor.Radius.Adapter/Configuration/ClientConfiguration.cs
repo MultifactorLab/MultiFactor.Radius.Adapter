@@ -23,16 +23,6 @@ namespace MultiFactor.Radius.Adapter.Configuration
         public string Name { get; set; }
 
         /// <summary>
-        /// Client IP address (used for identification)
-        /// </summary>
-        public IPAddress Ip { get; set; }
-
-        /// <summary>
-        /// Client NAS_Identifier (another option used for identification)
-        /// </summary>
-        public string NasIdentifier { get; set; }
-
-        /// <summary>
         /// Shared secret between this service and Radius client
         /// </summary>
         public string RadiusSharedSecret { get; set; }
