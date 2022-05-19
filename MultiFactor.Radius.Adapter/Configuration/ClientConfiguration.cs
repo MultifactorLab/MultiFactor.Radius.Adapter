@@ -15,6 +15,9 @@ namespace MultiFactor.Radius.Adapter.Configuration
         public ClientConfiguration()
         {
             BypassSecondFactorWhenApiUnreachable = true; //by default
+            LoadActiveDirectoryNestedGroups = true;
+            ActiveDirectoryGroup = new string[0];
+            ActiveDirectory2FaGroup = new string[0];
         }
 
         /// <summary>
@@ -58,12 +61,12 @@ namespace MultiFactor.Radius.Adapter.Configuration
         /// <summary>
         /// Only members of this group allowed to access (Optional)
         /// </summary>
-        public string ActiveDirectoryGroup { get; set; }
+        public string[] ActiveDirectoryGroup { get; set; }
 
         /// <summary>
         /// Only members of this group required to pass 2fa to access (Optional)
         /// </summary>
-        public string ActiveDirectory2FaGroup { get; set; }
+        public string[] ActiveDirectory2FaGroup { get; set; }
 
         /// <summary>
         /// Use ActiveDirectory User general properties phone number (Optional)
@@ -76,6 +79,11 @@ namespace MultiFactor.Radius.Adapter.Configuration
         public bool UseActiveDirectoryMobileUserPhone { get; set; }
 
         /// <summary>
+        /// Load nested groups (may be slow)
+        /// </summary>
+        public bool LoadActiveDirectoryNestedGroups { get; set; }
+
+        /// <summary>
         /// Load user profile from AD and check group membership and 
         /// </summary>
         public bool CheckMembership
@@ -86,7 +94,11 @@ namespace MultiFactor.Radius.Adapter.Configuration
                     (ActiveDirectoryGroup != null ||
                     ActiveDirectory2FaGroup != null ||
                     UseActiveDirectoryUserPhone ||
-                    UseActiveDirectoryMobileUserPhone);
+                    UseActiveDirectoryMobileUserPhone ||
+                    RadiusReplyAttributes
+                        .Values
+                        .SelectMany(attr => attr)
+                        .Any(attr => attr.FromLdap || attr.IsMemberOf || attr.UserGroupCondition != null));
             }
         }
 

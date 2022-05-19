@@ -374,6 +374,7 @@ namespace MultiFactor.Radius.Adapter.Configuration
             var activeDirectory2FaGroupSetting              = appSettings.Settings["active-directory-2fa-group"]?.Value;
             var useActiveDirectoryUserPhoneSetting          = appSettings.Settings["use-active-directory-user-phone"]?.Value;
             var useActiveDirectoryMobileUserPhoneSetting    = appSettings.Settings["use-active-directory-mobile-user-phone"]?.Value;
+            var loadActiveDirectoryNestedGroupsSettings = appSettings.Settings["load-active-directory-nested-groups"]?.Value;
 
             if (mandatory && string.IsNullOrEmpty(activeDirectoryDomainSetting))
             {
@@ -400,9 +401,27 @@ namespace MultiFactor.Radius.Adapter.Configuration
                 configuration.UseActiveDirectoryMobileUserPhone = useActiveDirectoryMobileUserPhone;
             }
 
+            if (!string.IsNullOrEmpty(loadActiveDirectoryNestedGroupsSettings))
+            {
+                if (!bool.TryParse(loadActiveDirectoryNestedGroupsSettings, out var loadActiveDirectoryNestedGroups))
+                {
+                    throw new Exception("Configuration error: Can't parse 'load-active-directory-nested-groups' value");
+                }
+
+                configuration.LoadActiveDirectoryNestedGroups = loadActiveDirectoryNestedGroups;
+            }
+
             configuration.ActiveDirectoryDomain = activeDirectoryDomainSetting;
-            configuration.ActiveDirectoryGroup = activeDirectoryGroupSetting;
-            configuration.ActiveDirectory2FaGroup = activeDirectory2FaGroupSetting;
+
+            if (!string.IsNullOrEmpty(activeDirectoryGroupSetting))
+            {
+                configuration.ActiveDirectoryGroup = activeDirectoryGroupSetting.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
+            }
+
+            if (!string.IsNullOrEmpty(activeDirectory2FaGroupSetting))
+            {
+                configuration.ActiveDirectory2FaGroup = activeDirectory2FaGroupSetting.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
+            }
 
             if (activeDirectorySection != null)
             {
