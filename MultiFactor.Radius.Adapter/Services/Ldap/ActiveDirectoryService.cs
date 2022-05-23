@@ -255,17 +255,10 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
                 }
             }
 
-            if (clientConfig.UseActiveDirectoryUserPhone)
-            {
-                request.UserPhone = profile.Phone;
-            }
-            if (clientConfig.UseActiveDirectoryMobileUserPhone)
-            {
-                request.UserPhone = profile.Mobile;
-            }
 
             request.DisplayName = profile.DisplayName;
             request.EmailAddress = profile.Email;
+            request.UserPhone = profile.Phone;
             request.LdapAttrs = profile.LdapAttrs;
 
             if (profile.MemberOf != null)
@@ -381,7 +374,7 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
         {
             var profile = new LdapProfile();
 
-            var queryAttributes = new List<string> { "DistinguishedName", "displayName", "mail", "telephoneNumber", "mobile", "memberOf" };
+            var queryAttributes = new List<string> { "DistinguishedName", "displayName", "mail", "memberOf" };
 
             var ldapReplyAttributes = clientConfig.GetLdapReplyAttributes();
             foreach (var ldapReplyAttribute in ldapReplyAttributes)
@@ -392,6 +385,7 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
                     queryAttributes.Add(ldapReplyAttribute);
                 }
             }
+            queryAttributes.AddRange(clientConfig.PhoneAttributes);
 
             var searchFilter = $"(&(objectClass=user)({user.TypeName}={user.Name}))";
 
@@ -400,12 +394,12 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
             _logger.Debug($"Querying user '{{user:l}}' in {baseDn.Name}", user.Name);
 
             //only this domain
-            var response = Query(connection, baseDn.Name, searchFilter, SearchScope.Subtree, false, queryAttributes.ToArray());
+            var response = Query(connection, baseDn.Name, searchFilter, SearchScope.Subtree, false, queryAttributes.Distinct().ToArray());
 
             if (response.Entries.Count == 0)
             {
                 //with ReferralChasing 
-                response = Query(connection, baseDn.Name, searchFilter, SearchScope.Subtree, true, queryAttributes.ToArray());
+                response = Query(connection, baseDn.Name, searchFilter, SearchScope.Subtree, true, queryAttributes.Distinct().ToArray());
             }
 
             if (response.Entries.Count == 0)
@@ -416,13 +410,13 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
 
             var entry = response.Entries[0];
 
+            //base profile
             profile.BaseDn = LdapIdentity.BaseDn(entry.DistinguishedName);
             profile.DistinguishedName = entry.DistinguishedName;
             profile.DisplayName = entry.Attributes["displayName"]?[0]?.ToString();
             profile.Email = entry.Attributes["mail"]?[0]?.ToString();
-            profile.Phone = entry.Attributes["telephoneNumber"]?[0]?.ToString();
-            profile.Mobile = entry.Attributes["mobile"]?[0]?.ToString();
 
+            //additional attributes for radius response
             foreach (var key in profile.LdapAttrs.Keys.ToList()) //to list to avoid collection was modified exception
             {
                 if (entry.Attributes.Contains(key))
@@ -431,14 +425,30 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
                 }
             }
 
+            //groups
             var memberOf = entry.Attributes["memberOf"]?.GetValues(typeof(string));
             if (memberOf != null)
             {
                 profile.MemberOf = memberOf.Select(dn => LdapIdentity.DnToCn(dn.ToString())).ToList();
             }
 
+            //phone
+            foreach(var phoneAttr in clientConfig.PhoneAttributes)
+            {
+                if (entry.Attributes.Contains(phoneAttr))
+                {
+                    var phone = entry.Attributes[phoneAttr][0]?.ToString();
+                    if (!string.IsNullOrEmpty(phone))
+                    {
+                        profile.Phone = phone;
+                        break;
+                    }
+                }
+            }
+
             _logger.Debug($"User '{{user:l}}' profile loaded: {profile.DistinguishedName}", user.Name);
 
+            //nested groups if configured
             if (clientConfig.ShouldLoadUserGroups())
             {
                 LoadAllUserGroups(clientConfig, connection, baseDn, profile);

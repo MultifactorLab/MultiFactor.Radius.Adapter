@@ -387,31 +387,36 @@ namespace MultiFactor.Radius.Adapter.Configuration
             var activeDirectory2FaGroupSetting              = appSettings.Settings["active-directory-2fa-group"]?.Value;
             var useActiveDirectoryUserPhoneSetting          = appSettings.Settings["use-active-directory-user-phone"]?.Value;
             var useActiveDirectoryMobileUserPhoneSetting    = appSettings.Settings["use-active-directory-mobile-user-phone"]?.Value;
-            var loadActiveDirectoryNestedGroupsSettings = appSettings.Settings["load-active-directory-nested-groups"]?.Value;
+            var phoneAttributes                             = appSettings.Settings["phone-attribute"]?.Value;
+            var loadActiveDirectoryNestedGroupsSettings     = appSettings.Settings["load-active-directory-nested-groups"]?.Value;
 
             if (mandatory && string.IsNullOrEmpty(activeDirectoryDomainSetting))
             {
                 throw new Exception("Configuration error: 'active-directory-domain' element not found");
             }
 
-            if (!string.IsNullOrEmpty(useActiveDirectoryUserPhoneSetting))
+            //legacy settings for general phone attribute usage
+            if (bool.TryParse(useActiveDirectoryUserPhoneSetting, out var useActiveDirectoryUserPhone))
             {
-                if (!bool.TryParse(useActiveDirectoryUserPhoneSetting, out var useActiveDirectoryUserPhone))
+                if (useActiveDirectoryUserPhone)
                 {
-                    throw new Exception("Configuration error: Can't parse 'use-active-directory-user-phone' value");
+                    configuration.PhoneAttributes.Add("telephoneNumber");
                 }
-
-                configuration.UseActiveDirectoryUserPhone = useActiveDirectoryUserPhone;
             }
 
-            if (!string.IsNullOrEmpty(useActiveDirectoryMobileUserPhoneSetting))
+            //legacy settings for mobile phone attribute usage
+            if (bool.TryParse(useActiveDirectoryMobileUserPhoneSetting, out var useActiveDirectoryMobileUserPhone))
             {
-                if (!bool.TryParse(useActiveDirectoryMobileUserPhoneSetting, out var useActiveDirectoryMobileUserPhone))
+                if (useActiveDirectoryMobileUserPhone)
                 {
-                    throw new Exception("Configuration error: Can't parse 'use-active-directory-mobile-user-phone' value");
+                    configuration.PhoneAttributes.Add("mobile");
                 }
+            }
 
-                configuration.UseActiveDirectoryMobileUserPhone = useActiveDirectoryMobileUserPhone;
+            if (!string.IsNullOrEmpty(phoneAttributes))
+            {
+                var attrs = phoneAttributes.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries).Select(attr => attr.Trim()).ToList();
+                configuration.PhoneAttributes = attrs;
             }
 
             if (!string.IsNullOrEmpty(loadActiveDirectoryNestedGroupsSettings))
