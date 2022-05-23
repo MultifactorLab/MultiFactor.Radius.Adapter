@@ -219,8 +219,9 @@ namespace MultiFactor.Radius.Adapter.Configuration
 
                 var radiusReplyAttributesSection = ConfigurationManager.GetSection("RadiusReply") as RadiusReplyAttributesSection;
                 var activeDirectorySection = ConfigurationManager.GetSection("ActiveDirectory") as ActiveDirectorySection;
+                var userNameTransformRulesSection = ConfigurationManager.GetSection("UserNameTransformRules") as UserNameTransformRulesSection;
 
-                var client = Load("General", dictionary, appSettings, radiusReplyAttributesSection, activeDirectorySection);
+                var client = Load("General", dictionary, appSettings, radiusReplyAttributesSection, activeDirectorySection, userNameTransformRulesSection);
                 configuration.AddClient(IPAddress.Any, client);
                 configuration.SingleClientMode = true;
             }
@@ -237,8 +238,9 @@ namespace MultiFactor.Radius.Adapter.Configuration
                     var clientSettings = (AppSettingsSection)config.GetSection("appSettings");
                     var radiusReplyAttributesSection = config.GetSection("RadiusReply") as RadiusReplyAttributesSection;
                     var activeDirectorySection = config.GetSection("ActiveDirectory") as ActiveDirectorySection;
+                    var userNameTransformRulesSection = config.GetSection("UserNameTransformRules") as UserNameTransformRulesSection;
 
-                    var client = Load(Path.GetFileNameWithoutExtension(clientConfigFile), dictionary, clientSettings, radiusReplyAttributesSection, activeDirectorySection);
+                    var client = Load(Path.GetFileNameWithoutExtension(clientConfigFile), dictionary, clientSettings, radiusReplyAttributesSection, activeDirectorySection, userNameTransformRulesSection);
 
                     var radiusClientNasIdentifierSetting    = clientSettings.Settings["radius-client-nas-identifier"]?.Value;
                     var radiusClientIpSetting               = clientSettings.Settings["radius-client-ip"]?.Value;
@@ -268,7 +270,7 @@ namespace MultiFactor.Radius.Adapter.Configuration
             return configuration;
         }
 
-        public static ClientConfiguration Load(string name, IRadiusDictionary dictionary, AppSettingsSection appSettings, RadiusReplyAttributesSection radiusReplyAttributesSection, ActiveDirectorySection activeDirectorySection)
+        public static ClientConfiguration Load(string name, IRadiusDictionary dictionary, AppSettingsSection appSettings, RadiusReplyAttributesSection radiusReplyAttributesSection, ActiveDirectorySection activeDirectorySection, UserNameTransformRulesSection userNameTransformRulesSection)
         {
             var radiusSharedSecretSetting                           = appSettings.Settings["radius-shared-secret"]?.Value;
             var radiusPapEncodingSetting                            = appSettings.Settings["radius-pap-encoding"]?.Value;
@@ -363,6 +365,17 @@ namespace MultiFactor.Radius.Adapter.Configuration
             }
 
             LoadRadiusReplyAttributes(configuration, dictionary, radiusReplyAttributesSection);
+
+            if (userNameTransformRulesSection?.Members != null)
+            {
+                foreach (var member in userNameTransformRulesSection?.Members)
+                {
+                    if (member is UserNameTransformRulesElement rule)
+                    {
+                        configuration.UserNameTransformRules.Add(rule);
+                    }
+                }
+            }
 
             return configuration;
         }

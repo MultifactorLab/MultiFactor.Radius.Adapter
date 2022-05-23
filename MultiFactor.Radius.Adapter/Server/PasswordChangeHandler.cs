@@ -55,7 +55,7 @@ namespace MultiFactor.Radius.Adapter.Server
                 var currentPassword = _dataProtectionService.Unprotect(clientConfig, passwordChangeRequest.CurrentPasswordEncryptedData);
                 var activeDirectoryService = _activeDirectoryServices[passwordChangeRequest.Domain];
 
-                if (activeDirectoryService.ChangePassword(clientConfig, request.RequestPacket.UserName, currentPassword, newPassword, out var passwordDoesNotMeetRequirements))
+                if (activeDirectoryService.ChangePassword(clientConfig, request.UserName, currentPassword, newPassword, out var passwordDoesNotMeetRequirements))
                 {
                     _cache.Remove(request.RequestPacket.State);
                     return PacketCode.AccessAccept;

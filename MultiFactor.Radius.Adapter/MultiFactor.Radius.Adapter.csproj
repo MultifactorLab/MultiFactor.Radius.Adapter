@@ -125,6 +125,9 @@
     <Compile Include="Configuration\RadiusReplyAttributesCollection.cs" />
     <Compile Include="Configuration\RadiusReplyAttributesSection.cs" />
     <Compile Include="Configuration\RadiusReplyProxyStateElement.cs" />
+    <Compile Include="Configuration\UserNameTransformRulesCollection.cs" />
+    <Compile Include="Configuration\UserNameTransformRulesElement.cs" />
+    <Compile Include="Configuration\UserNameTransformRulesSection.cs" />
     <Compile Include="Configuration\ValueElement.cs" />
     <Compile Include="Configuration\ValueElementCollection.cs" />
     <Compile Include="Core\RadiusPacketNasIdentifierParser.cs" />

@@ -225,7 +225,7 @@ namespace MultiFactor.Radius.Adapter.Server
             }
 
 
-            var request = new PendingRequest { RemoteEndpoint = remoteEndpoint, ProxyEndpoint = proxyEndpoint, RequestPacket = requestPacket };
+            var request = new PendingRequest { RemoteEndpoint = remoteEndpoint, ProxyEndpoint = proxyEndpoint, RequestPacket = requestPacket, UserName = requestPacket.UserName };
 
             Task.Run(async () => await _router.HandleRequest(request, clientConfiguration));
         }

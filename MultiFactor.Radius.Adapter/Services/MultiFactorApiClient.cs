@@ -37,7 +37,7 @@ namespace MultiFactor.Radius.Adapter.Services
         public async Task<PacketCode> CreateSecondFactorRequest(PendingRequest request, ClientConfiguration clientConfig)
         {
             var remoteHost = request.RequestPacket.RemoteHostName;
-            var userName = request.RequestPacket.UserName;
+            var userName = request.UserName;
             var userPassword = request.RequestPacket.UserPassword;
             var displayName = request.DisplayName;
             var email = request.EmailAddress;

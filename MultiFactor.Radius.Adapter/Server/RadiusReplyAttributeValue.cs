@@ -98,7 +98,7 @@ namespace MultiFactor.Radius.Adapter.Server
             //if matched user name condition
             if (!string.IsNullOrEmpty(UserNameCondition))
             {
-                var userName = request.RequestPacket.UserName;
+                var userName = request.UserName;
                 var isCanonical = Utils.IsCanicalUserName(UserNameCondition);
                 if (isCanonical)
                 {

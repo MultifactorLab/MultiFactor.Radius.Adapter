@@ -18,6 +18,7 @@ namespace MultiFactor.Radius.Adapter.Configuration
             LoadActiveDirectoryNestedGroups = true;
             ActiveDirectoryGroup = new string[0];
             ActiveDirectory2FaGroup = new string[0];
+            UserNameTransformRules = new List<UserNameTransformRulesElement>();
         }
 
         /// <summary>
@@ -172,6 +173,11 @@ namespace MultiFactor.Radius.Adapter.Configuration
         /// Custom RADIUS reply attributes
         /// </summary>
         public IDictionary<string, List<RadiusReplyAttributeValue>> RadiusReplyAttributes { get; set; }
+
+        /// <summary>
+        /// Username transform rules
+        /// </summary>
+        public IList<UserNameTransformRulesElement> UserNameTransformRules { get; set; }
 
         public IList<string> GetLdapReplyAttributes()
         {
