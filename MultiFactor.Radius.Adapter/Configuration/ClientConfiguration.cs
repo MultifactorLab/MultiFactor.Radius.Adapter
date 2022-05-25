@@ -187,8 +187,8 @@ namespace MultiFactor.Radius.Adapter.Configuration
         public bool ShouldLoadUserGroups()
         {
             return
-                ActiveDirectoryGroup != null ||
-                ActiveDirectory2FaGroup != null ||
+                ActiveDirectoryGroup.Any() ||
+                ActiveDirectory2FaGroup.Any() ||
                 RadiusReplyAttributes
                     .Values
                     .SelectMany(attr => attr)
