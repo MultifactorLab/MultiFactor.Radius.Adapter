@@ -80,6 +80,16 @@ namespace MultiFactor.Radius.Adapter.Core
                 return UserName?.StartsWith("#ACSACL#-IP") == true;
             }
         }
+        /// <summary>
+        /// Is our WinLogon
+        /// </summary>
+        public bool IsWinLogon
+        {
+            get
+            {
+                return GetString("mfa-client-name") == "WinLogon";
+            }
+        }
         public AuthenticationType AuthenticationType
         {
             get
@@ -103,6 +113,7 @@ namespace MultiFactor.Radius.Adapter.Core
             }
         }
         public string CallingStationId => GetString("Calling-Station-Id") ?? RemoteHostName;
+        public string CalledStationId => GetString("Called-Station-Id");
         public string UserPassword => GetString("User-Password");
         public string NasIdentifier => GetString("NAS-Identifier");
         public string State => GetString("State");

@@ -44,6 +44,13 @@ namespace MultiFactor.Radius.Adapter.Services
             var userPhone = request.UserPhone;
             var callingStationId = request.RequestPacket.CallingStationId;
 
+            string calledStationId = null;
+
+            if (request.RequestPacket.IsWinLogon) //only for winlogon yet
+            {
+                calledStationId = request.RequestPacket.CalledStationId;
+            }
+
             //try to get authenticated client to bypass second factor if configured
             if (clientConfig.BypassSecondFactorPeriod > 0)
             {
@@ -63,6 +70,7 @@ namespace MultiFactor.Radius.Adapter.Services
                 Phone = userPhone,
                 PassCode = GetPassCodeOrNull(userPassword, clientConfig),
                 CallingStationId = callingStationId,
+                CalledStationId = calledStationId,
                 Capabilities = new 
                 {
                     InlineEnroll = true

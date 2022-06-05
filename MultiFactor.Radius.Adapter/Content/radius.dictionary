@@ -1809,3 +1809,7 @@ VendorSpecificAttribute	16313	4	VNC-PPPoE-CBQ-TX-Fallback	integer
 # VendorId 17458
 VendorSpecificAttribute	17458	0	CCA-AVPAIR	string
 VendorSpecificAttribute	17458	1	CCA-Service-Identifier	string
+
+# VendorId 774641 (Multifactor)
+VendorSpecificAttribute	774641	1	mfa-client-name	string
+VendorSpecificAttribute	774641	2	mfa-client-ver	string

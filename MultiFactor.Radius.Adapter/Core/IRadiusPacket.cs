@@ -53,11 +53,13 @@ namespace MultiFactor.Radius.Adapter.Core
         }
         bool IsEapMessageChallenge { get; }
         bool IsVendorAclRequest { get; }
+        bool IsWinLogon { get; }
         AuthenticationType AuthenticationType { get; }
         string UserName { get; }
         string UserPassword { get; }
         string RemoteHostName { get; }
         string CallingStationId { get; }
+        string CalledStationId { get; }
         string NasIdentifier { get; }
         string State { get; }
 
