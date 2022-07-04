@@ -277,6 +277,7 @@ namespace MultiFactor.Radius.Adapter.Configuration
             var firstFactorAuthenticationSourceSettings             = appSettings.Settings["first-factor-authentication-source"]?.Value;
             var bypassSecondFactorWhenApiUnreachableSetting         = appSettings.Settings["bypass-second-factor-when-api-unreachable"]?.Value;
             var bypassSecondFactorPeriodSetting                     = appSettings.Settings["bypass-second-factor-period"]?.Value;
+            var privacyModeSetting                                  = appSettings.Settings["privacy-mode"]?.Value;
             var multiFactorApiKeySetting                            = appSettings.Settings["multifactor-nas-identifier"]?.Value;
             var multiFactorApiSecretSetting                         = appSettings.Settings["multifactor-shared-secret"]?.Value;
 
@@ -298,7 +299,6 @@ namespace MultiFactor.Radius.Adapter.Configuration
             {
                 throw new Exception("Configuration error: 'multifactor-shared-secret' element not found");
             }
-
 
             if (!Enum.TryParse<AuthenticationSource>(firstFactorAuthenticationSourceSettings, true, out var firstFactorAuthenticationSource))
             {
@@ -341,6 +341,15 @@ namespace MultiFactor.Radius.Adapter.Configuration
                 {
                     configuration.BypassSecondFactorPeriod = bypassSecondFactorPeriod;
                 }
+            }
+
+            if (!string.IsNullOrEmpty(privacyModeSetting))
+            {
+                if (!Enum.TryParse<PrivacyMode>(privacyModeSetting, true, out var privacyMode))
+                {
+                    throw new Exception("Configuration error: Can't parse 'privacy-mode' value. Must be one of: Full, None");
+                }
+                configuration.PrivacyMode = privacyMode;
             }
 
             switch (configuration.FirstFactorAuthenticationSource)

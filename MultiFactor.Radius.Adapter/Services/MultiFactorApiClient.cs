@@ -51,6 +51,18 @@ namespace MultiFactor.Radius.Adapter.Services
                 calledStationId = request.RequestPacket.CalledStationId;
             }
 
+            //remove user information for privacy
+            switch (clientConfig.PrivacyMode)
+            {
+                case PrivacyMode.Full:
+                    displayName = null;
+                    email = null;
+                    userPhone = null;
+                    callingStationId = "";
+                    calledStationId = null;
+                    break;
+            }
+
             //try to get authenticated client to bypass second factor if configured
             if (clientConfig.BypassSecondFactorPeriod > 0)
             {

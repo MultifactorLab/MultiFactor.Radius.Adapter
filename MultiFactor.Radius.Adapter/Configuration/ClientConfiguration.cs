@@ -52,6 +52,8 @@ namespace MultiFactor.Radius.Adapter.Configuration
         /// </summary>
         public int? BypassSecondFactorPeriod { get; set; }
 
+        public PrivacyMode PrivacyMode { get; set; }
+
 
         #region ActiveDirectory Authentication settings
 
