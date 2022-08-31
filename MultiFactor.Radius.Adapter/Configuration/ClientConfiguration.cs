@@ -105,6 +105,9 @@ namespace MultiFactor.Radius.Adapter.Configuration
         /// </summary>
         public bool RequiresUpn { get; set; }
 
+        //Lookup for UPN and use it instead of uid
+        public bool UseUpnAsIdentity { get; set; }
+
         /// <summary>
         /// Use only these domains within forest(s)
         /// </summary>

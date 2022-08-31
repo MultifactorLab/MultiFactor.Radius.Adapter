@@ -398,6 +398,7 @@ namespace MultiFactor.Radius.Adapter.Configuration
             var useActiveDirectoryMobileUserPhoneSetting    = appSettings.Settings["use-active-directory-mobile-user-phone"]?.Value;
             var phoneAttributes                             = appSettings.Settings["phone-attribute"]?.Value;
             var loadActiveDirectoryNestedGroupsSettings     = appSettings.Settings["load-active-directory-nested-groups"]?.Value;
+            var useUpnAsIdentitySetting                     = appSettings.Settings["use-upn-as-identity"]?.Value;
 
             if (mandatory && string.IsNullOrEmpty(activeDirectoryDomainSetting))
             {
@@ -448,6 +449,11 @@ namespace MultiFactor.Radius.Adapter.Configuration
             if (!string.IsNullOrEmpty(activeDirectory2FaGroupSetting))
             {
                 configuration.ActiveDirectory2FaGroup = activeDirectory2FaGroupSetting.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
+            }
+
+            if (bool.TryParse(useUpnAsIdentitySetting, out var useUpnAsIdentity))
+            {
+                configuration.UseUpnAsIdentity = useUpnAsIdentity;
             }
 
             if (activeDirectorySection != null)

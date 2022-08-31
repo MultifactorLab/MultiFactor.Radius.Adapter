@@ -51,6 +51,16 @@ namespace MultiFactor.Radius.Adapter.Services
                 calledStationId = request.RequestPacket.CalledStationId;
             }
 
+            if (clientConfig.UseUpnAsIdentity)
+            {
+                if (string.IsNullOrEmpty(request.Upn))
+                {
+                    throw new ArgumentNullException("UserPrincipalName");
+                }
+
+                userName = request.Upn;
+            }
+
             //remove user information for privacy
             switch (clientConfig.PrivacyMode)
             {

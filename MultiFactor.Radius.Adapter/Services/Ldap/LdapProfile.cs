@@ -10,6 +10,7 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
         }
 
         public string DistinguishedName { get; set; }
+        public string Upn { get; set; }
         public string DisplayName { get; set; }
         public string Email { get; set; }
         public string Phone { get; set; }
