@@ -39,17 +39,23 @@ namespace MultiFactor.Radius.Adapter
                 .MinimumLevel.ControlledBy(levelSwitch);
 
             var formatter = GetLogFormatter();
+            // 10 Gb
+            long fileSizeLimitBytes = 10L * 1024 * 1024 * 1024;
             if (formatter != null)
             {
                 loggerConfiguration
                     .WriteTo.Console(formatter, LogEventLevel.Debug)
-                    .WriteTo.File(formatter, $"{path}Logs{Path.DirectorySeparatorChar}log-.txt", rollingInterval: RollingInterval.Day);
+                    .WriteTo.File(formatter, $"{path}Logs{Path.DirectorySeparatorChar}log-.txt", 
+                    rollingInterval: RollingInterval.Day,
+                    fileSizeLimitBytes: fileSizeLimitBytes);
             }
             else
             {
                 loggerConfiguration
                     .WriteTo.Console(LogEventLevel.Debug)
-                    .WriteTo.File($"{path}Logs{Path.DirectorySeparatorChar}log-.txt", rollingInterval: RollingInterval.Day);
+                    .WriteTo.File($"{path}Logs{Path.DirectorySeparatorChar}log-.txt", 
+                    rollingInterval: RollingInterval.Day,
+                    fileSizeLimitBytes: fileSizeLimitBytes);
             }
 
             ConfigureSyslog(loggerConfiguration, out var syslogInfoMessage);
