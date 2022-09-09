@@ -39,8 +39,16 @@ namespace MultiFactor.Radius.Adapter
                 .MinimumLevel.ControlledBy(levelSwitch);
 
             var formatter = GetLogFormatter();
-            // 10 Gb
-            long fileSizeLimitBytes = 10L * 1024 * 1024 * 1024;
+            var defaultFileSize = 1L * 1024 * 1024 * 1024;
+            if (!long.TryParse(ConfigurationManager.AppSettings["log-file-max-size-bytes"], out long fileSizeLimitBytes))
+            {
+                // 1 Gb
+                fileSizeLimitBytes = defaultFileSize;
+            }
+            if (fileSizeLimitBytes == 0)
+            {
+                fileSizeLimitBytes = defaultFileSize;
+            }
             if (formatter != null)
             {
                 loggerConfiguration
