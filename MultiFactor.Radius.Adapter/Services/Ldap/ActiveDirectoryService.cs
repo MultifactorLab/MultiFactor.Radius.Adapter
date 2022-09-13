@@ -230,11 +230,11 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
                 var accessGroup = clientConfig.ActiveDirectoryGroup.FirstOrDefault(group => IsMemberOf(profile, group));
                 if (accessGroup != null)
                 {
-                    _logger.Debug($"User '{{user:l}}' is member of '{accessGroup.Trim()}' group in {profile.BaseDn.Name}", user.Name);
+                    _logger.Debug($"User '{{user:l}}' is member of '{accessGroup.Trim()}' access group in {profile.BaseDn.Name}", user.Name);
                 }
                 else
                 {
-                    _logger.Warning($"User '{{user:l}}' is not member of '{string.Join(";", clientConfig.ActiveDirectoryGroup)}' group in {profile.BaseDn.Name}", user.Name);
+                    _logger.Warning($"User '{{user:l}}' is not member of '{string.Join(";", clientConfig.ActiveDirectoryGroup)}' access group in {profile.BaseDn.Name}", user.Name);
                     return false;
                 }
             }
@@ -246,15 +246,30 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
                 var mfaGroup = clientConfig.ActiveDirectory2FaGroup.FirstOrDefault(group => IsMemberOf(profile, group));
                 if (mfaGroup != null)
                 {
-                    _logger.Debug($"User '{{user:l}}' is member of '{mfaGroup.Trim()}' in {profile.BaseDn.Name}", user.Name);
+                    _logger.Debug($"User '{{user:l}}' is member of '{mfaGroup.Trim()}' 2FA group in {profile.BaseDn.Name}", user.Name);
                 }
                 else
                 {
-                    _logger.Information($"User '{{user:l}}' is not member of '{string.Join(";", clientConfig.ActiveDirectory2FaGroup)}' in {profile.BaseDn.Name}", user.Name);
+                    _logger.Information($"User '{{user:l}}' is not member of '{string.Join(";", clientConfig.ActiveDirectory2FaGroup)}' 2FA group in {profile.BaseDn.Name}", user.Name);
                     request.Bypass2Fa = true;
                 }
             }
 
+            var onlyMembersOfGroupMustNotProcess2faAuthentication = clientConfig.ActiveDirectory2FaBypassGroup.Any();
+            if (!request.Bypass2Fa && onlyMembersOfGroupMustNotProcess2faAuthentication)
+            {
+                var bypassGroup = clientConfig.ActiveDirectory2FaBypassGroup.FirstOrDefault(group => IsMemberOf(profile, group));
+
+                if (bypassGroup != null)
+                {
+                    _logger.Information($"User '{{user:l}}' is member of '{bypassGroup.Trim()}' 2FA bypass group in {profile.BaseDn.Name}", user.Name);
+                    request.Bypass2Fa = true;
+                }
+                else
+                {
+                    _logger.Debug($"User '{{user:l}}' is not member of '{string.Join(";", clientConfig.ActiveDirectory2FaBypassGroup)}' 2FA bypass group in {profile.BaseDn.Name}", user.Name);
+                }
+            }
 
             request.Upn = profile.Upn;
             request.DisplayName = profile.DisplayName;

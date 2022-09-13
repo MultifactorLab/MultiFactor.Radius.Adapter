@@ -18,6 +18,7 @@ namespace MultiFactor.Radius.Adapter.Configuration
             LoadActiveDirectoryNestedGroups = true;
             ActiveDirectoryGroup = new string[0];
             ActiveDirectory2FaGroup = new string[0];
+            ActiveDirectory2FaBypassGroup = new string[0];
             PhoneAttributes = new List<string>();
             UserNameTransformRules = new List<UserNameTransformRulesElement>();
         }
@@ -73,6 +74,11 @@ namespace MultiFactor.Radius.Adapter.Configuration
         public string[] ActiveDirectory2FaGroup { get; set; }
 
         /// <summary>
+        /// Members of this group should not pass 2fa to access (Optional)
+        /// </summary>
+        public string[] ActiveDirectory2FaBypassGroup { get; set; }
+
+        /// <summary>
         /// AD attribute name(s) where to search phone number
         /// </summary>
         public IList<string> PhoneAttributes { get; set; }
@@ -90,8 +96,9 @@ namespace MultiFactor.Radius.Adapter.Configuration
             get
             {
                 return ActiveDirectoryDomain != null &&
-                    (ActiveDirectoryGroup != null ||
-                    ActiveDirectory2FaGroup != null ||
+                    (ActiveDirectoryGroup.Any() ||
+                    ActiveDirectory2FaGroup.Any() ||
+                    ActiveDirectory2FaBypassGroup.Any() ||
                     PhoneAttributes.Any() ||
                     RadiusReplyAttributes
                         .Values
