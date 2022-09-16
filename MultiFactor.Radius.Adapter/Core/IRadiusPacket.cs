@@ -54,9 +54,11 @@ namespace MultiFactor.Radius.Adapter.Core
         bool IsEapMessageChallenge { get; }
         bool IsVendorAclRequest { get; }
         bool IsWinLogon { get; }
+        bool IsOpenVpnStaticChallenge { get; }
         AuthenticationType AuthenticationType { get; }
         string UserName { get; }
-        string UserPassword { get; }
+        string TryGetUserPassword();
+        string TryGetChallenge();
         string RemoteHostName { get; }
         string CallingStationId { get; }
         string CalledStationId { get; }

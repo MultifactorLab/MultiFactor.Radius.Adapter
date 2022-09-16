@@ -204,7 +204,7 @@ namespace MultiFactor.Radius.Adapter.Server
         private PacketCode ProcessActiveDirectoryAuthentication(PendingRequest request, ClientConfiguration clientConfig)
         {
             var userName = request.UserName;
-            var password = request.RequestPacket.UserPassword;
+            var password = request.RequestPacket.TryGetUserPassword();
 
             if (string.IsNullOrEmpty(userName))
             {
@@ -245,7 +245,7 @@ namespace MultiFactor.Radius.Adapter.Server
         private PacketCode ProcessLdapAuthentication(PendingRequest request, ClientConfiguration clientConfig)
         {
             var userName = request.UserName;
-            var password = request.RequestPacket.UserPassword;
+            var password = request.RequestPacket.TryGetUserPassword();
 
             if (string.IsNullOrEmpty(userName))
             {
@@ -384,7 +384,7 @@ namespace MultiFactor.Radius.Adapter.Server
             {
                 case AuthenticationType.PAP:
                     //user-password attribute holds second request challenge from user
-                    userAnswer = request.RequestPacket.UserPassword;
+                    userAnswer = request.RequestPacket.TryGetUserPassword();
 
                     if (string.IsNullOrEmpty(userAnswer))
                     {

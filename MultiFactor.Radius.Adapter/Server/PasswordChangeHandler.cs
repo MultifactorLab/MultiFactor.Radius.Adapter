@@ -37,7 +37,7 @@ namespace MultiFactor.Radius.Adapter.Server
                 return PacketCode.AccessAccept; //not a password change request, continue authentication
             }
 
-            var newPassword = request.RequestPacket.UserPassword;
+            var newPassword = request.RequestPacket.TryGetUserPassword();
             if (string.IsNullOrEmpty(newPassword))
             {
                 return PacketCode.AccessReject; //some error
@@ -78,7 +78,7 @@ namespace MultiFactor.Radius.Adapter.Server
             var passwordChangeRequest = new PasswordChangeRequest
             {
                 Domain = request.MustChangePasswordDomain,
-                CurrentPasswordEncryptedData = _dataProtectionService.Protect(clientConfig, request.RequestPacket.UserPassword)
+                CurrentPasswordEncryptedData = _dataProtectionService.Protect(clientConfig, request.RequestPacket.TryGetUserPassword())
             };
             _cache.RegisterPasswordChangeRequest(passwordChangeRequest);
 
@@ -100,7 +100,7 @@ namespace MultiFactor.Radius.Adapter.Server
 
         private PacketCode RepeatPasswordChallenge(PendingRequest request, ClientConfiguration clientConfig, PasswordChangeRequest passwordChangeRequest)
         {
-            passwordChangeRequest.NewPasswordEncryptedData = _dataProtectionService.Protect(clientConfig, request.RequestPacket.UserPassword);
+            passwordChangeRequest.NewPasswordEncryptedData = _dataProtectionService.Protect(clientConfig, request.RequestPacket.TryGetUserPassword());
 
             _cache.RegisterPasswordChangeRequest(passwordChangeRequest);
 

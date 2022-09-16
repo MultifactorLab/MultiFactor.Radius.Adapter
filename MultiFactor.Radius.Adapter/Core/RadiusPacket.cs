@@ -90,6 +90,18 @@ namespace MultiFactor.Radius.Adapter.Core
                 return GetString("mfa-client-name") == "WinLogon";
             }
         }
+        /// <summary>
+        /// OpenVPN with static-challenge sends pwd and otp in base64 with SCRV1 prefix
+        /// https://openvpn.net/community-resources/management-interface/
+        /// </summary>
+        public bool IsOpenVpnStaticChallenge
+        {
+            get
+            {
+                var pwd = UserPassword;
+                return pwd != null && pwd.StartsWith("SCRV1:");
+            }
+        }
         public AuthenticationType AuthenticationType
         {
             get
@@ -104,6 +116,7 @@ namespace MultiFactor.Radius.Adapter.Core
             }
         }
         public string UserName => GetString("User-Name");
+        internal string UserPassword => GetString("User-Password");
         public string RemoteHostName
         {
             get
@@ -114,9 +127,48 @@ namespace MultiFactor.Radius.Adapter.Core
         }
         public string CallingStationId => GetString("Calling-Station-Id") ?? RemoteHostName;
         public string CalledStationId => GetString("Called-Station-Id");
-        public string UserPassword => GetString("User-Password");
         public string NasIdentifier => GetString("NAS-Identifier");
         public string State => GetString("State");
+        
+        public string TryGetUserPassword()
+        {
+            var password = UserPassword;
+
+            if (IsOpenVpnStaticChallenge)
+            {
+                try
+                {
+                    password = password.Split(':')[1].Base64toUtf8();
+                }
+                catch //invalid packet
+                {
+                }
+            }
+
+            return password;
+        }
+
+        /// <summary>
+        /// Open VPN static challenge
+        /// </summary>
+        public string TryGetChallenge()
+        {
+            var password = UserPassword;
+
+            if (IsOpenVpnStaticChallenge)
+            {
+                try
+                {
+                    return password.Split(':')[2].Base64toUtf8();
+                }
+                catch //invalid packet
+                {
+                }
+            }
+
+            return null;
+        }
+
 
         internal RadiusPacket()
         {

@@ -3,6 +3,7 @@
 //https://github.com/MultifactorLab/MultiFactor.Radius.Adapter/blob/master/LICENSE.md
 
 using System;
+using System.Text;
 
 namespace MultiFactor.Radius.Adapter.Core
 {
@@ -40,6 +41,16 @@ namespace MultiFactor.Radius.Adapter.Core
                 return Convert.ToBase64String(bytes);
             }
             return null;
+        }
+
+        /// <summary>
+        /// Converts string from base64 to utf-8 
+        /// </summary>
+        /// <param name="st"></param>
+        /// <returns></returns>
+        public static string Base64toUtf8(this string st)
+        {
+            return Encoding.UTF8.GetString(Convert.FromBase64String(st));
         }
 
         /// <summary>
