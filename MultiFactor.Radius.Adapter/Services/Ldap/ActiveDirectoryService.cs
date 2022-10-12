@@ -7,7 +7,6 @@ using MultiFactor.Radius.Adapter.Server;
 using Serilog;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.DirectoryServices.AccountManagement;
 using System.DirectoryServices.Protocols;
 using System.Linq;
@@ -23,7 +22,7 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
     {
         private ILogger _logger;
 
-        private IDictionary<string, LdapIdentity> _domainNameSuffixes;
+        private ForestSchema _forestSchema;
         private readonly object _sync = new object();
 
         private string _domain;
@@ -287,102 +286,14 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
 
         private void LoadForestSchema(ClientConfiguration clientConfig, LdapConnection connection, LdapIdentity root)
         {
-            if (_domainNameSuffixes != null)
+            if (_forestSchema != null)
             {
                 return; //already loaded
             }
 
-            _logger.Debug($"Loading forest schema from {root.Name}");
-
-            try
+            lock (_sync)
             {
-                lock (_sync)
-                {
-                    _domainNameSuffixes = new Dictionary<string, LdapIdentity>();
-                    
-                    var trustedDomainsResult = Query(connection,
-                        "CN=System," + root.Name,
-                        "objectClass=trustedDomain",
-                        SearchScope.OneLevel,
-                        true,
-                        "cn");
-
-                    var schema = new List<LdapIdentity>
-                    {
-                        root
-                    };
-
-                    for (var i = 0; i < trustedDomainsResult.Entries.Count; i++)
-                    {
-                        var entry = trustedDomainsResult.Entries[i];
-                        var attribute = entry.Attributes["cn"];
-                        if (attribute != null)
-                        {
-                            var domain = attribute[0].ToString();
-                            if (clientConfig.IsPermittedDomain(domain))
-                            {
-                                var trustPartner = LdapIdentity.FqdnToDn(domain);
-
-                                _logger.Debug($"Found trusted domain {trustPartner.Name}");
-
-                                if (!schema.Contains(trustPartner))
-                                {
-                                    schema.Add(trustPartner);
-                                }
-                            }
-                        }
-                    }
-
-                    foreach(var domain in schema)
-                    {
-                        var domainSuffix = domain.DnToFqdn();
-                        if (!_domainNameSuffixes.ContainsKey(domainSuffix))
-                        {
-                            _domainNameSuffixes.Add(domainSuffix, domain);
-                        }
-
-                        var isChild = schema.Any(parent => domain.IsChildOf(parent));
-                        if (!isChild)
-                        {
-                            try
-                            {
-                                var uPNSuffixesResult = Query(connection,
-                                    "CN=Partitions,CN=Configuration," + domain.Name,
-                                    "objectClass=*",
-                                    SearchScope.Base,
-                                    true,
-                                    "uPNSuffixes");
-
-                                for (var i = 0; i < uPNSuffixesResult.Entries.Count; i++)
-                                {
-                                    var entry = uPNSuffixesResult.Entries[i];
-                                    var attribute = entry.Attributes["uPNSuffixes"];
-                                    if (attribute != null)
-                                    {
-                                        for (var j = 0; j < attribute.Count; j++)
-                                        {
-                                            var suffix = attribute[j].ToString();
-
-                                            if (!_domainNameSuffixes.ContainsKey(suffix))
-                                            {
-                                                _domainNameSuffixes.Add(suffix, domain);
-                                                _logger.Debug($"Found alternative UPN suffix {suffix} for domain {domain.Name}");
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                            catch (Exception ex)
-                            {
-                                _logger.Warning($"Unable to query {domain.Name}: {ex.Message}");
-                            }
-                        }
-                    }
-                }
-            }
-            catch(Exception ex)
-            {
-                _logger.Error(ex, "Unable to load forest schema");
+                _forestSchema = new ForestSchemaLoader(clientConfig, connection, _logger).Load(root);
             }
         }
 
@@ -403,47 +314,33 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
             }
             queryAttributes.AddRange(clientConfig.PhoneAttributes);
 
-            var searchFilter = $"(&(objectClass=user)({user.TypeName}={user.Name}))";
-
-            var baseDn = SelectBestDomainToQuery(user, domain);
-
-            _logger.Debug($"Querying user '{{user:l}}' in {baseDn.Name}", user.Name);
-
-            //only this domain
-            var response = Query(connection, baseDn.Name, searchFilter, SearchScope.Subtree, false, queryAttributes.Distinct().ToArray());
-
-            if (response.Entries.Count == 0)
+            var baseDnList = GetBaseDnList(user, domain);
+            var connAdapter = new LdapConnectionAdapter(connection, _logger);
+            var result = FindUser(user, baseDnList, connAdapter, queryAttributes.ToArray());
+            if (result == null)
             {
-                //with ReferralChasing 
-                response = Query(connection, baseDn.Name, searchFilter, SearchScope.Subtree, true, queryAttributes.Distinct().ToArray());
-            }
-
-            if (response.Entries.Count == 0)
-            {
-                _logger.Error($"Unable to find user '{{user:l}}' in {baseDn.Name}", user.Name);
+                _logger.Error($"Unable to find user '{{user:l}}' in {string.Join(", ", baseDnList.Select(x => $"({x})"))}", user.Name);
                 return null;
             }
 
-            var entry = response.Entries[0];
-
             //base profile
-            profile.BaseDn = LdapIdentity.BaseDn(entry.DistinguishedName);
-            profile.DistinguishedName = entry.DistinguishedName;
-            profile.DisplayName = entry.Attributes["displayName"]?[0]?.ToString();
-            profile.Email = entry.Attributes["mail"]?[0]?.ToString();
-            profile.Upn = entry.Attributes["userPrincipalName"]?[0]?.ToString();
+            profile.BaseDn = LdapIdentity.BaseDn(result.Entry.DistinguishedName);
+            profile.DistinguishedName = result.Entry.DistinguishedName;
+            profile.DisplayName = result.Entry.Attributes["displayName"]?[0]?.ToString();
+            profile.Email = result.Entry.Attributes["mail"]?[0]?.ToString();
+            profile.Upn = result.Entry.Attributes["userPrincipalName"]?[0]?.ToString();
 
             //additional attributes for radius response
             foreach (var key in profile.LdapAttrs.Keys.ToList()) //to list to avoid collection was modified exception
             {
-                if (entry.Attributes.Contains(key))
+                if (result.Entry.Attributes.Contains(key))
                 {
-                    profile.LdapAttrs[key] = entry.Attributes[key][0]?.ToString();
+                    profile.LdapAttrs[key] = result.Entry.Attributes[key][0]?.ToString();
                 }
             }
 
             //groups
-            var memberOf = entry.Attributes["memberOf"]?.GetValues(typeof(string));
+            var memberOf = result.Entry.Attributes["memberOf"]?.GetValues(typeof(string));
             if (memberOf != null)
             {
                 profile.MemberOf = memberOf.Select(dn => LdapIdentity.DnToCn(dn.ToString())).ToList();
@@ -452,9 +349,9 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
             //phone
             foreach(var phoneAttr in clientConfig.PhoneAttributes)
             {
-                if (entry.Attributes.Contains(phoneAttr))
+                if (result.Entry.Attributes.Contains(phoneAttr))
                 {
-                    var phone = entry.Attributes[phoneAttr][0]?.ToString();
+                    var phone = result.Entry.Attributes[phoneAttr][0]?.ToString();
                     if (!string.IsNullOrEmpty(phone))
                     {
                         profile.Phone = phone;
@@ -468,9 +365,54 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
             //nested groups if configured
             if (clientConfig.ShouldLoadUserGroups())
             {
-                LoadAllUserGroups(clientConfig, connection, baseDn, profile);
+                LoadAllUserGroups(clientConfig, connAdapter, result.BaseDn, profile);
             }
             return profile;
+        }
+
+        private IReadOnlyList<LdapIdentity> GetBaseDnList(LdapIdentity user, LdapIdentity domain)
+        {
+            switch (user.Type)
+            {
+                case IdentityType.SamAccountName: return _forestSchema.DomainNameSuffixes
+                        .Select(x => x.Value)
+                        .Distinct(new LdapDomainEqualityComparer())
+                        .ToArray();
+                case IdentityType.UserPrincipalName: return new[] { _forestSchema.GetMostRelevanteDomain(user, domain) };
+                default: return new[] { domain };
+            }
+        }
+
+        private UserSearchResult FindUser(LdapIdentity user, IReadOnlyList<LdapIdentity> baseDnList, LdapConnectionAdapter connectionAdapter, params string[] attrs)
+        {
+            var searchFilter = $"(&(objectClass=user)({user.TypeName}={user.Name}))";
+
+            foreach (var baseDn in baseDnList)
+            {
+                _logger.Debug($"Querying user '{{user:l}}' in {baseDn.Name}", user.Name);
+
+                //only this domain
+                var response = connectionAdapter.Query(baseDn.Name, searchFilter, SearchScope.Subtree, 
+                    false, 
+                    attrs.Distinct().ToArray());
+
+                if (response.Entries.Count != 0)
+                {
+                    return new UserSearchResult(response.Entries[0], baseDn);
+                }
+
+                //with ReferralChasing 
+                response = connectionAdapter.Query(baseDn.Name, searchFilter, SearchScope.Subtree, 
+                    true, 
+                    attrs.Distinct().ToArray());
+
+                if (response.Entries.Count != 0)
+                {
+                    return new UserSearchResult(response.Entries[0], baseDn);
+                }
+            }
+
+            return null;
         }
 
         private bool IsMemberOf(LdapProfile profile, string group)
@@ -478,86 +420,21 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
             return profile.MemberOf?.Any(g => g.ToLower() == group.ToLower().Trim()) ?? false;
         }
 
-        private SearchResponse Query(LdapConnection connection, string baseDn, string filter, SearchScope scope, bool chaseRefs, params string[] attributes)
+        private void LoadAllUserGroups(ClientConfiguration clientConfig, LdapConnectionAdapter connectionAdapter, LdapIdentity baseDn, LdapProfile profile)
         {
-            var searchRequest = new SearchRequest
-                (baseDn,
-                 filter,
-                 scope,
-                 attributes);
+            if (!clientConfig.LoadActiveDirectoryNestedGroups) return;     
 
-            if (chaseRefs)
+            var searchFilter = $"(member:1.2.840.113556.1.4.1941:={profile.DistinguishedName})";
+            var response = connectionAdapter.Query(baseDn.Name, searchFilter, SearchScope.Subtree, false, "DistinguishedName");
+
+            var groups = new List<string>(response.Entries.Count);
+            for (var i = 0; i < response.Entries.Count; i++)
             {
-                connection.SessionOptions.ReferralChasing = ReferralChasingOptions.All;
-            }
-            else
-            {
-                connection.SessionOptions.ReferralChasing = ReferralChasingOptions.None;
+                var entry = response.Entries[i];
+                groups.Add(LdapIdentity.DnToCn(entry.DistinguishedName));
             }
 
-            var sw = Stopwatch.StartNew();
-
-            var response = (SearchResponse)connection.SendRequest(searchRequest);
-
-            if (sw.Elapsed.TotalSeconds > 2)
-            {
-                _logger.Warning($"Slow response while querying {baseDn}. Elapsed {sw.Elapsed}");
-            }
-
-            return response;
-        }
-
-        private LdapIdentity SelectBestDomainToQuery(LdapIdentity user, LdapIdentity defaultDomain)
-        {
-            if (user.Type != IdentityType.UserPrincipalName)
-            {
-                return defaultDomain;
-            }
-
-            if (_domainNameSuffixes == null)
-            {
-                return defaultDomain;
-            }
-
-            var userDomainSuffix = user.UpnToSuffix().ToLower();
-            
-            //best match
-            foreach (var key in _domainNameSuffixes.Keys)
-            {
-                if (userDomainSuffix == key.ToLower())
-                {
-                    return _domainNameSuffixes[key];
-                }
-            }
-
-            //approximately match
-            foreach (var key in _domainNameSuffixes.Keys)
-            {
-                if (userDomainSuffix.EndsWith(key.ToLower()))
-                {
-                    return _domainNameSuffixes[key];
-                }
-            }
-
-            return defaultDomain;
-        }
-
-        private void LoadAllUserGroups(ClientConfiguration clientConfig, LdapConnection connection, LdapIdentity baseDn, LdapProfile profile)
-        {
-            if (clientConfig.LoadActiveDirectoryNestedGroups)
-            {
-                var searchFilter = $"(member:1.2.840.113556.1.4.1941:={profile.DistinguishedName})";
-                var response = Query(connection, baseDn.Name, searchFilter, SearchScope.Subtree, false, "DistinguishedName");
-
-                var groups = new List<string>(response.Entries.Count);
-                for (var i = 0; i < response.Entries.Count; i++)
-                {
-                    var entry = response.Entries[i];
-                    groups.Add(LdapIdentity.DnToCn(entry.DistinguishedName));
-                }
-
-                profile.MemberOf = groups;
-            }
+            profile.MemberOf = groups;
         }
 
         private string ExtractErrorReason(string errorMessage, out bool mustChangePassword)
@@ -597,6 +474,32 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
             }
 
             return null;
+        }
+    }
+
+    public class UserSearchResult
+    {
+        public SearchResultEntry Entry { get; }
+        public LdapIdentity BaseDn { get; }
+
+        public UserSearchResult(SearchResultEntry entry, LdapIdentity baseDn)
+        {
+            Entry = entry ?? throw new ArgumentNullException(nameof(entry));
+            BaseDn = baseDn ?? throw new ArgumentNullException(nameof(baseDn));
+        }
+    }
+
+    public class LdapDomainEqualityComparer : IEqualityComparer<LdapIdentity>
+    {
+        public bool Equals(LdapIdentity x, LdapIdentity y)
+        {
+            if (x == null || y == null) return false;
+            return x == y || x.Name == y.Name;
+        }
+
+        public int GetHashCode(LdapIdentity obj)
+        {
+            return obj.GetHashCode();
         }
     }
 }

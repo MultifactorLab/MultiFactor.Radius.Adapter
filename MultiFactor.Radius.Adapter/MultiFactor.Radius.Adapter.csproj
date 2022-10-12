@@ -151,6 +151,9 @@
     <Compile Include="Core\RadiusPassword.cs" />
     <Compile Include="Services\CacheService.cs" />
     <Compile Include="Services\DataProtectionService.cs" />
+    <Compile Include="Services\Ldap\ForestSchema.cs" />
+    <Compile Include="Services\Ldap\ForestSchemaLoader.cs" />
+    <Compile Include="Services\Ldap\LdapConnectionAdapter.cs" />
     <Compile Include="Services\Ldap\LdapIdentity.cs" />
     <Compile Include="Services\Ldap\LdapProfile.cs" />
     <Compile Include="Services\MultiFactorApiClient.cs" />
