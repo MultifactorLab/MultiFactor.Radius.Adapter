@@ -1,11 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace MultiFactor.Radius.Adapter.Services.Ldap
+namespace MultiFactor.Radius.Adapter.Services.Ldap.LdapMetadata
 {
+    /// <summary>
+    /// Information about domain controller forest.
+    /// </summary>
     public class ForestSchema
     {
-        private readonly IReadOnlyDictionary<string, LdapIdentity> _domainNameSuffixes = 
+        private readonly IReadOnlyDictionary<string, LdapIdentity> _domainNameSuffixes =
             new Dictionary<string, LdapIdentity>();
 
         public IReadOnlyDictionary<string, LdapIdentity> DomainNameSuffixes => _domainNameSuffixes;
@@ -17,8 +20,8 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
 
         public LdapIdentity GetMostRelevanteDomain(LdapIdentity user, LdapIdentity defaultDomain)
         {
-            if (user is null)throw new ArgumentNullException(nameof(user));
-            if (defaultDomain is null) throw new ArgumentNullException(nameof(defaultDomain));              
+            if (user is null) throw new ArgumentNullException(nameof(user));
+            if (defaultDomain is null) throw new ArgumentNullException(nameof(defaultDomain));
 
             var userDomainSuffix = user.UpnToSuffix().ToLower();
 

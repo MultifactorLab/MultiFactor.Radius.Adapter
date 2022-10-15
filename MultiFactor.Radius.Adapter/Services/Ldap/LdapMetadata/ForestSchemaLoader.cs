@@ -5,7 +5,7 @@ using System.Collections.Generic;
 using System.DirectoryServices.Protocols;
 using System.Linq;
 
-namespace MultiFactor.Radius.Adapter.Services.Ldap
+namespace MultiFactor.Radius.Adapter.Services.Ldap.LdapMetadata
 {
     public class ForestSchemaLoader
     {
@@ -22,7 +22,7 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
 
         public ForestSchema Load(LdapIdentity root)
         {
-            if (root is null)throw new ArgumentNullException(nameof(root));
+            if (root is null) throw new ArgumentNullException(nameof(root));
             _logger.Debug($"Loading forest schema from {root.Name}");
 
             var domainNameSuffixes = new Dictionary<string, LdapIdentity>();
@@ -39,7 +39,7 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
                     true,
                     "cn");
 
-                var schema = new List<LdapIdentity>{ root };
+                var schema = new List<LdapIdentity> { root };
 
                 for (var i = 0; i < trustedDomainsResult.Entries.Count; i++)
                 {

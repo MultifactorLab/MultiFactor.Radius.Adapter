@@ -46,9 +46,9 @@ namespace MultiFactor.Radius.Adapter.Server
         private readonly IRadiusDictionary _dictionary;
         private int _concurrentHandlerCount = 0;
         private readonly ILogger _logger;
-        private RadiusRouter _router;
-        private ServiceConfiguration _serviceConfiguration;
-        private CacheService _cacheService;
+        private readonly ServiceConfiguration _serviceConfiguration;
+        private readonly CacheService _cacheService;
+        private readonly RadiusRouter _radiusRouter;
 
         public bool Running
         {
@@ -59,17 +59,21 @@ namespace MultiFactor.Radius.Adapter.Server
         /// <summary>
         /// Create a new server on endpoint with packet handler repository
         /// </summary>
-        public RadiusServer(ServiceConfiguration serviceConfiguration, IRadiusDictionary dictionary, IRadiusPacketParser radiusPacketParser, ILogger logger)
+        public RadiusServer(ServiceConfiguration serviceConfiguration, 
+            IRadiusDictionary dictionary, 
+            IRadiusPacketParser radiusPacketParser,
+            CacheService cacheService,
+            RadiusRouter radiusRouter,
+            ILogger logger)
         {
             _serviceConfiguration = serviceConfiguration ?? throw new ArgumentNullException(nameof(serviceConfiguration));
             _dictionary = dictionary ?? throw new ArgumentNullException(nameof(dictionary));
             _radiusPacketParser = radiusPacketParser ?? throw new ArgumentNullException(nameof(radiusPacketParser));
+            _cacheService = cacheService ?? throw new ArgumentNullException(nameof(cacheService));
+            _radiusRouter = radiusRouter ?? throw new ArgumentNullException(nameof(radiusRouter));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
-            _cacheService = new CacheService(_logger);
-
             _localEndpoint = serviceConfiguration.ServiceServerEndpoint;
-            _router = new RadiusRouter(serviceConfiguration, radiusPacketParser, _cacheService, logger);
         }
 
         /// <summary>
@@ -85,7 +89,7 @@ namespace MultiFactor.Radius.Adapter.Server
                 Running = true;
                 var receiveTask = Receive();
 
-                _router.RequestProcessed += RouterRequestProcessed;
+                _radiusRouter.RequestProcessed += RouterRequestProcessed;
 
                 _logger.Information("Server started");
             }
@@ -105,7 +109,7 @@ namespace MultiFactor.Radius.Adapter.Server
                 _logger.Information("Stopping server");
                 Running = false;
                 _server?.Close();
-                _router.RequestProcessed -= RouterRequestProcessed;
+                _radiusRouter.RequestProcessed -= RouterRequestProcessed;
                 _logger.Information("Stopped");
             }
             else
@@ -227,7 +231,7 @@ namespace MultiFactor.Radius.Adapter.Server
 
             var request = new PendingRequest { RemoteEndpoint = remoteEndpoint, ProxyEndpoint = proxyEndpoint, RequestPacket = requestPacket, UserName = requestPacket.UserName };
 
-            Task.Run(async () => await _router.HandleRequest(request, clientConfiguration));
+            Task.Run(async () => await _radiusRouter.HandleRequest(request, clientConfiguration));
         }
 
         /// <summary>

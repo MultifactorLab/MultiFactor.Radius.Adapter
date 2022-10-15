@@ -1,7 +1,7 @@
 ﻿using MultiFactor.Radius.Adapter.Configuration;
 using MultiFactor.Radius.Adapter.Core;
 using MultiFactor.Radius.Adapter.Services;
-using MultiFactor.Radius.Adapter.Services.Ldap;
+using MultiFactor.Radius.Adapter.Services.ActiveDirectory;
 using System;
 using System.Collections.Generic;
 

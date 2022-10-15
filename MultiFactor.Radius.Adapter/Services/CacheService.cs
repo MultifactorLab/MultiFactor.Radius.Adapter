@@ -4,7 +4,6 @@
 
 using MultiFactor.Radius.Adapter.Core;
 using MultiFactor.Radius.Adapter.Server;
-using Serilog;
 using System;
 using System.Net;
 using System.Runtime.Caching;
@@ -13,15 +12,7 @@ namespace MultiFactor.Radius.Adapter.Services
 {
     public class CacheService
     {
-        private const int MAX_RECONNECT_ATTEMPTS = 2;
-
         private ObjectCache _cache = MemoryCache.Default;
-        private readonly ILogger _logger;
-
-        public CacheService(ILogger logger)
-        {
-            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        }
 
         /// <summary>
         /// Check is packet was retransmissed (duplicated)

@@ -3,7 +3,6 @@
 //https://github.com/MultifactorLab/MultiFactor.Radius.Adapter/blob/master/LICENSE.md
 
 using MultiFactor.Radius.Adapter.Configuration;
-using MultiFactor.Radius.Adapter.Server;
 using Serilog;
 using System;
 using System.DirectoryServices.AccountManagement;
@@ -18,7 +17,6 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
     public class AdLdsService
     {
         private ILogger _logger;
-
 
         public AdLdsService(ILogger logger)
         {
