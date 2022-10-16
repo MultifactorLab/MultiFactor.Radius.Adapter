@@ -23,7 +23,7 @@ namespace MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing
         {
             return _processors
                 .FirstOrDefault(x => x.AuthenticationSource == authSource)
-                ?? throw new NotImplementedException($"No processor was found for '{authSource}' authentication source.");
+                ?? throw new NotImplementedException($"Unexpected authentication source '{authSource}'.");
         }
     }
 }

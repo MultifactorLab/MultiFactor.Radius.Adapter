@@ -17,15 +17,15 @@ namespace MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing
     public class RadiusFirstAuthFactorProcessor : IFirstAuthFactorProcessor
     {
         private readonly IRadiusPacketParser _packetParser;
-        private readonly ActiveDirectoryMembershipVerifier _membershipProcessor;
+        private readonly ActiveDirectoryMembershipVerifier _membershipVerifier;
         private readonly ILogger _logger;
 
         public RadiusFirstAuthFactorProcessor(IRadiusPacketParser packetParser,
-            ActiveDirectoryMembershipVerifier membershipProcessor,
+            ActiveDirectoryMembershipVerifier membershipVerifier,
             ILogger logger)
         {
             _packetParser = packetParser ?? throw new ArgumentNullException(nameof(packetParser));
-            _membershipProcessor = membershipProcessor ?? throw new ArgumentNullException(nameof(membershipProcessor));
+            _membershipVerifier = membershipVerifier ?? throw new ArgumentNullException(nameof(membershipVerifier));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
@@ -45,7 +45,7 @@ namespace MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing
             }
 
             // check membership without AD authentication
-            var result = _membershipProcessor.VerifyMembership(request, clientConfig);
+            var result = _membershipVerifier.VerifyMembership(request, clientConfig);
             var handler = new MembershipVerificationResultHandler(result);
 
             handler.EnrichRequest(request);
@@ -64,25 +64,23 @@ namespace MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing
                     var requestBytes = _packetParser.GetBytes(request.RequestPacket);
                     var response = await client.SendPacketAsync(request.RequestPacket.Identifier, requestBytes, clientConfig.NpsServerEndpoint, TimeSpan.FromSeconds(5));
 
-                    if (response != null)
-                    {
-                        var responsePacket = _packetParser.Parse(response, request.RequestPacket.SharedSecret, request.RequestPacket.Authenticator);
-                        _logger.Debug("Received {code:l} message with id={id} from Remote Radius Server", responsePacket.Code.ToString(), responsePacket.Identifier);
-
-                        if (responsePacket.Code == PacketCode.AccessAccept)
-                        {
-                            var userName = request.UserName;
-                            _logger.Information($"User '{{user:l}}' credential and status verified successfully at {clientConfig.NpsServerEndpoint}", userName);
-                        }
-
-                        request.ResponsePacket = responsePacket;
-                        return responsePacket.Code; //Code received from NPS
-                    }
-                    else
+                    if (response == null)
                     {
                         _logger.Warning("Remote Radius Server did not respond on message with id={id}", request.RequestPacket.Identifier);
                         return PacketCode.AccessReject; //reject by default
                     }
+                                  
+                    var responsePacket = _packetParser.Parse(response, request.RequestPacket.SharedSecret, request.RequestPacket.Authenticator);
+                    _logger.Debug("Received {code:l} message with id={id} from Remote Radius Server", responsePacket.Code.ToString(), responsePacket.Identifier);
+
+                    if (responsePacket.Code == PacketCode.AccessAccept)
+                    {
+                        var userName = request.UserName;
+                        _logger.Information($"User '{{user:l}}' credential and status verified successfully at {clientConfig.NpsServerEndpoint}", userName);
+                    }
+
+                    request.ResponsePacket = responsePacket;
+                    return responsePacket.Code; //Code received from NPS                 
                 }
             }
             catch (Exception ex)

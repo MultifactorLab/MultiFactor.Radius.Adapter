@@ -7,11 +7,29 @@ using System;
 
 namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory.MembershipVerification
 {
+    /// <summary>
+    /// Membership verification result for the specified domain.
+    /// </summary>
     public class MembershipVerificationResult
     {
+        /// <summary>
+        /// Domain for which the membership verification was performed.
+        /// </summary>
         public LdapIdentity Domain { get; }
+
+        /// <summary>
+        /// Verification is successfully complete.
+        /// </summary>
         public bool IsSuccess { get; private set; }
+
+        /// <summary>
+        /// Second factor authentication can be bypassed for the current domain <see cref="MembershipVerificationResult.Domain"/>.
+        /// </summary>
         public bool Bypass2Fa { get; private set; }
+
+        /// <summary>
+        /// User profile from the current domain.
+        /// </summary>
         public LdapProfile Profile { get; private set; }
 
         protected MembershipVerificationResult(LdapIdentity domain)
