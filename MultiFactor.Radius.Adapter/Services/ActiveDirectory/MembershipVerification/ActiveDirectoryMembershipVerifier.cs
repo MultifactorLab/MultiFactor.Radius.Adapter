@@ -132,8 +132,7 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory.MembershipVerifica
             var connection = new LdapConnection(currentDomain);
             connection.SessionOptions.ProtocolVersion = 3;
             connection.SessionOptions.RootDseCache = true;
-            // TODO
-            connection.Bind(new NetworkCredential("ssp.service.user", "Qwerty123!"));
+            connection.Bind();
 
             return connection;
         }
