@@ -10,6 +10,9 @@ namespace MultiFactor.Radius.Adapter.Core
 {
     public interface IFirstAuthFactorProcessor
     {
+        /// <summary>
+        /// Returns auth sources supported by the current processor implementation.
+        /// </summary>
         AuthenticationSource AuthenticationSource { get; }
         Task<PacketCode> ProcessFirstAuthFactorAsync(PendingRequest request, ClientConfiguration clientConfig);
     }

@@ -22,7 +22,7 @@ namespace MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing
         public IFirstAuthFactorProcessor GetProcessor(AuthenticationSource authSource)
         {
             return _processors
-                .FirstOrDefault(x => x.AuthenticationSource == authSource)
+                .FirstOrDefault(x => x.AuthenticationSource.HasFlag(authSource))
                 ?? throw new NotImplementedException($"Unexpected authentication source '{authSource}'.");
         }
     }
