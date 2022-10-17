@@ -150,16 +150,15 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
 
             var searchFilter = $"(member:1.2.840.113556.1.4.1941:={profile.DistinguishedName})";
             var response = connectionAdapter.Query(baseDn.Name, searchFilter, SearchScope.Subtree, false, "DistinguishedName");
-
-            var groups = new List<string>(response.Entries.Count);
-            for (var i = 0; i < response.Entries.Count; i++)
+            if (response.Entries.Count == 0)
             {
-                var entry = response.Entries[i];
-                groups.Add(LdapIdentity.DnToCn(entry.DistinguishedName));
+                response = connectionAdapter.Query(baseDn.Name, searchFilter, SearchScope.Subtree, true, "DistinguishedName");
             }
 
-            profile.MemberOf = groups;
+            profile.MemberOf = response.Entries
+                .Cast<SearchResultEntry>()
+                .Select(x => LdapIdentity.DnToCn(x.DistinguishedName))
+                .ToList();
         }
-
     }
 }
