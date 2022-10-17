@@ -22,10 +22,9 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory.MembershipVerifica
         /// </summary>
         public bool IsSuccess { get; private set; }
 
-        /// <summary>
-        /// Second factor authentication can be bypassed for the current domain <see cref="MembershipVerificationResult.Domain"/>.
-        /// </summary>
-        public bool Bypass2Fa { get; private set; }
+        public bool IsMemberOf2FaGroups { get; private set; }
+
+        public bool IsMemberOf2FaBypassGroup { get; private set; }
 
         /// <summary>
         /// User profile from the current domain.
@@ -64,10 +63,16 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory.MembershipVerifica
                 _result.Profile = profile;
                 return this;
             }
-
-            public MembershipVerificationResultBuilder SetBypass2Fa(bool bypass2Fa)
+            
+            public MembershipVerificationResultBuilder SetIsMemberOf2FaGroups(bool isMemberOf)
             {
-                _result.Bypass2Fa = bypass2Fa;
+                _result.IsMemberOf2FaGroups = isMemberOf;
+                return this;
+            }
+            
+            public MembershipVerificationResultBuilder SetIsMemberOf2FaBypassGroup(bool isMemberOf)
+            {
+                _result.IsMemberOf2FaBypassGroup = isMemberOf;
                 return this;
             }
 

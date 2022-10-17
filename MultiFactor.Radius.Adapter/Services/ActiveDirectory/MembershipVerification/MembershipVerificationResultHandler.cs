@@ -38,7 +38,7 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory.MembershipVerifica
             var profile = _verificationResult.Succeeded.Select(x => x.Profile).FirstOrDefault(x => x != null);
             if (profile == null) return;
 
-            request.Bypass2Fa = _verificationResult.Succeeded.All(x => x.Bypass2Fa);
+            request.Bypass2Fa = _verificationResult.Succeeded.All(x => !x.IsMemberOf2FaGroups || x.IsMemberOf2FaBypassGroup);
             request.Upn = profile.Upn;
             request.DisplayName = profile.DisplayName;
             request.EmailAddress = profile.Email;
