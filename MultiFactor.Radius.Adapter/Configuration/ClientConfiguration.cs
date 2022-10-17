@@ -107,8 +107,8 @@ namespace MultiFactor.Radius.Adapter.Configuration
             }
         }
 
-        public string[] SplittedActiveDirectoryDomains => 
-            ActiveDirectoryDomain.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
+        public string[] SplittedActiveDirectoryDomains =>
+            (ActiveDirectoryDomain ?? string.Empty).Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
             .Distinct()
             .ToArray();
 
