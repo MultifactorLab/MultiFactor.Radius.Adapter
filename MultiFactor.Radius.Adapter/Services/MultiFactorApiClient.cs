@@ -95,6 +95,10 @@ namespace MultiFactor.Radius.Adapter.Services
                 Capabilities = new 
                 {
                     InlineEnroll = true
+                },
+                GroupPolicyPreset = new
+                {
+                    SignUpGroups = clientConfig.SignUpGroups
                 }
             };
 
