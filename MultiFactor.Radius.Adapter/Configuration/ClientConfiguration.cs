@@ -107,6 +107,11 @@ namespace MultiFactor.Radius.Adapter.Configuration
             }
         }
 
+        public string[] SplittedActiveDirectoryDomains =>
+            (ActiveDirectoryDomain ?? string.Empty).Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
+            .Distinct()
+            .ToArray();
+
         /// <summary>
         /// Only UPN user name format permitted
         /// </summary>

@@ -71,6 +71,15 @@
     <Reference Include="IPAddressRange, Version=4.2.0.0, Culture=neutral, PublicKeyToken=578e3c3d17e7c751, processorArchitecture=MSIL">
       <HintPath>..\packages\IPAddressRange.4.2.0\lib\net45\IPAddressRange.dll</HintPath>
     </Reference>
+    <Reference Include="Microsoft.Bcl.AsyncInterfaces, Version=6.0.0.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
+      <HintPath>..\packages\Microsoft.Bcl.AsyncInterfaces.6.0.0\lib\net461\Microsoft.Bcl.AsyncInterfaces.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.Extensions.DependencyInjection, Version=6.0.0.1, Culture=neutral, PublicKeyToken=adb9793829ddae60, processorArchitecture=MSIL">
+      <HintPath>..\packages\Microsoft.Extensions.DependencyInjection.6.0.1\lib\net461\Microsoft.Extensions.DependencyInjection.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.Extensions.DependencyInjection.Abstractions, Version=6.0.0.0, Culture=neutral, PublicKeyToken=adb9793829ddae60, processorArchitecture=MSIL">
+      <HintPath>..\packages\Microsoft.Extensions.DependencyInjection.Abstractions.6.0.0\lib\net461\Microsoft.Extensions.DependencyInjection.Abstractions.dll</HintPath>
+    </Reference>
     <Reference Include="Newtonsoft.Json, Version=13.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
       <HintPath>..\packages\Newtonsoft.Json.13.0.1\lib\net45\Newtonsoft.Json.dll</HintPath>
     </Reference>
@@ -101,6 +110,9 @@
     <Reference Include="System.DirectoryServices.Protocols" />
     <Reference Include="System.Management" />
     <Reference Include="System.Runtime.Caching" />
+    <Reference Include="System.Runtime.CompilerServices.Unsafe, Version=6.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Runtime.CompilerServices.Unsafe.6.0.0\lib\net461\System.Runtime.CompilerServices.Unsafe.dll</HintPath>
+    </Reference>
     <Reference Include="System.Runtime.InteropServices.RuntimeInformation, Version=4.0.1.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
       <HintPath>..\packages\System.Runtime.InteropServices.RuntimeInformation.4.3.0\lib\net45\System.Runtime.InteropServices.RuntimeInformation.dll</HintPath>
     </Reference>
@@ -110,6 +122,9 @@
       <HintPath>..\packages\System.Security.Principal.Windows.5.0.0\lib\net461\System.Security.Principal.Windows.dll</HintPath>
     </Reference>
     <Reference Include="System.ServiceModel" />
+    <Reference Include="System.Threading.Tasks.Extensions, Version=4.2.0.1, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Threading.Tasks.Extensions.4.5.4\lib\net461\System.Threading.Tasks.Extensions.dll</HintPath>
+    </Reference>
     <Reference Include="System.Web.Extensions" />
     <Reference Include="Microsoft.CSharp" />
     <Reference Include="System.Data" />
@@ -132,6 +147,19 @@
     <Compile Include="Configuration\ValueElement.cs" />
     <Compile Include="Configuration\ValueElementCollection.cs" />
     <Compile Include="Core\RadiusPacketNasIdentifierParser.cs" />
+    <Compile Include="Services\ActiveDirectory\MembershipVerification\ComplexMembershipVerificationResult.cs" />
+    <Compile Include="Services\ActiveDirectory\MembershipVerification\MembershipVerificationResult.cs" />
+    <Compile Include="Services\ActiveDirectory\MembershipVerification\UserDomainNotPermittedException.cs" />
+    <Compile Include="Services\ActiveDirectory\MembershipVerification\UserNameFormatException.cs" />
+    <Compile Include="Services\ActiveDirectory\ActiveDirectoryServicesProvider.cs" />
+    <Compile Include="Server\FirstAuthFactorProcessing\ActiveDirectoryFirstAuthFactorProcessor.cs" />
+    <Compile Include="Services\ActiveDirectory\MembershipVerification\ActiveDirectoryMembershipVerifier.cs" />
+    <Compile Include="Server\FirstAuthFactorProcessing\AdLdsFirstAuthFactorProcessor.cs" />
+    <Compile Include="Server\FirstAuthFactorProcessing\DefaultFirstAuthFactorProcessor.cs" />
+    <Compile Include="Core\IFirstAuthFactorProcessor.cs" />
+    <Compile Include="Server\FirstAuthFactorProcessing\FirstAuthFactorProcessorProvider.cs" />
+    <Compile Include="Services\ActiveDirectory\MembershipVerification\MembershipVerificationResultHandler.cs" />
+    <Compile Include="Server\FirstAuthFactorProcessing\RadiusFirstAuthFactorProcessor.cs" />
     <Compile Include="Server\PasswordChangeHandler.cs" />
     <Compile Include="Server\PasswordChangeRequest.cs" />
     <Compile Include="Services\Ldap\AdLdsService.cs" />
@@ -151,14 +179,17 @@
     <Compile Include="Core\RadiusPassword.cs" />
     <Compile Include="Services\CacheService.cs" />
     <Compile Include="Services\DataProtectionService.cs" />
-    <Compile Include="Services\Ldap\ForestSchema.cs" />
-    <Compile Include="Services\Ldap\ForestSchemaLoader.cs" />
+    <Compile Include="Services\Ldap\LdapMetadata\ForestMetadata.cs" />
+    <Compile Include="Services\Ldap\LdapMetadata\ForestMetadataCache.cs" />
+    <Compile Include="Services\Ldap\LdapMetadata\ForestSchema.cs" />
+    <Compile Include="Services\Ldap\LdapMetadata\ForestSchemaLoader.cs" />
     <Compile Include="Services\Ldap\LdapConnectionAdapter.cs" />
     <Compile Include="Services\Ldap\LdapIdentity.cs" />
     <Compile Include="Services\Ldap\LdapProfile.cs" />
+    <Compile Include="Services\Ldap\ProfileLoader.cs" />
     <Compile Include="Services\MultiFactorApiClient.cs" />
     <Compile Include="Server\RadiusReplyAttributeValue.cs" />
-    <Compile Include="Services\Ldap\ActiveDirectoryService.cs" />
+    <Compile Include="Services\ActiveDirectory\ActiveDirectoryService.cs" />
     <Compile Include="ServiceInstaller.cs">
       <SubType>Component</SubType>
     </Compile>

@@ -2,8 +2,15 @@
 //Please see licence at 
 //https://github.com/MultifactorLab/MultiFactor.Radius.Adapter/blob/master/LICENSE.md
 
+using Microsoft.Extensions.DependencyInjection;
 using MultiFactor.Radius.Adapter.Configuration;
 using MultiFactor.Radius.Adapter.Core;
+using MultiFactor.Radius.Adapter.Server;
+using MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing;
+using MultiFactor.Radius.Adapter.Services;
+using MultiFactor.Radius.Adapter.Services.ActiveDirectory;
+using MultiFactor.Radius.Adapter.Services.ActiveDirectory.MembershipVerification;
+using MultiFactor.Radius.Adapter.Services.Ldap.LdapMetadata;
 using MultiFactor.Radius.Adapter.Syslog;
 using Serilog;
 using Serilog.Core;
@@ -88,20 +95,47 @@ namespace MultiFactor.Radius.Adapter
 
             try
             {
-                //load radius attributes dictionary
-                var dictionaryPath = path + "Content" + Path.DirectorySeparatorChar + "radius.dictionary";
-                var dictionary = new RadiusDictionary(dictionaryPath, Log.Logger);
-
-                //init configuration
-                var configuration = ServiceConfiguration.Load(dictionary, Log.Logger);
-
-                SetLogLevel(configuration.LogLevel, levelSwitch);
-                if (syslogInfoMessage != null)
+                var services = new ServiceCollection();
+                services.AddSingleton(Log.Logger);
+                services.AddSingleton<IRadiusDictionary>(prov =>
                 {
-                    Log.Logger.Information(syslogInfoMessage);
-                }
+                    var dictionaryPath = path + "Content" + Path.DirectorySeparatorChar + "radius.dictionary";
+                    return new RadiusDictionary(dictionaryPath, prov.GetRequiredService<ILogger>());
+                });
+                services.AddSingleton(prov =>
+                {
+                    var config = ServiceConfiguration.Load(
+                        prov.GetRequiredService<IRadiusDictionary>(),
+                        prov.GetRequiredService<ILogger>());
 
-                var adapterService = new AdapterService(configuration, dictionary, Log.Logger);
+                    SetLogLevel(config.LogLevel, levelSwitch);
+                    if (syslogInfoMessage != null)
+                    {
+                        Log.Logger.Information(syslogInfoMessage);
+                    }
+
+                    return config;
+                });
+                services.AddScoped<IRadiusPacketParser, RadiusPacketParser>();
+                services.AddSingleton<RadiusServer>();
+                services.AddSingleton<CacheService>();
+                services.AddSingleton<RadiusRouter>();
+                services.AddSingleton<AdapterService>();
+                services.AddSingleton<ActiveDirectoryServicesProvider>();
+                services.AddSingleton(prov => prov.GetRequiredService<ActiveDirectoryServicesProvider>().GetServices());
+                services.AddSingleton<MultiFactorApiClient>();
+                services.AddSingleton<PasswordChangeHandler>();
+                services.AddSingleton<ActiveDirectoryMembershipVerifier>();
+                services.AddSingleton<ForestMetadataCache>();
+
+                services.AddSingleton<IFirstAuthFactorProcessor, ActiveDirectoryFirstAuthFactorProcessor>();
+                services.AddSingleton<IFirstAuthFactorProcessor, AdLdsFirstAuthFactorProcessor>();
+                services.AddSingleton<IFirstAuthFactorProcessor, RadiusFirstAuthFactorProcessor>();
+                services.AddSingleton<IFirstAuthFactorProcessor, DefaultFirstAuthFactorProcessor>();
+                services.AddSingleton<FirstAuthFactorProcessorProvider>();
+
+                var provider = services.BuildServiceProvider();
+                var adapterService = provider.GetRequiredService<AdapterService>();
 
                 if (Environment.UserInteractive)
                 {

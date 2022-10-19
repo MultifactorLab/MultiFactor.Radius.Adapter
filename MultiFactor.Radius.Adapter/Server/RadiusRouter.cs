@@ -4,12 +4,11 @@
 
 using MultiFactor.Radius.Adapter.Configuration;
 using MultiFactor.Radius.Adapter.Core;
+using MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing;
 using MultiFactor.Radius.Adapter.Services;
-using MultiFactor.Radius.Adapter.Services.Ldap;
 using Serilog;
 using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -22,35 +21,23 @@ namespace MultiFactor.Radius.Adapter.Server
     /// </summary>
     public class RadiusRouter
     {
-        private ServiceConfiguration _serviceConfiguration;
         private ILogger _logger;
-        private IRadiusPacketParser _packetParser;
-        private IDictionary<string, ActiveDirectoryService> _activeDirectoryServices;
         private MultiFactorApiClient _multifactorApiClient;
         public event EventHandler<PendingRequest> RequestProcessed;
         private readonly ConcurrentDictionary<string, PendingRequest> _stateChallengePendingRequests = new ConcurrentDictionary<string, PendingRequest>();
-        private CacheService _cacheService;
         private PasswordChangeHandler _passwordChangeHandler;
-
+        private readonly FirstAuthFactorProcessorProvider _firstAuthFactorProcessorProvider;
         private DateTime _startedAt = DateTime.Now;
 
-        public RadiusRouter(ServiceConfiguration serviceConfiguration, IRadiusPacketParser packetParser, CacheService cacheService, ILogger logger)
+        public RadiusRouter(MultiFactorApiClient multifactorApiClient,
+            PasswordChangeHandler passwordChangeHandler,
+            FirstAuthFactorProcessorProvider firstAuthFactorProcessorProvider,
+            ILogger logger)
         {
-            _serviceConfiguration = serviceConfiguration ?? throw new ArgumentNullException(nameof(serviceConfiguration));
-            _packetParser = packetParser ?? throw new ArgumentNullException(nameof(packetParser));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-            _cacheService = cacheService ?? throw new ArgumentNullException(nameof(cacheService));
-            _multifactorApiClient = new MultiFactorApiClient(serviceConfiguration, logger);
-
-            //stanalone AD service instance for each domain/forest with cached schema
-            _activeDirectoryServices = new Dictionary<string, ActiveDirectoryService>();
-            var domains = _serviceConfiguration.GetAllActiveDirectoryDomains();
-            foreach(var domain in domains)
-            {
-                _activeDirectoryServices.Add(domain, new ActiveDirectoryService(_logger, domain));
-            }
-
-            _passwordChangeHandler = new PasswordChangeHandler(_cacheService, _activeDirectoryServices);
+            _multifactorApiClient = multifactorApiClient ?? throw new ArgumentNullException(nameof(multifactorApiClient));
+            _passwordChangeHandler = passwordChangeHandler ?? throw new ArgumentNullException(nameof(passwordChangeHandler));
+            _firstAuthFactorProcessorProvider = firstAuthFactorProcessorProvider ?? throw new ArgumentNullException(nameof(firstAuthFactorProcessorProvider));
         }
 
         public async Task HandleRequest(PendingRequest request, ClientConfiguration clientConfig)
@@ -98,7 +85,8 @@ namespace MultiFactor.Radius.Adapter.Server
                     }
                 }
 
-                var firstFactorAuthenticationResultCode = await ProcessFirstAuthenticationFactor(request, clientConfig);
+                var firstAuthFactorProcessor = _firstAuthFactorProcessorProvider.GetProcessor(clientConfig.FirstFactorAuthenticationSource);
+                var firstFactorAuthenticationResultCode = await firstAuthFactorProcessor.ProcessFirstAuthFactorAsync(request, clientConfig);
                 if (firstFactorAuthenticationResultCode != PacketCode.AccessAccept)
                 {
                     //User password expired ot must be changed
@@ -167,173 +155,6 @@ namespace MultiFactor.Radius.Adapter.Server
             }
 
             request.UserName = userName;
-        }
-
-        private async Task<PacketCode> ProcessFirstAuthenticationFactor(PendingRequest request, ClientConfiguration clientConfig)
-        {
-            switch(clientConfig.FirstFactorAuthenticationSource)
-            {
-                case AuthenticationSource.ActiveDirectory:  //AD auth
-                    return ProcessActiveDirectoryAuthentication(request, clientConfig);
-                case AuthenticationSource.AdLds:            //AD LDS internal auth
-                    return ProcessLdapAuthentication(request, clientConfig);
-                case AuthenticationSource.Radius:           //RADIUS auth
-                    var radiusResponse = await ProcessRadiusAuthentication(request, clientConfig);
-                    if (radiusResponse == PacketCode.AccessAccept)
-                    {
-                        if (clientConfig.CheckMembership)     //check membership without AD authentication
-                        {
-                            return ProcessActiveDirectoryMembership(request, clientConfig);
-                        }
-                    }
-                    return radiusResponse;
-                case AuthenticationSource.None:
-                    if (clientConfig.CheckMembership)     //check membership without AD authentication
-                    {
-                        return ProcessActiveDirectoryMembership(request, clientConfig);
-                    }
-                    return PacketCode.AccessAccept;         //first factor not required
-                default:                                    //unknown source
-                    throw new NotImplementedException(clientConfig.FirstFactorAuthenticationSource.ToString());
-            }
-        }
-
-        /// <summary>
-        /// Authenticate request at Active Directory Domain with user-name and password
-        /// </summary>
-        private PacketCode ProcessActiveDirectoryAuthentication(PendingRequest request, ClientConfiguration clientConfig)
-        {
-            var userName = request.UserName;
-            var password = request.RequestPacket.TryGetUserPassword();
-
-            if (string.IsNullOrEmpty(userName))
-            {
-                _logger.Warning("Can't find User-Name in message id={id} from {host:l}:{port}", request.RequestPacket.Identifier, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
-                return PacketCode.AccessReject;
-            }
-
-            if (string.IsNullOrEmpty(password))
-            {
-                _logger.Warning("Can't find User-Password in message id={id} from {host:l}:{port}", request.RequestPacket.Identifier, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
-                return PacketCode.AccessReject;
-            }
-
-            //trying to authenticate for each domain/forest
-            var domains = clientConfig.ActiveDirectoryDomain.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
-            foreach (var domain in domains)
-            {
-                var activeDirectoryService = _activeDirectoryServices[domain.Trim()];
-                var isValid = activeDirectoryService.VerifyCredentialAndMembership(clientConfig, userName, password, request);
-                if (isValid)
-                {
-                    return PacketCode.AccessAccept;
-                }
-
-                if (request.MustChangePassword)
-                {
-                    request.MustChangePasswordDomain = domain;
-                    return PacketCode.AccessReject;
-                }
-            }
-
-            return PacketCode.AccessReject;
-        }
-
-        /// <summary>
-        /// Authenticate request at LDAP with user-name and password
-        /// </summary>
-        private PacketCode ProcessLdapAuthentication(PendingRequest request, ClientConfiguration clientConfig)
-        {
-            var userName = request.UserName;
-            var password = request.RequestPacket.TryGetUserPassword();
-
-            if (string.IsNullOrEmpty(userName))
-            {
-                _logger.Warning("Can't find User-Name in message id={id} from {host:l}:{port}", request.RequestPacket.Identifier, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
-                return PacketCode.AccessReject;
-            }
-
-            if (string.IsNullOrEmpty(password))
-            {
-                _logger.Warning("Can't find User-Password in message id={id} from {host:l}:{port}", request.RequestPacket.Identifier, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
-                return PacketCode.AccessReject;
-            }
-
-            var ldapService = new AdLdsService(_logger);
-            var isValid = ldapService.VerifyCredentialAndMembership(userName, password, clientConfig);
-            return isValid ? PacketCode.AccessAccept : PacketCode.AccessReject;
-        }
-
-        /// <summary>
-        /// Validate user membership within Active Directory Domain withoout password authentication
-        /// </summary>
-        private PacketCode ProcessActiveDirectoryMembership(PendingRequest request, ClientConfiguration clientConfig)
-        {
-            var userName = request.UserName;
-
-            if (string.IsNullOrEmpty(userName))
-            {
-                _logger.Warning("Can't find User-Name in message id={id} from {host:l}:{port}", request.RequestPacket.Identifier, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
-                return PacketCode.AccessReject;
-            }
-
-            //trying to authenticate for each domain/forest
-            var domains = clientConfig.ActiveDirectoryDomain.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
-            foreach (var domain in domains)
-            {
-                var activeDirectoryService = _activeDirectoryServices[domain.Trim()];
-                var isValid = activeDirectoryService.VerifyMembership(clientConfig, userName, request);
-                if (isValid)
-                {
-                    return PacketCode.AccessAccept;
-                }
-            }
-
-            return PacketCode.AccessReject;
-        }
-
-        /// <summary>
-        /// Authenticate request at Remote Radius Server with user-name and password
-        /// </summary>
-        private async Task<PacketCode> ProcessRadiusAuthentication(PendingRequest request, ClientConfiguration clientConfig)
-        {
-            try
-            {
-                //sending request to Remote Radius Server
-                using (var client = new RadiusClient(clientConfig.ServiceClientEndpoint, _logger))
-                {
-                    _logger.Debug($"Sending {{code:l}} message with id={{id}} to Remote Radius Server {clientConfig.NpsServerEndpoint}", request.RequestPacket.Code.ToString(), request.RequestPacket.Identifier);
-
-                    var requestBytes = _packetParser.GetBytes(request.RequestPacket);
-                    var response = await client.SendPacketAsync(request.RequestPacket.Identifier, requestBytes, clientConfig.NpsServerEndpoint, TimeSpan.FromSeconds(5));
-
-                    if (response != null)
-                    {
-                        var responsePacket = _packetParser.Parse(response, request.RequestPacket.SharedSecret, request.RequestPacket.Authenticator);
-                        _logger.Debug("Received {code:l} message with id={id} from Remote Radius Server", responsePacket.Code.ToString(), responsePacket.Identifier);
-
-                        if (responsePacket.Code == PacketCode.AccessAccept)
-                        {
-                            var userName = request.UserName;
-                            _logger.Information($"User '{{user:l}}' credential and status verified successfully at {clientConfig.NpsServerEndpoint}", userName);
-                        }
-
-                        request.ResponsePacket = responsePacket;
-                        return responsePacket.Code; //Code received from NPS
-                    }
-                    else
-                    {
-                        _logger.Warning("Remote Radius Server did not respond on message with id={id}", request.RequestPacket.Identifier);
-                        return PacketCode.AccessReject; //reject by default
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.Error(ex, "Radius authentication error");
-            }
-            
-            return PacketCode.AccessReject; //reject by default
         }
 
         /// <summary>

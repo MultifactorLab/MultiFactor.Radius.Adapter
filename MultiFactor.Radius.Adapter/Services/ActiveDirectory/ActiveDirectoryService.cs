@@ -4,6 +4,8 @@
 
 using MultiFactor.Radius.Adapter.Configuration;
 using MultiFactor.Radius.Adapter.Server;
+using MultiFactor.Radius.Adapter.Services.Ldap;
+using MultiFactor.Radius.Adapter.Services.Ldap.LdapMetadata;
 using Serilog;
 using System;
 using System.Collections.Generic;
@@ -13,7 +15,7 @@ using System.Linq;
 using System.Net;
 using System.Text.RegularExpressions;
 
-namespace MultiFactor.Radius.Adapter.Services.Ldap
+namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory
 {
     /// <summary>
     /// Service to interact with Active Directory
@@ -21,16 +23,15 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
     public class ActiveDirectoryService
     {
         private ILogger _logger;
-
-        private ForestSchema _forestSchema;
-        private readonly object _sync = new object();
-
         private string _domain;
+        private readonly ForestMetadataCache _forestMetadataCache;
 
-        public ActiveDirectoryService(ILogger logger, string domain)
+        public ActiveDirectoryService(string domain, ForestMetadataCache forestMetadataCache, ILogger logger)
         {
-            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _domain = domain ?? throw new ArgumentNullException(nameof(domain));
+            _forestMetadataCache = forestMetadataCache ?? throw new ArgumentNullException(nameof(forestMetadataCache));
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+
         }
 
         /// <summary>
@@ -74,7 +75,7 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
                 using (var connection = new LdapConnection(_domain))
                 {
                     connection.Credential = new NetworkCredential(user.Name, password);
-				    connection.SessionOptions.RootDseCache = true;
+                    connection.SessionOptions.RootDseCache = true;
                     connection.SessionOptions.ProtocolVersion = 3;
                     connection.Bind();
 
@@ -106,53 +107,6 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
 
             return false;
         }
-        public bool VerifyMembership(ClientConfiguration clientConfig, string userName, PendingRequest request)
-        {
-            if (string.IsNullOrEmpty(userName))
-            {
-                throw new ArgumentNullException(nameof(userName));
-            }
-
-            var user = LdapIdentity.ParseUser(userName);
-            if (user.Type == IdentityType.UserPrincipalName)
-            {
-                var suffix = user.UpnToSuffix();
-                if (!clientConfig.IsPermittedDomain(suffix))
-                {
-                    _logger.Warning($"User domain {suffix} not permitted");
-                    return false;
-                }
-            }
-            else
-            {
-                if (clientConfig.RequiresUpn)
-                {
-                    _logger.Warning("Only UserPrincipalName format permitted, see configuration");
-                    return false;
-                }
-            }
-
-            try
-            {
-                _logger.Debug($"Verifying user '{{user:l}}' membership at {_domain}", user.Name);
-
-                using (var connection = new LdapConnection(_domain))
-                {
-                    connection.SessionOptions.ProtocolVersion = 3;
-                    connection.SessionOptions.RootDseCache = true;
-                    connection.Bind();
-
-                    return VerifyMembership(clientConfig, connection, user, request);
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.Error(ex, $"Verification user '{{user:l}}' membership at {_domain} failed", user.Name);
-                _logger.Information("Run MultiFactor.Raduis.Adapter as user with domain read permissions (basically any domain user)");
-            }
-
-            return false;
-        }
 
         /// <summary>
         /// Change user password
@@ -173,8 +127,11 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
                     connection.Bind();
 
                     var domain = LdapIdentity.FqdnToDn(_domain);
-
-                    var profile = LoadProfile(clientConfig, connection, domain, identity);
+                    var schema = _forestMetadataCache.Get(
+                        clientConfig.Name, 
+                        domain,
+                        () => new ForestSchemaLoader(clientConfig, connection, _logger).Load(domain));
+                    var profile = new ProfileLoader(schema, _logger).LoadProfile(clientConfig, connection, domain, identity);
                     if (profile == null)
                     {
                         return false;
@@ -213,18 +170,18 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
         private bool VerifyMembership(ClientConfiguration clientConfig, LdapConnection connection, LdapIdentity user, PendingRequest request)
         {
             var domain = LdapIdentity.FqdnToDn(_domain);
-
-            LoadForestSchema(clientConfig, connection, domain);
-
-            var profile = LoadProfile(clientConfig, connection, domain, user);
+            var schema = _forestMetadataCache.Get(
+                clientConfig.Name, 
+                domain, 
+                () => new ForestSchemaLoader(clientConfig, connection, _logger).Load(domain));
+            var profile = new ProfileLoader(schema, _logger).LoadProfile(clientConfig, connection, domain, user);
             if (profile == null)
             {
                 return false;
             }
 
-            var checkGroupMembership = clientConfig.ActiveDirectoryGroup.Any();
             //user must be member of security group
-            if (checkGroupMembership)
+            if (clientConfig.ActiveDirectoryGroup.Any())
             {
                 var accessGroup = clientConfig.ActiveDirectoryGroup.FirstOrDefault(group => IsMemberOf(profile, group));
                 if (accessGroup != null)
@@ -238,9 +195,8 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
                 }
             }
 
-            var onlyMembersOfGroupMustProcess2faAuthentication = clientConfig.ActiveDirectory2FaGroup.Any();
             //only users from group must process 2fa
-            if (onlyMembersOfGroupMustProcess2faAuthentication)
+            if (clientConfig.ActiveDirectory2FaGroup.Any())
             {
                 var mfaGroup = clientConfig.ActiveDirectory2FaGroup.FirstOrDefault(group => IsMemberOf(profile, group));
                 if (mfaGroup != null)
@@ -254,11 +210,9 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
                 }
             }
 
-            var onlyMembersOfGroupMustNotProcess2faAuthentication = clientConfig.ActiveDirectory2FaBypassGroup.Any();
-            if (!request.Bypass2Fa && onlyMembersOfGroupMustNotProcess2faAuthentication)
+            if (!request.Bypass2Fa && clientConfig.ActiveDirectory2FaBypassGroup.Any())
             {
                 var bypassGroup = clientConfig.ActiveDirectory2FaBypassGroup.FirstOrDefault(group => IsMemberOf(profile, group));
-
                 if (bypassGroup != null)
                 {
                     _logger.Information($"User '{{user:l}}' is member of '{bypassGroup.Trim()}' 2FA bypass group in {profile.BaseDn.Name}", user.Name);
@@ -284,157 +238,9 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
             return true;
         }
 
-        private void LoadForestSchema(ClientConfiguration clientConfig, LdapConnection connection, LdapIdentity root)
-        {
-            if (_forestSchema != null)
-            {
-                return; //already loaded
-            }
-
-            lock (_sync)
-            {
-                _forestSchema = new ForestSchemaLoader(clientConfig, connection, _logger).Load(root);
-            }
-        }
-
-        private LdapProfile LoadProfile(ClientConfiguration clientConfig, LdapConnection connection, LdapIdentity domain, LdapIdentity user)
-        {
-            var profile = new LdapProfile();
-
-            var queryAttributes = new List<string> { "DistinguishedName", "displayName", "mail", "memberOf", "userPrincipalName" };
-
-            var ldapReplyAttributes = clientConfig.GetLdapReplyAttributes();
-            foreach (var ldapReplyAttribute in ldapReplyAttributes)
-            {
-                if (!profile.LdapAttrs.ContainsKey(ldapReplyAttribute))
-                {
-                    profile.LdapAttrs.Add(ldapReplyAttribute, null);
-                    queryAttributes.Add(ldapReplyAttribute);
-                }
-            }
-            queryAttributes.AddRange(clientConfig.PhoneAttributes);
-
-            var baseDnList = GetBaseDnList(user, domain);
-            var connAdapter = new LdapConnectionAdapter(connection, _logger);
-            var result = FindUser(user, baseDnList, connAdapter, queryAttributes.ToArray());
-            if (result == null)
-            {
-                _logger.Error($"Unable to find user '{{user:l}}' in {string.Join(", ", baseDnList.Select(x => $"({x})"))}", user.Name);
-                return null;
-            }
-
-            //base profile
-            profile.BaseDn = LdapIdentity.BaseDn(result.Entry.DistinguishedName);
-            profile.DistinguishedName = result.Entry.DistinguishedName;
-            profile.DisplayName = result.Entry.Attributes["displayName"]?[0]?.ToString();
-            profile.Email = result.Entry.Attributes["mail"]?[0]?.ToString();
-            profile.Upn = result.Entry.Attributes["userPrincipalName"]?[0]?.ToString();
-
-            //additional attributes for radius response
-            foreach (var key in profile.LdapAttrs.Keys.ToList()) //to list to avoid collection was modified exception
-            {
-                if (result.Entry.Attributes.Contains(key))
-                {
-                    profile.LdapAttrs[key] = result.Entry.Attributes[key][0]?.ToString();
-                }
-            }
-
-            //groups
-            var memberOf = result.Entry.Attributes["memberOf"]?.GetValues(typeof(string));
-            if (memberOf != null)
-            {
-                profile.MemberOf = memberOf.Select(dn => LdapIdentity.DnToCn(dn.ToString())).ToList();
-            }
-
-            //phone
-            foreach(var phoneAttr in clientConfig.PhoneAttributes)
-            {
-                if (result.Entry.Attributes.Contains(phoneAttr))
-                {
-                    var phone = result.Entry.Attributes[phoneAttr][0]?.ToString();
-                    if (!string.IsNullOrEmpty(phone))
-                    {
-                        profile.Phone = phone;
-                        break;
-                    }
-                }
-            }
-
-            _logger.Debug($"User '{{user:l}}' profile loaded: {profile.DistinguishedName}", user.Name);
-
-            //nested groups if configured
-            if (clientConfig.ShouldLoadUserGroups())
-            {
-                LoadAllUserGroups(clientConfig, connAdapter, result.BaseDn, profile);
-            }
-            return profile;
-        }
-
-        private IReadOnlyList<LdapIdentity> GetBaseDnList(LdapIdentity user, LdapIdentity domain)
-        {
-            switch (user.Type)
-            {
-                case IdentityType.SamAccountName: return _forestSchema.DomainNameSuffixes
-                        .Select(x => x.Value)
-                        .Distinct(new LdapDomainEqualityComparer())
-                        .ToArray();
-                case IdentityType.UserPrincipalName: return new[] { _forestSchema.GetMostRelevanteDomain(user, domain) };
-                default: return new[] { domain };
-            }
-        }
-
-        private UserSearchResult FindUser(LdapIdentity user, IReadOnlyList<LdapIdentity> baseDnList, LdapConnectionAdapter connectionAdapter, params string[] attrs)
-        {
-            var searchFilter = $"(&(objectClass=user)({user.TypeName}={user.Name}))";
-
-            foreach (var baseDn in baseDnList)
-            {
-                _logger.Debug($"Querying user '{{user:l}}' in {baseDn.Name}", user.Name);
-
-                //only this domain
-                var response = connectionAdapter.Query(baseDn.Name, searchFilter, SearchScope.Subtree, 
-                    false, 
-                    attrs.Distinct().ToArray());
-
-                if (response.Entries.Count != 0)
-                {
-                    return new UserSearchResult(response.Entries[0], baseDn);
-                }
-
-                //with ReferralChasing 
-                response = connectionAdapter.Query(baseDn.Name, searchFilter, SearchScope.Subtree, 
-                    true, 
-                    attrs.Distinct().ToArray());
-
-                if (response.Entries.Count != 0)
-                {
-                    return new UserSearchResult(response.Entries[0], baseDn);
-                }
-            }
-
-            return null;
-        }
-
         private bool IsMemberOf(LdapProfile profile, string group)
         {
             return profile.MemberOf?.Any(g => g.ToLower() == group.ToLower().Trim()) ?? false;
-        }
-
-        private void LoadAllUserGroups(ClientConfiguration clientConfig, LdapConnectionAdapter connectionAdapter, LdapIdentity baseDn, LdapProfile profile)
-        {
-            if (!clientConfig.LoadActiveDirectoryNestedGroups) return;     
-
-            var searchFilter = $"(member:1.2.840.113556.1.4.1941:={profile.DistinguishedName})";
-            var response = connectionAdapter.Query(baseDn.Name, searchFilter, SearchScope.Subtree, false, "DistinguishedName");
-
-            var groups = new List<string>(response.Entries.Count);
-            for (var i = 0; i < response.Entries.Count; i++)
-            {
-                var entry = response.Entries[i];
-                groups.Add(LdapIdentity.DnToCn(entry.DistinguishedName));
-            }
-
-            profile.MemberOf = groups;
         }
 
         private string ExtractErrorReason(string errorMessage, out bool mustChangePassword)
