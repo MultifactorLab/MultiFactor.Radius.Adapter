@@ -13,6 +13,7 @@ using System.Net;
 using System.Text;
 using System.IO;
 using NetTools;
+using System.Text.RegularExpressions;
 
 namespace MultiFactor.Radius.Adapter.Configuration
 {
@@ -386,6 +387,8 @@ namespace MultiFactor.Radius.Adapter.Configuration
                 }
             }
 
+            ReadSignUpGroupsSettings(configuration, appSettings);
+
             return configuration;
         }
 
@@ -607,6 +610,26 @@ namespace MultiFactor.Radius.Adapter.Configuration
             }
 
             throw new FormatException($"Failed to parse {text} to IPEndPoint");
+        }
+
+        private static void ReadSignUpGroupsSettings(ClientConfiguration configuration, AppSettingsSection appSettings)
+        {
+            const string signUpGroupsRegex = @"([\wа-я\s\-]+)(\s*;\s*([\wа-я\s\-]+)*)*";
+            const string signUpGroupsToken = "sign-up-groups";
+
+            var signUpGroupsSettings = appSettings.Settings[signUpGroupsToken]?.Value;
+            if (string.IsNullOrWhiteSpace(signUpGroupsSettings))
+            {
+                configuration.SignUpGroups = string.Empty;
+                return;
+            }
+
+            if (!Regex.IsMatch(signUpGroupsSettings, signUpGroupsRegex, RegexOptions.IgnoreCase))
+            {
+                throw new Exception($"Invalid group names. Please check 'sign-up-groups' settings property and fix syntax errors.");
+            }
+
+            configuration.SignUpGroups = signUpGroupsSettings;
         }
 
         #endregion
