@@ -204,10 +204,11 @@ namespace MultiFactor.Radius.Adapter.Services
             }
             catch (Exception ex)
             {
-                _logger.Error($"Multifactor API host unreachable: {url}\r\n{ex.Message}");
+                _logger.Error($"Multifactor API host unreachable: {url} {ex.Message}");
 
                 if (clientConfiguration.BypassSecondFactorWhenApiUnreachable)
                 {
+                    //_logger.Warning("Bypass second factor for user '{user:l}' from {host:l}:{port}", userName, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
                     _logger.Warning("Bypass second factor");
                     return MultiFactorAccessRequest.Bypass;
                 }
