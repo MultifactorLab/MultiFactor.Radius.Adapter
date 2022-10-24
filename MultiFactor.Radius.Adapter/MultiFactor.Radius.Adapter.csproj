@@ -189,7 +189,9 @@
     <Compile Include="Services\Ldap\LdapIdentity.cs" />
     <Compile Include="Services\Ldap\LdapProfile.cs" />
     <Compile Include="Services\Ldap\ProfileLoader.cs" />
-    <Compile Include="Services\MultiFactorApiClient.cs" />
+    <Compile Include="Services\MultiFactorApi\Literals.cs" />
+    <Compile Include="Services\MultiFactorApi\MultiFactorAccessRequest.cs" />
+    <Compile Include="Services\MultiFactorApi\MultiFactorApiClient.cs" />
     <Compile Include="Server\RadiusReplyAttributeValue.cs" />
     <Compile Include="Services\ActiveDirectory\ActiveDirectoryService.cs" />
     <Compile Include="ServiceInstaller.cs">
@@ -202,6 +204,8 @@
     <Compile Include="Server\RadiusRouter.cs" />
     <Compile Include="Server\RadiusClient.cs" />
     <Compile Include="Server\RadiusServer.cs" />
+    <Compile Include="Services\MultiFactorApi\MultiFactorApiResponse.cs" />
+    <Compile Include="Services\MultiFactorApi\MultifactorApiUnreachableException.cs" />
     <Compile Include="Syslog\JsonRfc3164Formatter.cs" />
     <Compile Include="Syslog\JsonRfc5424Formatter.cs" />
     <Compile Include="Syslog\SyslogLoggerJsonConfigurationExtensions.cs" />

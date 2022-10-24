@@ -156,11 +156,11 @@ namespace MultiFactor.Radius.Adapter.Server
             }
             catch (Exception ex) when (ex is ArgumentException || ex is OverflowException)
             {
-                _logger.Warning(ex, "Ignoring malformed(?) packet received from {host}:{port}", remoteEndpoint.Address, remoteEndpoint.Port);
+                _logger.Warning("Ignoring malformed(?) packet received from {host}:{port}, message: {msg:l}", remoteEndpoint.Address, remoteEndpoint.Port, ex.Message);
             }
             catch (Exception ex)
             {
-                _logger.Error(ex, "Failed to receive packet from {host:l}:{port}", remoteEndpoint.Address, remoteEndpoint.Port);
+                _logger.Error("Failed to receive packet from {host:l}:{port}, message: {msg:l}", remoteEndpoint.Address, remoteEndpoint.Port, ex.Message);
             }
             finally
             {
