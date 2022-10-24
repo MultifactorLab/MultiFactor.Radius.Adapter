@@ -16,7 +16,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
-namespace MultiFactor.Radius.Adapter.Services
+namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
 {
     /// <summary>
     /// Service to interact with multifactor web api
@@ -81,7 +81,7 @@ namespace MultiFactor.Radius.Adapter.Services
                     return PacketCode.AccessAccept;
                 }
             }
-            
+
             var url = _serviceConfiguration.ApiUrl + "/access/requests/ra";
             var payload = new
             {
@@ -92,40 +92,49 @@ namespace MultiFactor.Radius.Adapter.Services
                 PassCode = GetPassCodeOrNull(request, clientConfig),
                 CallingStationId = callingStationId,
                 CalledStationId = calledStationId,
-                Capabilities = new 
+                Capabilities = new
                 {
                     InlineEnroll = true
                 },
                 GroupPolicyPreset = new
                 {
-                    SignUpGroups = clientConfig.SignUpGroups
+                    clientConfig.SignUpGroups
                 }
             };
 
-            var response = await SendRequest(url, payload, clientConfig);
-            var responseCode = ConvertToRadiusCode(response);
-
-            request.State = response?.Id;
-            request.ReplyMessage = response?.ReplyMessage;
-
-            if (responseCode == PacketCode.AccessAccept && !response.Bypassed)
+            try
             {
-                _logger.Information("Second factor for user '{user:l}' verified successfully. Authenticator '{authenticator:l}', account '{account:l}'", userName, response?.Authenticator, response?.Account);
+                var response = await SendRequest(url, payload, clientConfig);
+                var responseCode = ConvertToRadiusCode(response);
 
-                if (clientConfig.BypassSecondFactorPeriod > 0)
+                request.State = response?.Id;
+                request.ReplyMessage = response?.ReplyMessage;
+
+                if (responseCode == PacketCode.AccessAccept && !response.Bypassed)
                 {
-                    SetCache(remoteHost, userName);
+                    _logger.Information("Second factor for user '{user:l}' verified successfully. Authenticator '{authenticator:l}', account '{account:l}'", 
+                        userName, response?.Authenticator, response?.Account);
+
+                    if (clientConfig.BypassSecondFactorPeriod > 0)
+                    {
+                        SetCache(remoteHost, userName);
+                    }
                 }
-            }
 
-            if (responseCode == PacketCode.AccessReject)
+                if (responseCode == PacketCode.AccessReject)
+                {
+                    var reason = response?.ReplyMessage;
+                    var phone = response?.Phone;
+                    _logger.Warning("Second factor verification for user '{user:l}' from {host:l}:{port} failed with reason='{reason:l}'. User phone {phone:l}", 
+                        userName, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port, reason, phone);
+                }
+
+                return responseCode;
+            }
+            catch (Exception ex)
             {
-                var reason = response?.ReplyMessage;
-                var phone = response?.Phone;
-                _logger.Warning("Second factor verification for user '{user:l}' from {host:l}:{port} failed with reason='{reason:l}'. User phone {phone:l}", userName, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port, reason, phone);
+                return HandleException(ex, userName, request, clientConfig);
             }
-
-            return responseCode;
         }
 
         public async Task<PacketCode> Challenge(PendingRequest request, ClientConfiguration clientConfig, string userName, string answer, string state)
@@ -138,17 +147,25 @@ namespace MultiFactor.Radius.Adapter.Services
                 RequestId = state
             };
 
-            var response = await SendRequest(url, payload, clientConfig);
-            var responseCode = ConvertToRadiusCode(response);
-
-            request.ReplyMessage = response.ReplyMessage;
-
-            if (responseCode == PacketCode.AccessAccept && !response.Bypassed)
+            try
             {
-                _logger.Information("Second factor for user '{user:l}' verified successfully. Authenticator '{authenticator:l}', account '{account:l}'", userName, response?.Authenticator, response?.Account);
+                var response = await SendRequest(url, payload, clientConfig);
+                var responseCode = ConvertToRadiusCode(response);
+
+                request.ReplyMessage = response.ReplyMessage;
+
+                if (responseCode == PacketCode.AccessAccept && !response.Bypassed)
+                {
+                    _logger.Information("Second factor for user '{user:l}' verified successfully. Authenticator '{authenticator:l}', account '{account:l}'", userName, response?.Authenticator, response?.Account);
+                }
+
+                return responseCode;
+            }
+            catch (Exception ex)
+            {
+                return HandleException(ex, userName, request, clientConfig);
             }
 
-            return responseCode;
         }
 
         private async Task<MultiFactorAccessRequest> SendRequest(string url, object payload, ClientConfiguration clientConfiguration)
@@ -204,16 +221,31 @@ namespace MultiFactor.Radius.Adapter.Services
             }
             catch (Exception ex)
             {
-                _logger.Error($"Multifactor API host unreachable: {url}\r\n{ex.Message}");
-
-                if (clientConfiguration.BypassSecondFactorWhenApiUnreachable)
-                {
-                    _logger.Warning("Bypass second factor");
-                    return MultiFactorAccessRequest.Bypass;
-                }
-
-                return null;
+                throw new MultifactorApiUnreachableException($"Multifactor API host unreachable: {url}. Reason: {ex.Message}", ex);
             }
+        }
+
+        private PacketCode HandleException(Exception ex, string username, PendingRequest request, ClientConfiguration clientConfig)
+        {
+            if (ex is MultifactorApiUnreachableException apiEx)
+            {
+                _logger.Error("Error occured while requesting API for user '{user:l}' from {host:l}:{port}, {msg:l}",
+                    username,
+                    request.RemoteEndpoint.Address,
+                    request.RemoteEndpoint.Port,
+                    apiEx.Message);
+
+                if (clientConfig.BypassSecondFactorWhenApiUnreachable)
+                {
+                    _logger.Warning("Bypass second factor for user '{user:l}' from {host:l}:{port}",
+                        username,
+                        request.RemoteEndpoint.Address,
+                        request.RemoteEndpoint.Port);
+                    return ConvertToRadiusCode(MultiFactorAccessRequest.Bypass);
+                }
+            }
+
+            return ConvertToRadiusCode(null);
         }
 
         private PacketCode ConvertToRadiusCode(MultiFactorAccessRequest multifactorAccessRequest)
@@ -222,14 +254,14 @@ namespace MultiFactor.Radius.Adapter.Services
             {
                 return PacketCode.AccessReject;
             }
-            
+
             switch (multifactorAccessRequest.Status)
             {
-                case "Granted":     //authenticated by push
+                case Literals.RadiusCode.Granted:     //authenticated by push
                     return PacketCode.AccessAccept;
-                case "Denied":
+                case Literals.RadiusCode.Denied:
                     return PacketCode.AccessReject; //access denied
-                case "AwaitingAuthentication":
+                case Literals.RadiusCode.AwaitingAuthentication:
                     return PacketCode.AccessChallenge;  //otp code required
                 default:
                     _logger.Warning($"Got unexpected status from API: {multifactorAccessRequest.Status}");
@@ -267,9 +299,9 @@ namespace MultiFactor.Radius.Adapter.Services
         {
             if (string.IsNullOrEmpty(remoteHost))
             {
-                return; 
+                return;
             }
-            
+
             var client = new AuthenticatedClient
             {
                 RemoteHost = remoteHost,
@@ -294,13 +326,13 @@ namespace MultiFactor.Radius.Adapter.Services
 
             //check password challenge (otp or passcode)
             var userPassword = request.RequestPacket.TryGetUserPassword();
-            
+
             //only if first authentication factor is None, assuming that Password contains OTP code
             if (clientConfiguration.FirstFactorAuthenticationSource != AuthenticationSource.None)
             {
                 return null;
             }
-            
+
             /* valid passcodes:
              *  6 digits: otp
              *  t: Telegram
@@ -320,7 +352,7 @@ namespace MultiFactor.Radius.Adapter.Services
                 return userPassword.Trim();
             }
 
-            if (new [] {"t", "m", "s", "c"}.Any( c => c == userPassword.Trim().ToLower()))
+            if (new[] { "t", "m", "s", "c" }.Any(c => c == userPassword.Trim().ToLower()))
             {
                 return userPassword.Trim().ToLower();
             }
@@ -328,32 +360,5 @@ namespace MultiFactor.Radius.Adapter.Services
             //not a passcode
             return null;
         }
-    }
-
-    public class MultiFactorApiResponse<TModel>
-    {
-        public bool Success { get; set; }
-
-        public TModel Model { get; set; }
-    }
-
-    public class MultiFactorAccessRequest
-    {
-        public string Id { get; set; }
-        public string Identity { get; set; }
-        public string Phone { get; set; }
-        public string Status { get; set; }
-        public string ReplyMessage { get; set; }
-        public bool Bypassed { get; set; }
-        public string Authenticator { get; set; }
-        public string Account { get; set; }
-
-        public static MultiFactorAccessRequest Bypass
-        {
-            get
-            {
-                return new MultiFactorAccessRequest { Status = "Granted", Bypassed = true };
-            }
-        } 
     }
 }

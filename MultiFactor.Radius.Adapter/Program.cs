@@ -11,6 +11,7 @@ using MultiFactor.Radius.Adapter.Services;
 using MultiFactor.Radius.Adapter.Services.ActiveDirectory;
 using MultiFactor.Radius.Adapter.Services.ActiveDirectory.MembershipVerification;
 using MultiFactor.Radius.Adapter.Services.Ldap.LdapMetadata;
+using MultiFactor.Radius.Adapter.Services.MultiFactorApi;
 using MultiFactor.Radius.Adapter.Syslog;
 using Serilog;
 using Serilog.Core;
@@ -43,36 +44,10 @@ namespace MultiFactor.Radius.Adapter
             //create logging
             var levelSwitch = new LoggingLevelSwitch(LogEventLevel.Information);
             var loggerConfiguration = new LoggerConfiguration()
-                .MinimumLevel.ControlledBy(levelSwitch);
+                .MinimumLevel.ControlledBy(levelSwitch)
+                .Enrich.FromLogContext();
 
-            var formatter = GetLogFormatter();
-            var defaultFileSize = 1L * 1024 * 1024 * 1024;
-            if (!long.TryParse(ConfigurationManager.AppSettings["log-file-max-size-bytes"], out long fileSizeLimitBytes))
-            {
-                // 1 Gb
-                fileSizeLimitBytes = defaultFileSize;
-            }
-            if (fileSizeLimitBytes == 0)
-            {
-                fileSizeLimitBytes = defaultFileSize;
-            }
-            if (formatter != null)
-            {
-                loggerConfiguration
-                    .WriteTo.Console(formatter, LogEventLevel.Debug)
-                    .WriteTo.File(formatter, $"{path}Logs{Path.DirectorySeparatorChar}log-.txt", 
-                    rollingInterval: RollingInterval.Day,
-                    fileSizeLimitBytes: fileSizeLimitBytes);
-            }
-            else
-            {
-                loggerConfiguration
-                    .WriteTo.Console(LogEventLevel.Debug)
-                    .WriteTo.File($"{path}Logs{Path.DirectorySeparatorChar}log-.txt", 
-                    rollingInterval: RollingInterval.Day,
-                    fileSizeLimitBytes: fileSizeLimitBytes);
-            }
-
+            ConfigureStandartLog(path, loggerConfiguration);
             ConfigureSyslog(loggerConfiguration, out var syslogInfoMessage);
 
             Log.Logger = loggerConfiguration.CreateLogger();
@@ -96,43 +71,7 @@ namespace MultiFactor.Radius.Adapter
             try
             {
                 var services = new ServiceCollection();
-                services.AddSingleton(Log.Logger);
-                services.AddSingleton<IRadiusDictionary>(prov =>
-                {
-                    var dictionaryPath = path + "Content" + Path.DirectorySeparatorChar + "radius.dictionary";
-                    return new RadiusDictionary(dictionaryPath, prov.GetRequiredService<ILogger>());
-                });
-                services.AddSingleton(prov =>
-                {
-                    var config = ServiceConfiguration.Load(
-                        prov.GetRequiredService<IRadiusDictionary>(),
-                        prov.GetRequiredService<ILogger>());
-
-                    SetLogLevel(config.LogLevel, levelSwitch);
-                    if (syslogInfoMessage != null)
-                    {
-                        Log.Logger.Information(syslogInfoMessage);
-                    }
-
-                    return config;
-                });
-                services.AddScoped<IRadiusPacketParser, RadiusPacketParser>();
-                services.AddSingleton<RadiusServer>();
-                services.AddSingleton<CacheService>();
-                services.AddSingleton<RadiusRouter>();
-                services.AddSingleton<AdapterService>();
-                services.AddSingleton<ActiveDirectoryServicesProvider>();
-                services.AddSingleton(prov => prov.GetRequiredService<ActiveDirectoryServicesProvider>().GetServices());
-                services.AddSingleton<MultiFactorApiClient>();
-                services.AddSingleton<PasswordChangeHandler>();
-                services.AddSingleton<ActiveDirectoryMembershipVerifier>();
-                services.AddSingleton<ForestMetadataCache>();
-
-                services.AddSingleton<IFirstAuthFactorProcessor, ActiveDirectoryFirstAuthFactorProcessor>();
-                services.AddSingleton<IFirstAuthFactorProcessor, AdLdsFirstAuthFactorProcessor>();
-                services.AddSingleton<IFirstAuthFactorProcessor, RadiusFirstAuthFactorProcessor>();
-                services.AddSingleton<IFirstAuthFactorProcessor, DefaultFirstAuthFactorProcessor>();
-                services.AddSingleton<FirstAuthFactorProcessorProvider>();
+                ConfigureServices(path, levelSwitch, syslogInfoMessage, services);
 
                 var provider = services.BuildServiceProvider();
                 var adapterService = provider.GetRequiredService<AdapterService>();
@@ -155,7 +94,7 @@ namespace MultiFactor.Radius.Adapter
                         eventArgs.Cancel = true;
                         cts.Cancel();
                     };
-                    
+
                     adapterService.StartServer();
 
                     cts.Token.WaitHandle.WaitOne();
@@ -172,9 +111,63 @@ namespace MultiFactor.Radius.Adapter
                     ServiceBase.Run(ServicesToRun);
                 }
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 Log.Logger.Error($"Unable to start: {ex.Message}");
+            }
+        }
+
+        private static void ConfigureStandartLog(string path, LoggerConfiguration loggerConfiguration)
+        {
+            var formatter = GetLogFormatter();
+            var defaultFileSize = 1L * 1024 * 1024 * 1024;
+            if (!long.TryParse(ConfigurationManager.AppSettings["log-file-max-size-bytes"], out long fileSizeLimitBytes))
+            {
+                // 1 Gb
+                fileSizeLimitBytes = defaultFileSize;
+            }
+            if (fileSizeLimitBytes == 0)
+            {
+                fileSizeLimitBytes = defaultFileSize;
+            }
+            if (formatter != null)
+            {
+                loggerConfiguration
+                    .WriteTo.Console(
+                        formatter,
+                        LogEventLevel.Debug)
+                    .WriteTo.File(
+                        formatter,
+                        $"{path}Logs{Path.DirectorySeparatorChar}log-.txt",
+                        rollingInterval: RollingInterval.Day,
+                        fileSizeLimitBytes: fileSizeLimitBytes);
+            }
+            else
+            {
+                var consoleTemplate = GetStringSettingOrNull(Core.Constants.Configuration.ConsoleLogOutputTemplate);
+                if (consoleTemplate != null)
+                {
+                    loggerConfiguration.WriteTo.Console(restrictedToMinimumLevel: LogEventLevel.Debug, outputTemplate: consoleTemplate);
+                }
+                else
+                {
+                    loggerConfiguration.WriteTo.Console(restrictedToMinimumLevel: LogEventLevel.Debug);
+                }
+
+                var fileTemplate = GetStringSettingOrNull(Core.Constants.Configuration.FileLogOutputTemplate);
+                if (fileTemplate != null)
+                {
+                    loggerConfiguration.WriteTo.File($"{path}Logs{Path.DirectorySeparatorChar}log-.txt",
+                        outputTemplate: fileTemplate,
+                        rollingInterval: RollingInterval.Day,
+                        fileSizeLimitBytes: fileSizeLimitBytes);
+                }
+                else
+                {
+                    loggerConfiguration.WriteTo.File($"{path}Logs{Path.DirectorySeparatorChar}log-.txt",
+                        rollingInterval: RollingInterval.Day,
+                        fileSizeLimitBytes: fileSizeLimitBytes);
+                }
             }
         }
 
@@ -227,6 +220,14 @@ namespace MultiFactor.Radius.Adapter
 
             var appSettings = ConfigurationManager.AppSettings;
             var sysLogServer = appSettings["syslog-server"];
+            if (sysLogServer == null) return;
+
+            var uri = new Uri(sysLogServer);
+            if (uri.Port == -1)
+            {
+                throw new ConfigurationErrorsException($"Invalid port number for syslog-server {sysLogServer}");
+            }
+
             var sysLogFormatSetting = appSettings["syslog-format"];
             var sysLogFramerSetting = appSettings["syslog-framer"];
             var sysLogFacilitySetting = appSettings["syslog-facility"];
@@ -238,33 +239,40 @@ namespace MultiFactor.Radius.Adapter
             var format = ParseSettingOrDefault(sysLogFormatSetting, SyslogFormat.RFC5424);
             var framer = ParseSettingOrDefault(sysLogFramerSetting, FramingType.OCTET_COUNTING);
 
-            if (sysLogServer != null)
+            var template = GetStringSettingOrNull(Core.Constants.Configuration.SyslogOutputTemplate);
+
+            switch (uri.Scheme)
             {
-                var uri = new Uri(sysLogServer);
-
-                if (uri.Port == -1)
-                {
-                    throw new ConfigurationErrorsException($"Invalid port number for syslog-server {sysLogServer}");
-                }
-
-                switch (uri.Scheme)
-                {
-                    case "udp":
-                        var serverIp = ResolveIP(uri.Host);
-                        loggerConfiguration
-                            .WriteTo
-                            .JsonUdpSyslog(serverIp, port: uri.Port, appName: sysLogAppName, format: format, facility: facility, json: isJson);
-                        logMessage = $"Using syslog server: {sysLogServer}, format: {format}, facility: {facility}, appName: {sysLogAppName}";
-                        break;
-                    case "tcp":
-                        loggerConfiguration
-                            .WriteTo
-                            .JsonTcpSyslog(uri.Host, uri.Port, appName: sysLogAppName, format: format, framingType: framer, facility: facility, json: isJson);
-                        logMessage = $"Using syslog server {sysLogServer}, format: {format}, framing: {framer}, facility: {facility}, appName: {sysLogAppName}";
-                        break;
-                    default:
-                        throw new NotImplementedException($"Unknown scheme {uri.Scheme} for syslog-server {sysLogServer}. Expected udp or tcp");
-                }
+                case "udp":
+                    var serverIp = ResolveIP(uri.Host);
+                    loggerConfiguration
+                        .WriteTo
+                        .JsonUdpSyslog(
+                            serverIp,
+                            port: uri.Port,
+                            appName: sysLogAppName,
+                            format: format,
+                            facility: facility,
+                            json: isJson,
+                            outputTemplate: template);
+                    logMessage = $"Using syslog server: {sysLogServer}, format: {format}, facility: {facility}, appName: {sysLogAppName}";
+                    break;
+                case "tcp":
+                    loggerConfiguration
+                        .WriteTo
+                        .JsonTcpSyslog(
+                            uri.Host, 
+                            uri.Port, 
+                            appName: sysLogAppName, 
+                            format: format, 
+                            framingType: framer,
+                            facility: facility, 
+                            json: isJson,
+                            outputTemplate: template);
+                    logMessage = $"Using syslog server {sysLogServer}, format: {format}, framing: {framer}, facility: {facility}, appName: {sysLogAppName}";
+                    break;
+                default:
+                    throw new NotImplementedException($"Unknown scheme {uri.Scheme} for syslog-server {sysLogServer}. Expected udp or tcp");
             }
         }
 
@@ -301,6 +309,53 @@ namespace MultiFactor.Radius.Adapter
                 default:
                     return null;
             }
+        }
+
+        private static string GetStringSettingOrNull(string key)
+        {
+            var value = ConfigurationManager.AppSettings[key];
+            return string.IsNullOrWhiteSpace(value) ? null : value;
+        }
+
+        private static void ConfigureServices(string path, LoggingLevelSwitch levelSwitch, string syslogInfoMessage, ServiceCollection services)
+        {
+            services.AddSingleton(Log.Logger);
+            services.AddSingleton<IRadiusDictionary>(prov =>
+            {
+                var dictionaryPath = path + "Content" + Path.DirectorySeparatorChar + "radius.dictionary";
+                return new RadiusDictionary(dictionaryPath, prov.GetRequiredService<ILogger>());
+            });
+            services.AddSingleton(prov =>
+            {
+                var config = ServiceConfiguration.Load(
+                    prov.GetRequiredService<IRadiusDictionary>(),
+                    prov.GetRequiredService<ILogger>());
+
+                SetLogLevel(config.LogLevel, levelSwitch);
+                if (syslogInfoMessage != null)
+                {
+                    Log.Logger.Information(syslogInfoMessage);
+                }
+
+                return config;
+            });
+            services.AddScoped<IRadiusPacketParser, RadiusPacketParser>();
+            services.AddSingleton<RadiusServer>();
+            services.AddSingleton<CacheService>();
+            services.AddSingleton<RadiusRouter>();
+            services.AddSingleton<AdapterService>();
+            services.AddSingleton<ActiveDirectoryServicesProvider>();
+            services.AddSingleton(prov => prov.GetRequiredService<ActiveDirectoryServicesProvider>().GetServices());
+            services.AddSingleton<MultiFactorApiClient>();
+            services.AddSingleton<PasswordChangeHandler>();
+            services.AddSingleton<ActiveDirectoryMembershipVerifier>();
+            services.AddSingleton<ForestMetadataCache>();
+
+            services.AddSingleton<IFirstAuthFactorProcessor, ActiveDirectoryFirstAuthFactorProcessor>();
+            services.AddSingleton<IFirstAuthFactorProcessor, AdLdsFirstAuthFactorProcessor>();
+            services.AddSingleton<IFirstAuthFactorProcessor, RadiusFirstAuthFactorProcessor>();
+            services.AddSingleton<IFirstAuthFactorProcessor, DefaultFirstAuthFactorProcessor>();
+            services.AddSingleton<FirstAuthFactorProcessorProvider>();
         }
     }
 }

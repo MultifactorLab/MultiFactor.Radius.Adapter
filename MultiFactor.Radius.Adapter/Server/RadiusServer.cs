@@ -35,6 +35,8 @@ using MultiFactor.Radius.Adapter.Services;
 using System.Globalization;
 using System.Collections.Generic;
 using MultiFactor.Radius.Adapter.Configuration;
+using Serilog.Context;
+using MultiFactor.Radius.Adapter.Logging;
 
 namespace MultiFactor.Radius.Adapter.Server
 {
@@ -154,11 +156,11 @@ namespace MultiFactor.Radius.Adapter.Server
             }
             catch (Exception ex) when (ex is ArgumentException || ex is OverflowException)
             {
-                _logger.Warning(ex, "Ignoring malformed(?) packet received from {host}:{port}", remoteEndpoint.Address, remoteEndpoint.Port);
+                _logger.Warning("Ignoring malformed(?) packet received from {host}:{port}, message: {msg:l}", remoteEndpoint.Address, remoteEndpoint.Port, ex.Message);
             }
             catch (Exception ex)
             {
-                _logger.Error(ex, "Failed to receive packet from {host:l}:{port}", remoteEndpoint.Address, remoteEndpoint.Port);
+                _logger.Error("Failed to receive packet from {host:l}:{port}, message: {msg:l}", remoteEndpoint.Address, remoteEndpoint.Port, ex.Message);
             }
             finally
             {
@@ -196,42 +198,53 @@ namespace MultiFactor.Radius.Adapter.Server
                 return;
             }
 
-            var requestPacket = _radiusPacketParser.Parse(packetBytes, Encoding.UTF8.GetBytes(clientConfiguration.RadiusSharedSecret), encodingName: clientConfiguration.RadiusPapEncoding);
-            var isRetransmission = _cacheService.IsRetransmission(requestPacket, remoteEndpoint);
-
-            if (isRetransmission)
+            ExecuteInLoggerScope(clientConfiguration, () =>
             {
-                _logger.Debug("Retransmissed request from {host:l}:{port} id={id} client '{client:l}', ignoring", remoteEndpoint.Address, remoteEndpoint.Port, requestPacket.Identifier, clientConfiguration.Name);
-                return;
-            }
+                var requestPacket = _radiusPacketParser.Parse(packetBytes, Encoding.UTF8.GetBytes(clientConfiguration.RadiusSharedSecret), encodingName: clientConfiguration.RadiusPapEncoding);
+                var isRetransmission = _cacheService.IsRetransmission(requestPacket, remoteEndpoint);
 
-            if (proxyEndpoint != null)
-            {
-                if (requestPacket.Code == PacketCode.StatusServer)
+                if (isRetransmission)
                 {
-                    _logger.Information("Received {code:l} from {host:l}:{port} proxied by {proxyhost:l}:{proxyport} id={id} client '{client:l}'", requestPacket.Code.ToString(), remoteEndpoint.Address, remoteEndpoint.Port, proxyEndpoint.Address, proxyEndpoint.Port, requestPacket.Identifier, clientConfiguration.Name);
+                    _logger.Debug("Retransmissed request from {host:l}:{port} id={id} client '{client:l}', ignoring", remoteEndpoint.Address, remoteEndpoint.Port, requestPacket.Identifier, clientConfiguration.Name);
+                    return;
+                }
+
+                if (proxyEndpoint != null)
+                {
+                    if (requestPacket.Code == PacketCode.StatusServer)
+                    {
+                        _logger.Information("Received {code:l} from {host:l}:{port} proxied by {proxyhost:l}:{proxyport} id={id} client '{client:l}'", requestPacket.Code.ToString(), remoteEndpoint.Address, remoteEndpoint.Port, proxyEndpoint.Address, proxyEndpoint.Port, requestPacket.Identifier, clientConfiguration.Name);
+                    }
+                    else
+                    {
+                        _logger.Information("Received {code:l} from {host:l}:{port} proxied by {proxyhost:l}:{proxyport} id={id} user='{user:l}' client '{client:l}'", requestPacket.Code.ToString(), remoteEndpoint.Address, remoteEndpoint.Port, proxyEndpoint.Address, proxyEndpoint.Port, requestPacket.Identifier, requestPacket.UserName, clientConfiguration.Name);
+                    }
                 }
                 else
                 {
-                    _logger.Information("Received {code:l} from {host:l}:{port} proxied by {proxyhost:l}:{proxyport} id={id} user='{user:l}' client '{client:l}'", requestPacket.Code.ToString(), remoteEndpoint.Address, remoteEndpoint.Port, proxyEndpoint.Address, proxyEndpoint.Port, requestPacket.Identifier, requestPacket.UserName, clientConfiguration.Name);
+                    if (requestPacket.Code == PacketCode.StatusServer)
+                    {
+                        _logger.Debug("Received {code:l} from {host:l}:{port} id={id} client '{client:l}'", requestPacket.Code.ToString(), remoteEndpoint.Address, remoteEndpoint.Port, requestPacket.Identifier, clientConfiguration.Name);
+                    }
+                    else
+                    {
+                        _logger.Information("Received {code:l} from {host:l}:{port} id={id} user='{user:l}' client '{client:l}'", requestPacket.Code.ToString(), remoteEndpoint.Address, remoteEndpoint.Port, requestPacket.Identifier, requestPacket.UserName, clientConfiguration.Name);
+                    }
                 }
-            }
-            else
+
+
+                var request = new PendingRequest { RemoteEndpoint = remoteEndpoint, ProxyEndpoint = proxyEndpoint, RequestPacket = requestPacket, UserName = requestPacket.UserName };
+
+                Task.Run(async () => await _radiusRouter.HandleRequest(request, clientConfiguration));
+            });
+        }
+
+        private void ExecuteInLoggerScope(ClientConfiguration client, Action action)
+        {
+            using (LogContext.Push(CorrelationIdLogEventEnricher.Create(client)))
             {
-                if (requestPacket.Code == PacketCode.StatusServer)
-                {
-                    _logger.Debug("Received {code:l} from {host:l}:{port} id={id} client '{client:l}'", requestPacket.Code.ToString(), remoteEndpoint.Address, remoteEndpoint.Port, requestPacket.Identifier, clientConfiguration.Name);
-                }
-                else
-                {
-                    _logger.Information("Received {code:l} from {host:l}:{port} id={id} user='{user:l}' client '{client:l}'", requestPacket.Code.ToString(), remoteEndpoint.Address, remoteEndpoint.Port, requestPacket.Identifier, requestPacket.UserName, clientConfiguration.Name);
-                }
+                action();
             }
-
-
-            var request = new PendingRequest { RemoteEndpoint = remoteEndpoint, ProxyEndpoint = proxyEndpoint, RequestPacket = requestPacket, UserName = requestPacket.UserName };
-
-            Task.Run(async () => await _radiusRouter.HandleRequest(request, clientConfiguration));
         }
 
         /// <summary>
