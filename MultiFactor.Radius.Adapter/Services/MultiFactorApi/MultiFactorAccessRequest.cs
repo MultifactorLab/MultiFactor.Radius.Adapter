@@ -14,6 +14,9 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
         public bool Bypassed { get; set; }
         public string Authenticator { get; set; }
         public string Account { get; set; }
+        public string CountryCode { get; set; }
+        public string Region { get; set; }
+        public string City { get; set; }
 
         public static MultiFactorAccessRequest Bypass
         {

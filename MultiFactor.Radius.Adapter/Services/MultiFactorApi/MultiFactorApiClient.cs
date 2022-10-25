@@ -112,8 +112,7 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
 
                 if (responseCode == PacketCode.AccessAccept && !response.Bypassed)
                 {
-                    _logger.Information("Second factor for user '{user:l}' verified successfully. Authenticator '{authenticator:l}', account '{account:l}'", 
-                        userName, response?.Authenticator, response?.Account);
+                    LogGrantedInfo(userName, response, request);
 
                     if (clientConfig.BypassSecondFactorPeriod > 0)
                     {
@@ -123,10 +122,8 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
 
                 if (responseCode == PacketCode.AccessReject)
                 {
-                    var reason = response?.ReplyMessage;
-                    var phone = response?.Phone;
-                    _logger.Warning("Second factor verification for user '{user:l}' from {host:l}:{port} failed with reason='{reason:l}'. User phone {phone:l}", 
-                        userName, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port, reason, phone);
+                    _logger.Warning("Second factor verification for user '{user:l}' from {host:l}:{port} failed with reason='{reason:l}'. User phone {phone:l}",
+                        userName, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port, response?.ReplyMessage, response?.Phone);         
                 }
 
                 return responseCode;
@@ -156,7 +153,7 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
 
                 if (responseCode == PacketCode.AccessAccept && !response.Bypassed)
                 {
-                    _logger.Information("Second factor for user '{user:l}' verified successfully. Authenticator '{authenticator:l}', account '{account:l}'", userName, response?.Authenticator, response?.Account);
+                    LogGrantedInfo(userName, response, request);
                 }
 
                 return responseCode;
@@ -359,6 +356,31 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
 
             //not a passcode
             return null;
+        }
+
+        private void LogGrantedInfo(string userName, MultiFactorAccessRequest response, PendingRequest request)
+        {
+            string countryValue = null;
+            string regionValue = null;
+            string cityValue = null;
+            string callingStationId = request?.RequestPacket?.CallingStationId;
+
+            if (response != null && IPAddress.TryParse(callingStationId, out var ip))
+            {
+                countryValue = response.CountryCode;
+                regionValue = response.Region;
+                cityValue = response.City;
+                callingStationId = ip.ToString();
+            }
+
+            _logger.Information("Second factor for user '{user:l}' verified successfully. Authenticator: '{authenticator:l}', account: '{account:l}', country: '{country:l}', region: '{region:l}', city: '{city:l}', calling-station-id: {clientIp}",
+                        userName,
+                        response?.Authenticator,
+                        response?.Account,
+                        countryValue,
+                        regionValue,
+                        cityValue,
+                        callingStationId);
         }
     }
 }

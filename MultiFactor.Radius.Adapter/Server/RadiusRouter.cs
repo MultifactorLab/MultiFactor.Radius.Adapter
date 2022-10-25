@@ -110,7 +110,8 @@ namespace MultiFactor.Radius.Adapter.Server
                 {
                     //second factor not required
                     var userName = request.UserName;
-                    _logger.Information("Bypass second factor for user '{user:l}'", userName);
+                    _logger.Information("Bypass second factor for user '{user:l}' from {host:l}:{port}",
+                        userName, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
 
                     request.ResponseCode = PacketCode.AccessAccept;
                     RequestProcessed?.Invoke(this, request);
@@ -119,10 +120,7 @@ namespace MultiFactor.Radius.Adapter.Server
                     return;
                 }
 
-                var secondFactorAuthenticationResultCode = await ProcessSecondAuthenticationFactor(request, clientConfig);
-
-                request.ResponseCode = secondFactorAuthenticationResultCode;
-
+                request.ResponseCode = await ProcessSecondAuthenticationFactor(request, clientConfig);
                 if (request.ResponseCode == PacketCode.AccessChallenge)
                 {
                     AddStateChallengePendingRequest(request.State, request);
@@ -132,7 +130,7 @@ namespace MultiFactor.Radius.Adapter.Server
             }
             catch(Exception ex)
             {
-                _logger.Error(ex, "HandleRequest");
+                _logger.Error("Request handling error: {msg:l}", ex.Message);
             }
         }
 
@@ -175,7 +173,7 @@ namespace MultiFactor.Radius.Adapter.Server
                 //security check
                 if (clientConfig.FirstFactorAuthenticationSource == AuthenticationSource.Radius)
                 {
-                    _logger.Information("Bypass second factor for user {user:l}", userName);
+                    _logger.Information("Bypass second factor for user '{user:l}' from {host:l}:{port}", userName, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
                     return PacketCode.AccessAccept;
                 }
             }
@@ -275,7 +273,7 @@ namespace MultiFactor.Radius.Adapter.Server
                 return request;
             }
 
-            _logger.Error($"Unable to get cached request with state={state}");
+            _logger.Error("Unable to get cached request with state={state:l}", state);
             return null;
         }
 
