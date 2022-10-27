@@ -10,6 +10,9 @@ using System.Net;
 
 namespace MultiFactor.Radius.Adapter.Configuration
 {
+    /// <summary>
+    /// Dedicated client configuration (affects the connected client only).
+    /// </summary>
     public class ClientConfiguration
     {
         public ClientConfiguration()

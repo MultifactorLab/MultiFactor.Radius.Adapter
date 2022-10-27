@@ -51,6 +51,7 @@ namespace MultiFactor.Radius.Adapter.Server
         private readonly ServiceConfiguration _serviceConfiguration;
         private readonly CacheService _cacheService;
         private readonly RadiusRouter _radiusRouter;
+        private readonly RandomWaiter _waiter;
 
         public bool Running
         {
@@ -66,6 +67,7 @@ namespace MultiFactor.Radius.Adapter.Server
             IRadiusPacketParser radiusPacketParser,
             CacheService cacheService,
             RadiusRouter radiusRouter,
+            RandomWaiter waiter,
             ILogger logger)
         {
             _serviceConfiguration = serviceConfiguration ?? throw new ArgumentNullException(nameof(serviceConfiguration));
@@ -73,6 +75,7 @@ namespace MultiFactor.Radius.Adapter.Server
             _radiusPacketParser = radiusPacketParser ?? throw new ArgumentNullException(nameof(radiusPacketParser));
             _cacheService = cacheService ?? throw new ArgumentNullException(nameof(cacheService));
             _radiusRouter = radiusRouter ?? throw new ArgumentNullException(nameof(radiusRouter));
+            _waiter = waiter ?? throw new ArgumentNullException(nameof(waiter));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
             _localEndpoint = serviceConfiguration.ServiceServerEndpoint;
@@ -136,7 +139,7 @@ namespace MultiFactor.Radius.Adapter.Server
                 catch (ObjectDisposedException) { } // This is thrown when udpclient is disposed, can be safely ignored
                 catch (Exception ex)
                 {
-                    _logger.Error($"Something went wrong transmitting packet: {ex.Message}");
+                    _logger.Error(ex, "Something went wrong transmitting packet: {msg:l}", ex.Message);
                 }
             }
         }
@@ -160,7 +163,7 @@ namespace MultiFactor.Radius.Adapter.Server
             }
             catch (Exception ex)
             {
-                _logger.Error("Failed to receive packet from {host:l}:{port}, message: {msg:l}", remoteEndpoint.Address, remoteEndpoint.Port, ex.Message);
+                _logger.Error(ex, "Failed to receive packet from {host:l}:{port}, message: {msg:l}", remoteEndpoint.Address, remoteEndpoint.Port, ex.Message);
             }
             finally
             {
@@ -279,7 +282,7 @@ namespace MultiFactor.Radius.Adapter.Server
             }
         }
 
-        private void RouterRequestProcessed(object sender, PendingRequest request)
+        private async void RouterRequestProcessed(object sender, PendingRequest request)
         {
             if (request.ResponsePacket?.IsEapMessageChallenge == true)
             {
@@ -349,11 +352,11 @@ namespace MultiFactor.Radius.Adapter.Server
                             request.ResponsePacket.CopyTo(responsePacket);
                         }
                     }
+                    await _waiter.WaitSomeTimeAsync();
                     break;
                 default:
                     throw new NotImplementedException(request.ResponseCode.ToString());
             }
-
 
             //proxy echo required
             if (requestPacket.Attributes.ContainsKey("Proxy-State"))

@@ -88,21 +88,21 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory
             {
                 if (lex.ServerErrorMessage != null)
                 {
-                    var dataReason = ExtractErrorReason(lex.ServerErrorMessage, out var mustChangePassword);
-                    request.MustChangePassword = mustChangePassword;
+                    var reason = LdapErrorReasonInfo.Create(lex);
+                    request.MustChangePassword = reason.Flags.HasFlag(LdapErrorFlag.MustChangePassword);
 
-                    if (dataReason != null)
+                    if (reason.Reason != LdapErrorReason.UnknownError)
                     {
-                        _logger.Warning($"Verification user '{{user:l}}' at {_domain} failed: {dataReason}", user.Name);
+                        _logger.Warning($"Verification user '{{user:l}}' at {_domain} failed: {reason.ReasonText}", user.Name);
                         return false;
                     }
                 }
 
-                _logger.Error($"Verification user '{{user:l}}' at {_domain} failed: {lex.Message} {lex.ServerErrorMessage}", user.Name);
+                _logger.Error(lex, "Verification user '{user:l}' at {domain:l} failed: {msg:l} {srvmsg:l}", user.Name, _domain, lex.Message, lex.ServerErrorMessage);
             }
             catch (Exception ex)
             {
-                _logger.Error($"Verification user '{{user:l}}' at {_domain} failed: {ex.Message}", user.Name);
+                _logger.Error(ex, "Verification user '{user:l}' at {domain:l} failed: {msg:l}", user.Name, _domain, ex.Message);
             }
 
             return false;
@@ -241,45 +241,6 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory
         private bool IsMemberOf(LdapProfile profile, string group)
         {
             return profile.MemberOf?.Any(g => g.ToLower() == group.ToLower().Trim()) ?? false;
-        }
-
-        private string ExtractErrorReason(string errorMessage, out bool mustChangePassword)
-        {
-            mustChangePassword = false;
-
-            var pattern = @"data ([0-9a-e]{3})";
-            var match = Regex.Match(errorMessage, pattern);
-
-            if (match.Success && match.Groups.Count == 2)
-            {
-                var data = match.Groups[1].Value;
-
-                switch (data)
-                {
-                    case "525":
-                        return "user not found";
-                    case "52e":
-                        return "invalid credentials";
-                    case "530":
-                        return "not permitted to logon at this time​";
-                    case "531":
-                        return "not permitted to logon at this workstation​";
-                    case "532":
-                        mustChangePassword = true;
-                        return "password expired";
-                    case "533":
-                        return "account disabled";
-                    case "701":
-                        return "account expired";
-                    case "773":
-                        mustChangePassword = true;
-                        return "user must change password";
-                    case "775":
-                        return "user account locked";
-                }
-            }
-
-            return null;
         }
     }
 
