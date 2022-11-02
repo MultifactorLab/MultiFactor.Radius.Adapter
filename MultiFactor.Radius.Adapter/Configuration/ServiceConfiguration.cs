@@ -18,7 +18,7 @@ using System.Text.RegularExpressions;
 namespace MultiFactor.Radius.Adapter.Configuration
 {
     /// <summary>
-    /// Service configuration
+    /// Service configuration (affects the whole service).
     /// </summary>
     public class ServiceConfiguration
     {
@@ -151,6 +151,8 @@ namespace MultiFactor.Radius.Adapter.Configuration
 
         public bool SingleClientMode { get; set; }
 
+        public RandomWaiterConfig InvalidCredentialDelay { get; set; }
+
         #endregion
 
         public static string GetLogFormat()
@@ -205,6 +207,15 @@ namespace MultiFactor.Radius.Adapter.Configuration
                 ApiProxy = apiProxySetting,
                 LogLevel = logLevelSetting
             };
+
+            try
+            {
+                configuration.InvalidCredentialDelay = RandomWaiterConfig.Create(appSettings.Settings[Constants.Configuration.PciDss.InvalidCredentialDelay]?.Value);
+            }
+            catch
+            {
+                throw new Exception($"Configuration error: Can't parse '{Constants.Configuration.PciDss.InvalidCredentialDelay}' value");
+            }
 
             var clientConfigFilesPath = Path.GetDirectoryName(AppDomain.CurrentDomain.BaseDirectory) + Path.DirectorySeparatorChar + "clients";
             var clientConfigFiles = Directory.Exists(clientConfigFilesPath) ? Directory.GetFiles(clientConfigFilesPath, "*.config") : new string[0];

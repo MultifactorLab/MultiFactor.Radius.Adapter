@@ -130,7 +130,7 @@ namespace MultiFactor.Radius.Adapter.Server
             }
             catch(Exception ex)
             {
-                _logger.Error("Request handling error: {msg:l}", ex.Message);
+                _logger.Error(ex, "Request handling error: {msg:l}", ex.Message);
             }
         }
 
