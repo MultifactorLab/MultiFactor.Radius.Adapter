@@ -24,13 +24,13 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
     public class MultiFactorApiClient
     {
         private ServiceConfiguration _serviceConfiguration;
+        private readonly AuthenticatedClientCache _authenticatedClientCache;
         private ILogger _logger;
 
-        private static readonly ConcurrentDictionary<string, AuthenticatedClient> _authenticatedClients = new ConcurrentDictionary<string, AuthenticatedClient>();
-
-        public MultiFactorApiClient(ServiceConfiguration serviceConfiguration, ILogger logger)
+        public MultiFactorApiClient(ServiceConfiguration serviceConfiguration, AuthenticatedClientCache authenticatedClientCache, ILogger logger)
         {
             _serviceConfiguration = serviceConfiguration ?? throw new ArgumentNullException(nameof(serviceConfiguration));
+            _authenticatedClientCache = authenticatedClientCache ?? throw new ArgumentNullException(nameof(authenticatedClientCache));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
@@ -71,17 +71,14 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
                     calledStationId = null;
                     break;
             }
-
+    
             //try to get authenticated client to bypass second factor if configured
-            if (clientConfig.BypassSecondFactorPeriod > 0)
+            if (_authenticatedClientCache.TryHitCache(request.RequestPacket.CallingStationId, userName, clientConfig))
             {
-                if (TryHitCache(remoteHost, userName, clientConfig))
-                {
-                    _logger.Information("Bypass second factor for user '{user:l}' from {host:l}:{port}", userName, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
-                    return PacketCode.AccessAccept;
-                }
+                _logger.Information("Bypass second factor for user '{user:l}' from {host:l}:{port}", userName, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
+                return PacketCode.AccessAccept;
             }
-
+            
             var url = _serviceConfiguration.ApiUrl + "/access/requests/ra";
             var payload = new
             {
@@ -113,11 +110,7 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
                 if (responseCode == PacketCode.AccessAccept && !response.Bypassed)
                 {
                     LogGrantedInfo(userName, response, request);
-
-                    if (clientConfig.BypassSecondFactorPeriod > 0)
-                    {
-                        SetCache(remoteHost, userName);
-                    }
+                    _authenticatedClientCache.SetCache(request.RequestPacket.CallingStationId, userName, clientConfig);
                 }
 
                 if (responseCode == PacketCode.AccessReject)
@@ -263,52 +256,6 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
                 default:
                     _logger.Warning($"Got unexpected status from API: {multifactorAccessRequest.Status}");
                     return PacketCode.AccessReject; //access denied
-            }
-        }
-
-        private bool TryHitCache(string remoteHost, string userName, ClientConfiguration clientConfiguration)
-        {
-            if (string.IsNullOrEmpty(remoteHost))
-            {
-                _logger.Warning($"Remote host parameter miss for user {userName}");
-                return false;
-            }
-
-            var id = AuthenticatedClient.CreateId(remoteHost, userName);
-            if (_authenticatedClients.TryGetValue(id, out var authenticatedClient))
-            {
-                _logger.Debug($"User {userName} from {remoteHost} authenticated {authenticatedClient.Elapsed.ToString("hh\\:mm\\:ss")} ago. Bypass period: {clientConfiguration.BypassSecondFactorPeriod}m");
-
-                if (authenticatedClient.Elapsed.TotalMinutes <= (clientConfiguration.BypassSecondFactorPeriod ?? 0))
-                {
-                    return true;
-                }
-                else
-                {
-                    _authenticatedClients.TryRemove(id, out _);
-                }
-            }
-
-            return false;
-        }
-
-        private void SetCache(string remoteHost, string userName)
-        {
-            if (string.IsNullOrEmpty(remoteHost))
-            {
-                return;
-            }
-
-            var client = new AuthenticatedClient
-            {
-                RemoteHost = remoteHost,
-                UserName = userName,
-                AuthenticatedAt = DateTime.Now
-            };
-
-            if (!_authenticatedClients.ContainsKey(client.Id))
-            {
-                _authenticatedClients.TryAdd(client.Id, client);
             }
         }
 

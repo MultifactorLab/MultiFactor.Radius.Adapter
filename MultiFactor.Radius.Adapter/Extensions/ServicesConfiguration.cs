@@ -56,6 +56,7 @@ namespace MultiFactor.Radius.Adapter.Extensions
             services.AddSingleton<FirstAuthFactorProcessorProvider>();
 
             services.AddSingleton(prov => new RandomWaiter(prov.GetRequiredService<ServiceConfiguration>().InvalidCredentialDelay));
+            services.AddSingleton<AuthenticatedClientCache>();
         }
     }
 }

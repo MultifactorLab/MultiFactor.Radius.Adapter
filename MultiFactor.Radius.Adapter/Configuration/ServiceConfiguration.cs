@@ -288,7 +288,6 @@ namespace MultiFactor.Radius.Adapter.Configuration
             var radiusPapEncodingSetting                            = appSettings.Settings["radius-pap-encoding"]?.Value;
             var firstFactorAuthenticationSourceSettings             = appSettings.Settings["first-factor-authentication-source"]?.Value;
             var bypassSecondFactorWhenApiUnreachableSetting         = appSettings.Settings["bypass-second-factor-when-api-unreachable"]?.Value;
-            var bypassSecondFactorPeriodSetting                     = appSettings.Settings["bypass-second-factor-period"]?.Value;
             var privacyModeSetting                                  = appSettings.Settings["privacy-mode"]?.Value;
             var multiFactorApiKeySetting                            = appSettings.Settings["multifactor-nas-identifier"]?.Value;
             var multiFactorApiSecretSetting                         = appSettings.Settings["multifactor-shared-secret"]?.Value;
@@ -347,14 +346,6 @@ namespace MultiFactor.Radius.Adapter.Configuration
                 }
             }
 
-            if (bypassSecondFactorPeriodSetting != null)
-            {
-                if (int.TryParse(bypassSecondFactorPeriodSetting, out var bypassSecondFactorPeriod))
-                {
-                    configuration.BypassSecondFactorPeriod = bypassSecondFactorPeriod;
-                }
-            }
-
             if (!string.IsNullOrEmpty(privacyModeSetting))
             {
                 if (!Enum.TryParse<PrivacyMode>(privacyModeSetting, true, out var privacyMode))
@@ -399,8 +390,39 @@ namespace MultiFactor.Radius.Adapter.Configuration
             }
 
             ReadSignUpGroupsSettings(configuration, appSettings);
+            ReadAuthenticationCacheSetting(appSettings, configuration);
 
             return configuration;
+        }
+
+        private static void ReadAuthenticationCacheSetting(AppSettingsSection appSettings, ClientConfiguration configuration)
+        {
+            var setting = appSettings.Settings[Constants.Configuration.AuthenticationCacheLifetime]?.Value;
+            var legacySetting = appSettings.Settings[Constants.Configuration.BypassSecondFactorPeriod]?.Value;
+            try
+            {
+                if (setting != null)
+                {
+                    configuration.AuthenticationCacheLifetime = AuthenticatedClientCacheConfig.CreateFromTimeSpan(setting);
+                }
+                else 
+                {
+                    configuration.AuthenticationCacheLifetime = AuthenticatedClientCacheConfig.CreateFromMinutes(legacySetting);
+                }
+
+            }
+            catch
+            {
+                if (setting != null)
+                {
+                    throw new Exception($"Configuration error: Can't parse '{Constants.Configuration.AuthenticationCacheLifetime}' value");
+                }
+                else
+                {
+                    throw new Exception($"Configuration error: Can't parse '{Constants.Configuration.BypassSecondFactorPeriod}' value");
+
+                }
+            }
         }
 
         private static void LoadActiveDirectoryAuthenticationSourceSettings(ClientConfiguration configuration, AppSettingsSection appSettings, ActiveDirectorySection activeDirectorySection, bool mandatory)

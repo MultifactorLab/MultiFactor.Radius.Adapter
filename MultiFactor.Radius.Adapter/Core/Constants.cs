@@ -17,6 +17,11 @@ namespace MultiFactor.Radius.Adapter.Core
             {
                 public const string InvalidCredentialDelay = "invalid-credential-delay";
             }
+
+            public const string AuthenticationCacheLifetime = "authentication-cache-lifetime";
+
+            [Obsolete("Use AuthenticationCacheLifetime instead")]
+            public const string BypassSecondFactorPeriod = "bypass-second-factor-period";
         }
     }
 }

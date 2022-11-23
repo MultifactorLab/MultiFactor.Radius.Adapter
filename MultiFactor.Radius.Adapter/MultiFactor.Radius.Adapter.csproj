@@ -134,6 +134,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Configuration\ActiveDirectorySection.cs" />
+    <Compile Include="Configuration\AuthenticatedClientCacheConfig.cs" />
     <Compile Include="Configuration\AuthenticationSource.cs" />
     <Compile Include="Configuration\ClientConfiguration.cs" />
     <Compile Include="Configuration\PrivacyMode.cs" />
@@ -156,6 +157,7 @@
     <Compile Include="Services\ActiveDirectory\LdapErrorFlag.cs" />
     <Compile Include="Services\ActiveDirectory\LdapErrorReason.cs" />
     <Compile Include="Services\ActiveDirectory\LdapErrorReasonInfo.cs" />
+    <Compile Include="Services\AuthenticatedClientCache.cs" />
     <Compile Include="Services\RandomWaiter.cs" />
     <Compile Include="Services\ActiveDirectory\MembershipVerification\ComplexMembershipVerificationResult.cs" />
     <Compile Include="Services\ActiveDirectory\MembershipVerification\MembershipVerificationResult.cs" />

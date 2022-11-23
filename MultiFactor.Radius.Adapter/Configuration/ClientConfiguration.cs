@@ -51,11 +51,6 @@ namespace MultiFactor.Radius.Adapter.Configuration
         /// </summary>
         public bool BypassSecondFactorWhenApiUnreachable { get; set; }
 
-        /// <summary>
-        /// Bypass second factor within specified minutes period for same client-machine/user-name
-        /// </summary>
-        public int? BypassSecondFactorPeriod { get; set; }
-
         public PrivacyMode PrivacyMode { get; set; }
 
 
@@ -223,5 +218,7 @@ namespace MultiFactor.Radius.Adapter.Configuration
         /// </para>
         /// </summary>
         public string SignUpGroups { get; set; }
+
+        public AuthenticatedClientCacheConfig AuthenticationCacheLifetime { get; internal set; }
     }
 }
