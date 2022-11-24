@@ -5,22 +5,31 @@
 using System;
 namespace MultiFactor.Radius.Adapter.Services
 {
-    /// <summary>
-    /// Authenticated client
-    /// </summary>
     public class AuthenticatedClient
     {
-        public string Id => CreateId(RemoteHost, UserName);
-        
-        public string RemoteHost { get; set; }
-        public string UserName { get; set; }
-        public DateTime AuthenticatedAt { get; set; }
+        private readonly DateTime _authenticatedAt;
 
-        public TimeSpan Elapsed => DateTime.Now - AuthenticatedAt;
+        public string Id { get; }
+        public TimeSpan Elapsed => DateTime.Now - _authenticatedAt;
 
-        public static string CreateId(string host, string user)
+        public AuthenticatedClient(string id, DateTime authenticatedAt)
         {
-            return $"{host}:{user}";
+            Id = id;
+            _authenticatedAt = authenticatedAt;
+        }
+
+        public static AuthenticatedClient Create(string clientName, string callingStationId, string userName)
+        {
+            if (callingStationId is null) throw new ArgumentNullException(nameof(callingStationId));
+            if (string.IsNullOrEmpty(userName)) throw new ArgumentException($"'{nameof(userName)}' cannot be null or empty.", nameof(userName));
+            if (string.IsNullOrEmpty(clientName)) throw new ArgumentException($"'{nameof(clientName)}' cannot be null or empty.", nameof(clientName));
+
+            return new AuthenticatedClient(ParseId(clientName, callingStationId, userName), DateTime.Now);
+        }
+
+        public static string ParseId(string callingStationId, string userName, string clientName)
+        {
+            return $"{clientName}-{callingStationId}-{userName}";
         }
     }
 }
