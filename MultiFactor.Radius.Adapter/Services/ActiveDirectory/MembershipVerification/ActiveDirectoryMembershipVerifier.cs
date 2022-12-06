@@ -140,7 +140,7 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory.MembershipVerifica
             var connection = new LdapConnection(currentDomain);
             connection.SessionOptions.ProtocolVersion = 3;
             connection.SessionOptions.RootDseCache = true;
-            connection.Bind(new NetworkCredential { UserName = "ssp.service.user@multifactor.local", Password = "Qwerty123!" });
+            connection.Bind();
 
             return connection;
         }
