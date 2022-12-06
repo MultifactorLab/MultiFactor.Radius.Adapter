@@ -140,7 +140,7 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory.MembershipVerifica
             var connection = new LdapConnection(currentDomain);
             connection.SessionOptions.ProtocolVersion = 3;
             connection.SessionOptions.RootDseCache = true;
-            connection.Bind();
+            connection.Bind(new NetworkCredential { UserName = "ssp.service.user@multifactor.local", Password = "Qwerty123!" });
 
             return connection;
         }
@@ -172,8 +172,8 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory.MembershipVerifica
                         .SetSuccess(true)
                         .SetProfile(profile);
 
-            //only users from group must process 2fa
-            if (clientConfig.ActiveDirectory2FaGroup.Any())
+            resBuilder.SetAre2FaGroupsSpecified(clientConfig.ActiveDirectory2FaGroup.Any());
+            if (resBuilder.Subject.Are2FaGroupsSpecified)
             {
                 var mfaGroup = clientConfig.ActiveDirectory2FaGroup.FirstOrDefault(group => IsMemberOf(profile, group));
                 if (mfaGroup != null)
@@ -187,7 +187,8 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory.MembershipVerifica
                 }
             }
 
-            if (resBuilder.Subject.IsMemberOf2FaGroups && clientConfig.ActiveDirectory2FaBypassGroup.Any())
+            resBuilder.SetAre2FaBypassGroupsSpecified(clientConfig.ActiveDirectory2FaBypassGroup.Any());
+            if (resBuilder.Subject.Are2FaBypassGroupsSpecified)
             {
                 var bypassGroup = clientConfig.ActiveDirectory2FaBypassGroup.FirstOrDefault(group => IsMemberOf(profile, group));
                 if (bypassGroup != null)
