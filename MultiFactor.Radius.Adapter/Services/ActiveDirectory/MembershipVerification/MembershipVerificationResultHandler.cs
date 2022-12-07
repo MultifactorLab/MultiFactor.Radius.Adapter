@@ -38,7 +38,7 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory.MembershipVerifica
             var profile = _verificationResult.Succeeded.Select(x => x.Profile).FirstOrDefault(x => x != null);
             if (profile == null) return;
 
-            request.Bypass2Fa = _verificationResult.Succeeded.All(x => !x.IsMemberOf2FaGroups || x.IsMemberOf2FaBypassGroup);
+            request.Bypass2Fa = IsBypassed();
             request.Upn = profile.Upn;
             request.DisplayName = profile.DisplayName;
             request.EmailAddress = profile.Email;
@@ -49,6 +49,17 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory.MembershipVerifica
             {
                 request.UserGroups = profile.MemberOf;
             }
+        }
+
+        private bool IsBypassed()
+        {
+            var succeeded = _verificationResult.Succeeded.ToList();
+
+            if (!succeeded.Any()) return false;
+            if (succeeded.Any(x => x.IsMemberOf2FaBypassGroup)) return true;
+            if (succeeded.Any(x => x.Are2FaGroupsSpecified && !x.IsMemberOf2FaGroups)) return true;
+
+            return false;
         }
     }
 }

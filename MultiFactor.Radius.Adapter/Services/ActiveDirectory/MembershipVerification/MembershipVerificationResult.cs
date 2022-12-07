@@ -23,8 +23,10 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory.MembershipVerifica
         public bool IsSuccess { get; private set; }
 
         public bool IsMemberOf2FaGroups { get; private set; }
+        public bool Are2FaGroupsSpecified { get; private set; }
 
         public bool IsMemberOf2FaBypassGroup { get; private set; }
+        public bool Are2FaBypassGroupsSpecified { get; private set; }
 
         /// <summary>
         /// User profile from the current domain.
@@ -73,6 +75,18 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory.MembershipVerifica
             public MembershipVerificationResultBuilder SetIsMemberOf2FaBypassGroup(bool isMemberOf)
             {
                 _result.IsMemberOf2FaBypassGroup = isMemberOf;
+                return this;
+            }
+
+            public MembershipVerificationResultBuilder SetAre2FaGroupsSpecified(bool are2faspecified)
+            {
+                _result.Are2FaGroupsSpecified = are2faspecified;
+                return this;
+            }
+
+            public MembershipVerificationResultBuilder SetAre2FaBypassGroupsSpecified(bool areBypassSpecified)
+            {
+                _result.Are2FaBypassGroupsSpecified = areBypassSpecified;
                 return this;
             }
 
