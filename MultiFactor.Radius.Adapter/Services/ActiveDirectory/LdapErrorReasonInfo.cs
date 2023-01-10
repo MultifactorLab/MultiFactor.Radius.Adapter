@@ -22,14 +22,14 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory
             ReasonText = reasonText;
         }
 
-        public static LdapErrorReasonInfo Create(LdapException exception)
+        public static LdapErrorReasonInfo Create(string serverErrorMessage)
         {
-            if (exception is null)
+            if (string.IsNullOrWhiteSpace(serverErrorMessage))
             {
-                throw new ArgumentNullException(nameof(exception));
+                throw new ArgumentException($"'{nameof(serverErrorMessage)}' cannot be null or whitespace.", nameof(serverErrorMessage));
             }
 
-            var reason = GetErrorReason(exception.Message);
+            var reason = GetErrorReason(serverErrorMessage);
             var flags = GetErrorFlags(reason);
             var text = GetReasonText(reason);
 
