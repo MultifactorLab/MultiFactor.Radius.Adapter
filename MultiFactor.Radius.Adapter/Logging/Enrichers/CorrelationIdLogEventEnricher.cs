@@ -3,13 +3,15 @@ using Serilog.Core;
 using Serilog.Events;
 using System;
 
-namespace MultiFactor.Radius.Adapter.Logging
+namespace MultiFactor.Radius.Adapter.Logging.Enrichers
 {
     /// <summary>
     /// Log enricher. Adds CorrelationId property to log event.
     /// </summary>
     public class CorrelationIdLogEventEnricher : ILogEventEnricher
     {
+        private const string _eventToken = "CorrelationId";
+
         private static readonly object Locker = new object();
         private static DateTime ResetPoint;
         private static long RequestChainCounter;
@@ -28,7 +30,7 @@ namespace MultiFactor.Radius.Adapter.Logging
         /// <returns></returns>
         public static CorrelationIdLogEventEnricher Create(ClientConfiguration clientConfiguration)
         {
-            if (clientConfiguration is null) throw new ArgumentNullException(nameof(clientConfiguration));        
+            if (clientConfiguration is null) throw new ArgumentNullException(nameof(clientConfiguration));
 
             lock (Locker)
             {
@@ -39,7 +41,7 @@ namespace MultiFactor.Radius.Adapter.Logging
 
         public void Enrich(LogEvent logEvent, ILogEventPropertyFactory propertyFactory)
         {
-            var property = propertyFactory.CreateProperty("CorrelationId", _correlationId);
+            var property = propertyFactory.CreateProperty(_eventToken, _correlationId);
             logEvent.AddOrUpdateProperty(property);
         }
 

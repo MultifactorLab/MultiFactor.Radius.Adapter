@@ -152,8 +152,11 @@
     <Compile Include="Extensions\LoggingConfiguration.cs" />
     <Compile Include="Extensions\LogLevelConfiguration.cs" />
     <Compile Include="Extensions\ServicesConfiguration.cs" />
-    <Compile Include="Logging\CorrelationIdLogEventEnricher.cs" />
+    <Compile Include="Logging\Enrichers\CorrelationIdLogEventEnricher.cs" />
     <Compile Include="Core\RadiusPacketNasIdentifierParser.cs" />
+    <Compile Include="Logging\Enrichers\RadiusPacketLogEventEnricher.cs" />
+    <Compile Include="Logging\LoggerScope.cs" />
+    <Compile Include="Server\RequestScope.cs" />
     <Compile Include="Services\ActiveDirectory\LdapErrorFlag.cs" />
     <Compile Include="Services\ActiveDirectory\LdapErrorReason.cs" />
     <Compile Include="Services\ActiveDirectory\LdapErrorReasonInfo.cs" />
