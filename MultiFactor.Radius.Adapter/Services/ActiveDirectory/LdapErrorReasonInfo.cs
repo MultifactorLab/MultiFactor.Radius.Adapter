@@ -3,7 +3,6 @@
 //https://github.com/MultifactorLab/MultiFactor.Radius.Adapter/blob/master/LICENSE.md
 
 using System;
-using System.DirectoryServices.Protocols;
 using System.Linq;
 using System.Text.RegularExpressions;
 
