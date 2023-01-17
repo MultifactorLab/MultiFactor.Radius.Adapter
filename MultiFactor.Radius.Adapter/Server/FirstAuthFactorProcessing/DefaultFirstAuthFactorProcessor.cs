@@ -38,7 +38,13 @@ namespace MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing
                 if (clientConfig.UseUpnAsIdentity)
                 {
                     var attrs = LoadRequiredAttributes(request, clientConfig, "userPrincipalName");
-                    if (attrs.ContainsKey("userPrincipalName")) request.Upn = attrs["userPrincipalName"].FirstOrDefault();
+                    if (!attrs.ContainsKey("userPrincipalName"))
+                    {
+                        _logger.Warning("Attribute 'userPrincipalName' was not loaded");
+                        return Task.FromResult(PacketCode.AccessReject);
+                    }
+
+                    request.Upn = attrs["userPrincipalName"].FirstOrDefault();
                 }
 
                 return Task.FromResult(PacketCode.AccessAccept);

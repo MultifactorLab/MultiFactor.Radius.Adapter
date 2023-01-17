@@ -47,12 +47,18 @@ namespace MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing
                 return radiusResponse;
             }
 
-            if (!clientConfig.CheckMembership)     //check membership without AD authentication
+            if (!clientConfig.CheckMembership)
             {
                 if (clientConfig.UseUpnAsIdentity)
                 {
                     var attrs = LoadRequiredAttributes(request, clientConfig, "userPrincipalName");
-                    if (attrs.ContainsKey("userPrincipalName")) request.Upn = attrs["userPrincipalName"].FirstOrDefault();
+                    if (!attrs.ContainsKey("userPrincipalName"))
+                    {
+                        _logger.Warning("Attribute 'userPrincipalName' was not loaded");
+                        return PacketCode.AccessReject;
+                    }
+
+                    request.Upn = attrs["userPrincipalName"].FirstOrDefault();
                 }
 
                 return PacketCode.AccessAccept;
@@ -161,7 +167,7 @@ namespace MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing
             var connection = new LdapConnection(currentDomain);
             connection.SessionOptions.ProtocolVersion = 3;
             connection.SessionOptions.RootDseCache = true;
-            connection.Bind(new System.Net.NetworkCredential("ssp.service.user", "Qwerty123!"));
+            connection.Bind();
 
             return connection;
         }
