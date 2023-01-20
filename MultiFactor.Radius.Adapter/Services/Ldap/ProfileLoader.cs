@@ -98,6 +98,28 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
             return profile;
         }
 
+        public Dictionary<string, string[]> LoadAttributes(LdapConnection connection, LdapIdentity domain, LdapIdentity user, params string[] attrs)
+        {
+            var baseDnList = GetBaseDnList(user, domain);
+            var connAdapter = new LdapConnectionAdapter(connection, _logger);
+            var result = FindUser(user, baseDnList, connAdapter, attrs.ToArray());
+            if (result == null)
+            {
+                _logger.Error($"Unable to find user '{{user:l}}' in {string.Join(", ", baseDnList.Select(x => $"({x})"))}", user.Name);
+                return new Dictionary<string, string[]>();
+            }
+
+            var attributes = new Dictionary<string, string[]>();
+            foreach (var a in attrs)
+            {
+                var loadedAttributeValues = result.Entry.Attributes[a];
+                if (loadedAttributeValues == null || loadedAttributeValues.Capacity == 0) continue;
+                attributes[a] = loadedAttributeValues.GetValues(typeof(string)).Select(x => x.ToString()).ToArray();
+            }
+
+            return attributes;
+        }
+
         private IReadOnlyList<LdapIdentity> GetBaseDnList(LdapIdentity user, LdapIdentity domain)
         {
             switch (user.Type)

@@ -52,7 +52,7 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory.MembershipVerifica
 
                 try
                 {
-                    var user = GetUserIdentity(clientConfig, userName);
+                    var user = LdapIdentityFactory.CreateUserIdentity(clientConfig, userName);
 
                     _logger.Debug($"Verifying user '{{user:l}}' membership at {domainIdentity}", user.Name);
                     using (var connection = CreateConnection(domain))
@@ -109,30 +109,6 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory.MembershipVerifica
             }
 
             return result;
-        }
-
-        private LdapIdentity GetUserIdentity(ClientConfiguration clientConfig, string userName)
-        {
-            if (string.IsNullOrEmpty(userName)) throw new ArgumentNullException(nameof(userName));
-
-            var user = LdapIdentity.ParseUser(userName);
-            if (user.Type == IdentityType.UserPrincipalName)
-            {
-                var suffix = user.UpnToSuffix();
-                if (!clientConfig.IsPermittedDomain(suffix))
-                {
-                    throw new UserDomainNotPermittedException($"User domain {suffix} not permitted");
-                }
-            }
-            else
-            {
-                if (clientConfig.RequiresUpn)
-                {
-                    throw new UserNameFormatException("Only UserPrincipalName format permitted, see configuration");
-                }
-            }
-
-            return user;
         }
 
         private LdapConnection CreateConnection(string currentDomain)
