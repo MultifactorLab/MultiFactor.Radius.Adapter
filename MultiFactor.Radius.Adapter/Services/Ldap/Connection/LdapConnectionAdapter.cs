@@ -3,7 +3,7 @@ using System;
 using System.Diagnostics;
 using System.DirectoryServices.Protocols;
 
-namespace MultiFactor.Radius.Adapter.Services.Ldap
+namespace MultiFactor.Radius.Adapter.Services.Ldap.Connection
 {
     public class LdapConnectionAdapter : IDisposable
     {
@@ -34,9 +34,8 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
             }
 
             var sw = Stopwatch.StartNew();
-
             var response = (SearchResponse)_connection.SendRequest(searchRequest);
-
+            sw.Stop();
             if (sw.Elapsed.TotalSeconds > 2)
             {
                 _logger.Warning($"Slow response while querying {baseDn}. Elapsed {sw.Elapsed}");

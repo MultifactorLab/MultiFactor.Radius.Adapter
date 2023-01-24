@@ -4,6 +4,8 @@
 
 using Microsoft.Extensions.DependencyInjection;
 using MultiFactor.Radius.Adapter.Configuration;
+using MultiFactor.Radius.Adapter.Core;
+using MultiFactor.Radius.Adapter.Core.ApplicationOptions;
 using MultiFactor.Radius.Adapter.Extensions;
 using Serilog;
 using Serilog.Core;
@@ -18,6 +20,9 @@ namespace MultiFactor.Radius.Adapter
 {
     static class Program
     {
+        private const string _usrArg = "--usr";
+        private const string _pwdArg = "--pwd";
+
         /// <summary>
         /// Main entry point
         /// </summary>
@@ -32,22 +37,50 @@ namespace MultiFactor.Radius.Adapter
                 .ConfigureSyslogLogging(out var syslogInfoMessage);
 
             Log.Logger = loggerConfiguration.CreateLogger();
+            var optionsBuilder = ApplicationRunOptions.CreateBuilder();
 
-            if (args.Length > 0)
+            try
             {
-                switch (args[0])
+                if (args.Length > 0)
                 {
-                    case "/i":
-                        InstallService();
-                        return;
-                    case "/u":
-                        UnInstallService();
-                        return;
-                    default:
-                        Log.Logger.Warning($"Unknown command line argument: {args[0]}");
-                        return;
+                    switch (args[0])
+                    {
+                        case "/i":
+                            InstallService();
+                            return;
+
+                        case "/u":
+                            UnInstallService();
+                            return;
+
+                        default:
+                            for (var i = 0; i < args.Length; i++)
+                            {
+                                switch (args[i])
+                                {
+                                    case _usrArg:
+                                        optionsBuilder.AddOption(RunOptionName.Usr, GetArgument(args, i++, _usrArg));
+                                        continue;
+
+                                    case _pwdArg:
+                                        optionsBuilder.AddOption(RunOptionName.Pwd, GetArgument(args, i++, _pwdArg));
+                                        continue;
+
+                                    default:
+                                        throw new ArgumentException($"Unknown command line argument: {args[i]}");
+                                }
+                            }
+                            break;
+                    }
                 }
             }
+            catch (ArgumentException ex)
+            {
+                Log.Logger.Warning(ex.Message);
+                return;
+            }
+
+            GlobalState.SetRunOptions(optionsBuilder.Build());
 
             try
             {
@@ -108,13 +141,23 @@ namespace MultiFactor.Radius.Adapter
             Console.ReadKey();
         }
 
-        public static void UnInstallService()
+        private static void UnInstallService()
         {
             Log.Logger.Information($"UnInstalling service {ServiceConfiguration.ServiceUnitName}");
             System.Configuration.Install.ManagedInstallerClass.InstallHelper(new string[] { "/u", Assembly.GetExecutingAssembly().Location });
             Log.Logger.Information("Service uninstalled");
             Log.Logger.Information("Press any key to exit");
             Console.ReadKey();
+        }
+
+        private static string GetArgument(string[] args, int position, string argName)
+        {
+            if (args.Length < position + 2 || string.IsNullOrEmpty(args[position + 1])) throw new ArgumentException($"Empty argument value near the {argName}");
+
+            var val = args[position + 1];
+            if (val.StartsWith("--") || val.StartsWith("/")) throw new ArgumentException($"Invalid argument value near the {argName}");
+
+            return val;
         }
     }
 }

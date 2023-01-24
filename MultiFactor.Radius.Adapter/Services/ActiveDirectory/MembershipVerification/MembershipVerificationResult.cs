@@ -3,6 +3,7 @@
 //https://github.com/MultifactorLab/MultiFactor.Radius.Adapter/blob/master/LICENSE.md
 
 using MultiFactor.Radius.Adapter.Services.Ldap;
+using MultiFactor.Radius.Adapter.Services.Ldap.ProfileLoading;
 using System;
 
 namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory.MembershipVerification

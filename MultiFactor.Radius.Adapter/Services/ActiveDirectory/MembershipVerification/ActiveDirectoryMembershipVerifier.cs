@@ -5,25 +5,23 @@
 using MultiFactor.Radius.Adapter.Configuration;
 using MultiFactor.Radius.Adapter.Server;
 using MultiFactor.Radius.Adapter.Services.Ldap;
-using MultiFactor.Radius.Adapter.Services.Ldap.LdapMetadata;
+using MultiFactor.Radius.Adapter.Services.Ldap.Connection;
+using MultiFactor.Radius.Adapter.Services.Ldap.ProfileLoading;
 using Serilog;
 using System;
-using System.DirectoryServices.AccountManagement;
-using System.DirectoryServices.Protocols;
 using System.Linq;
-using System.Net;
 
 namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory.MembershipVerification
 {
     public class ActiveDirectoryMembershipVerifier
     {
         private readonly ILogger _logger;
-        private readonly ForestMetadataCache _metadataCache;
+        private readonly ProfileLoaderFactory _profileLoaderFactory;
 
-        public ActiveDirectoryMembershipVerifier(ILogger logger, ForestMetadataCache metadataCache)
+        public ActiveDirectoryMembershipVerifier(ILogger logger, ProfileLoaderFactory profileLoaderFactory)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-            _metadataCache = metadataCache ?? throw new ArgumentNullException(nameof(metadataCache));
+            _profileLoaderFactory = profileLoaderFactory ?? throw new ArgumentNullException(nameof(profileLoaderFactory));
         }
 
         /// <summary>
@@ -55,24 +53,19 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory.MembershipVerifica
                     var user = LdapIdentityFactory.CreateUserIdentity(clientConfig, userName);
 
                     _logger.Debug($"Verifying user '{{user:l}}' membership at {domainIdentity}", user.Name);
-                    using (var connection = CreateConnection(domain))
+                    using (var connection = LdapConnectionFactory.CreateConnection(domain))
                     {
-                        var schema = _metadataCache.Get(
-                            clientConfig.Name,
-                            domainIdentity,
-                            () => new ForestSchemaLoader(clientConfig, connection, _logger).Load(domainIdentity));
-
+                        var loader = _profileLoaderFactory.CreateLoader(clientConfig, connection);
                         if (profile == null)
                         {
-                            profile = new ProfileLoader(schema, _logger)
-                                .LoadProfile(clientConfig, connection, domainIdentity, user);
-                        }
-                        if (profile == null)
-                        {
-                            result.AddDomainResult(MembershipVerificationResult.Create(domainIdentity)
-                                .SetSuccess(false)
-                                .Build());
-                            continue;
+                            profile = loader.LoadProfile(user, domainIdentity);
+                            if (profile == null)
+                            {
+                                result.AddDomainResult(MembershipVerificationResult.Create(domainIdentity)
+                                    .SetSuccess(false)
+                                    .Build());
+                                continue;
+                            }
                         }
 
                         var res = VerifyMembership(clientConfig, profile, domainIdentity, user);
@@ -109,16 +102,6 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory.MembershipVerifica
             }
 
             return result;
-        }
-
-        private LdapConnection CreateConnection(string currentDomain)
-        {
-            var connection = new LdapConnection(currentDomain);
-            connection.SessionOptions.ProtocolVersion = 3;
-            connection.SessionOptions.RootDseCache = true;
-            connection.Bind();
-
-            return connection;
         }
 
         private MembershipVerificationResult VerifyMembership(ClientConfiguration clientConfig,

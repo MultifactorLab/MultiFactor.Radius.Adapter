@@ -6,11 +6,10 @@ using MultiFactor.Radius.Adapter.Configuration;
 using MultiFactor.Radius.Adapter.Core;
 using MultiFactor.Radius.Adapter.Services.ActiveDirectory.MembershipVerification;
 using MultiFactor.Radius.Adapter.Services.Ldap;
-using MultiFactor.Radius.Adapter.Services.Ldap.LdapMetadata;
+using MultiFactor.Radius.Adapter.Services.Ldap.AttributeLoading;
+using MultiFactor.Radius.Adapter.Services.Ldap.Connection;
 using Serilog;
 using System;
-using System.Collections.Generic;
-using System.DirectoryServices.Protocols;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -21,19 +20,20 @@ namespace MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing
     /// </summary>
     public class RadiusFirstAuthFactorProcessor : IFirstAuthFactorProcessor
     {
+        private const string _upnAttr = "userPrincipalName";
         private readonly IRadiusPacketParser _packetParser;
         private readonly ActiveDirectoryMembershipVerifier _membershipVerifier;
-        private readonly ForestMetadataCache _metadataCache;
+        private readonly AttributeLoaderFactory _attributeLoaderFactory;
         private readonly ILogger _logger;
 
         public RadiusFirstAuthFactorProcessor(IRadiusPacketParser packetParser,
             ActiveDirectoryMembershipVerifier membershipVerifier,
-            ForestMetadataCache metadataCache,
+            AttributeLoaderFactory attributeLoaderFactory,
             ILogger logger)
         {
             _packetParser = packetParser ?? throw new ArgumentNullException(nameof(packetParser));
             _membershipVerifier = membershipVerifier ?? throw new ArgumentNullException(nameof(membershipVerifier));
-            _metadataCache = metadataCache ?? throw new ArgumentNullException(nameof(metadataCache));
+            _attributeLoaderFactory = attributeLoaderFactory ?? throw new ArgumentNullException(nameof(attributeLoaderFactory));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
@@ -51,14 +51,13 @@ namespace MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing
             {
                 if (clientConfig.UseUpnAsIdentity)
                 {
-                    var attrs = LoadRequiredAttributes(request, clientConfig, "userPrincipalName");
-                    if (!attrs.ContainsKey("userPrincipalName"))
+                    var attrs = LoadRequiredAttributes(request, clientConfig, _upnAttr);
+                    if (!attrs.HasAttribute(_upnAttr))
                     {
-                        _logger.Warning("Attribute 'userPrincipalName' was not loaded");
                         return PacketCode.AccessReject;
                     }
 
-                    request.Upn = attrs["userPrincipalName"].FirstOrDefault();
+                    request.Upn = attrs.GetAttributeValue(_upnAttr).FirstOrDefault();
                 }
 
                 return PacketCode.AccessAccept;
@@ -111,7 +110,7 @@ namespace MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing
             return PacketCode.AccessReject; //reject by default
         }
 
-        private Dictionary<string, string[]> LoadRequiredAttributes(PendingRequest request, ClientConfiguration clientConfig, params string[] attrs)
+        private LoadedAttributes LoadRequiredAttributes(PendingRequest request, ClientConfiguration clientConfig, params string[] attrs)
         {
             var userName = request.UserName;
             if (string.IsNullOrEmpty(userName))
@@ -119,26 +118,20 @@ namespace MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing
                 throw new Exception($"Can't find User-Name in message id={request.RequestPacket.Identifier} from {request.RemoteEndpoint.Address}:{request.RemoteEndpoint.Port}");
             }
 
-            var attributes = new Dictionary<string, string[]>();
+            var attributes = LoadedAttributes.Empty;
             foreach (var domain in clientConfig.SplittedActiveDirectoryDomains)
             {
-                if (attributes.Any()) break;
+                if (!attributes.IsEmpty) break;
 
                 var domainIdentity = LdapIdentity.FqdnToDn(domain);
 
                 try
                 {
                     var user = LdapIdentityFactory.CreateUserIdentity(clientConfig, userName);
-
-                    _logger.Debug($"Loading attributes for user '{{user:l}}' at {domainIdentity}", user.Name);
-                    using (var connection = CreateConnection(domain))
+                    using (var connection = LdapConnectionFactory.CreateConnection(domain))
                     {
-                        var schema = _metadataCache.Get(
-                            clientConfig.Name,
-                            domainIdentity,
-                            () => new ForestSchemaLoader(clientConfig, connection, _logger).Load(domainIdentity));
-
-                        attributes = new ProfileLoader(schema, _logger).LoadAttributes(connection, domainIdentity, user, attrs);
+                        var loader = _attributeLoaderFactory.CreateLoader(clientConfig, connection);
+                        attributes = loader.LoadAttributes(user, domainIdentity, attrs);
                     }
                 }
                 catch (UserDomainNotPermittedException ex)
@@ -160,16 +153,6 @@ namespace MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing
             }
 
             return attributes;
-        }
-
-        private LdapConnection CreateConnection(string currentDomain)
-        {
-            var connection = new LdapConnection(currentDomain);
-            connection.SessionOptions.ProtocolVersion = 3;
-            connection.SessionOptions.RootDseCache = true;
-            connection.Bind();
-
-            return connection;
         }
     }
 }

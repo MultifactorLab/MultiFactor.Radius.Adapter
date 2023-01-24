@@ -1,4 +1,5 @@
 ﻿using MultiFactor.Radius.Adapter.Configuration;
+using MultiFactor.Radius.Adapter.Services.Ldap.Connection;
 using Serilog;
 using System;
 using System.Collections.Generic;

@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.DirectoryServices.AccountManagement;
+using System.Linq;
 
 namespace MultiFactor.Radius.Adapter.Services.Ldap.LdapMetadata
 {
@@ -44,6 +46,20 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap.LdapMetadata
             }
 
             return defaultDomain;
+        }
+
+        public IReadOnlyList<LdapIdentity> GetBaseDnList(LdapIdentity user, LdapIdentity domain)
+        {
+            switch (user.Type)
+            {
+                case IdentityType.SamAccountName:
+                    return DomainNameSuffixes
+                        .Select(x => x.Value)
+                        .Distinct(new LdapDomainEqualityComparer())
+                        .ToArray();
+                case IdentityType.UserPrincipalName: return new[] { GetMostRelevanteDomain(user, domain) };
+                default: return new[] { domain };
+            }
         }
     }
 }

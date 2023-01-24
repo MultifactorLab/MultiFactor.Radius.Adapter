@@ -6,7 +6,10 @@ using MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing;
 using MultiFactor.Radius.Adapter.Services;
 using MultiFactor.Radius.Adapter.Services.ActiveDirectory;
 using MultiFactor.Radius.Adapter.Services.ActiveDirectory.MembershipVerification;
+using MultiFactor.Radius.Adapter.Services.Ldap.AttributeLoading;
 using MultiFactor.Radius.Adapter.Services.Ldap.LdapMetadata;
+using MultiFactor.Radius.Adapter.Services.Ldap.ProfileLoading;
+using MultiFactor.Radius.Adapter.Services.Ldap.UserFinding;
 using MultiFactor.Radius.Adapter.Services.MultiFactorApi;
 using Serilog;
 using Serilog.Core;
@@ -57,6 +60,10 @@ namespace MultiFactor.Radius.Adapter.Extensions
 
             services.AddSingleton(prov => new RandomWaiter(prov.GetRequiredService<ServiceConfiguration>().InvalidCredentialDelay));
             services.AddSingleton<AuthenticatedClientCache>();
+
+            services.AddSingleton<LdapUserFinderFactory>();
+            services.AddSingleton<AttributeLoaderFactory>();
+            services.AddSingleton<ProfileLoaderFactory>();
         }
     }
 }

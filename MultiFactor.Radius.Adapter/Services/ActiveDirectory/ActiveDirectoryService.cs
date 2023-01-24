@@ -5,15 +5,13 @@
 using MultiFactor.Radius.Adapter.Configuration;
 using MultiFactor.Radius.Adapter.Server;
 using MultiFactor.Radius.Adapter.Services.Ldap;
-using MultiFactor.Radius.Adapter.Services.Ldap.LdapMetadata;
+using MultiFactor.Radius.Adapter.Services.Ldap.Connection;
+using MultiFactor.Radius.Adapter.Services.Ldap.ProfileLoading;
 using Serilog;
 using System;
-using System.Collections.Generic;
 using System.DirectoryServices.AccountManagement;
 using System.DirectoryServices.Protocols;
 using System.Linq;
-using System.Net;
-using System.Text.RegularExpressions;
 
 namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory
 {
@@ -24,12 +22,12 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory
     {
         private ILogger _logger;
         private string _domain;
-        private readonly ForestMetadataCache _forestMetadataCache;
+        private readonly ProfileLoaderFactory _profileLoaderFactory;
 
-        public ActiveDirectoryService(string domain, ForestMetadataCache forestMetadataCache, ILogger logger)
+        public ActiveDirectoryService(string domain, ProfileLoaderFactory profileLoaderFactory, ILogger logger)
         {
             _domain = domain ?? throw new ArgumentNullException(nameof(domain));
-            _forestMetadataCache = forestMetadataCache ?? throw new ArgumentNullException(nameof(forestMetadataCache));
+            _profileLoaderFactory = profileLoaderFactory ?? throw new ArgumentNullException(nameof(profileLoaderFactory));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
         }
@@ -70,17 +68,11 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory
 
             try
             {
-                _logger.Debug($"Verifying user '{{user:l}}' credential and status at {_domain}", user.Name);
+                _logger.Debug("Verifying user '{user:l}' credential and status at '{d:l}'", user.Name, _domain);
 
-                using (var connection = new LdapConnection(_domain))
+                using (var connection = LdapConnectionFactory.CreateConnection(_domain, user.Name, password))
                 {
-                    connection.Credential = new NetworkCredential(user.Name, password);
-                    connection.SessionOptions.RootDseCache = true;
-                    connection.SessionOptions.ProtocolVersion = 3;
-                    connection.Bind();
-
-                    _logger.Information($"User '{{user:l}}' credential and status verified successfully in {_domain}", user.Name);
-
+                    _logger.Information("User '{user:l}' credential and status verified successfully in '{d:l}'", user.Name, _domain);
                     return VerifyMembership(clientConfig, connection, user, request);
                 }
             }
@@ -93,7 +85,7 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory
 
                     if (reason.Reason != LdapErrorReason.UnknownError)
                     {
-                        _logger.Warning($"Verification user '{{user:l}}' at {_domain} failed: {reason.ReasonText}", user.Name);
+                        _logger.Warning("Verification user '{user:l}' at '{d:l}' failed: {reason:l}", user.Name, _domain, reason.ReasonText);
                         return false;
                     }
                 }
@@ -119,19 +111,11 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory
             try
             {
                 LdapProfile userProfile;
-
-                using (var connection = new LdapConnection(_domain))
+                using (var connection = LdapConnectionFactory.CreateConnection(_domain))
                 {
-                    connection.SessionOptions.ProtocolVersion = 3;
-                    connection.SessionOptions.RootDseCache = true;
-                    connection.Bind();
-
                     var domain = LdapIdentity.FqdnToDn(_domain);
-                    var schema = _forestMetadataCache.Get(
-                        clientConfig.Name, 
-                        domain,
-                        () => new ForestSchemaLoader(clientConfig, connection, _logger).Load(domain));
-                    var profile = new ProfileLoader(schema, _logger).LoadProfile(clientConfig, connection, domain, identity);
+                    var loader = _profileLoaderFactory.CreateLoader(clientConfig, connection);
+                    var profile = loader.LoadProfile(identity, domain);
                     if (profile == null)
                     {
                         return false;
@@ -170,17 +154,14 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory
         private bool VerifyMembership(ClientConfiguration clientConfig, LdapConnection connection, LdapIdentity user, PendingRequest request)
         {
             var domain = LdapIdentity.FqdnToDn(_domain);
-            var schema = _forestMetadataCache.Get(
-                clientConfig.Name, 
-                domain, 
-                () => new ForestSchemaLoader(clientConfig, connection, _logger).Load(domain));
-            var profile = new ProfileLoader(schema, _logger).LoadProfile(clientConfig, connection, domain, user);
+            var loader = _profileLoaderFactory.CreateLoader(clientConfig, connection);
+            var profile = loader.LoadProfile(user, domain);
             if (profile == null)
             {
                 return false;
             }
 
-            //user must be member of security group
+            // user must be member of security group
             if (clientConfig.ActiveDirectoryGroup.Any())
             {
                 var accessGroup = clientConfig.ActiveDirectoryGroup.FirstOrDefault(group => IsMemberOf(profile, group));
@@ -195,7 +176,7 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory
                 }
             }
 
-            //only users from group must process 2fa
+            // only users from group must process 2fa
             if (clientConfig.ActiveDirectory2FaGroup.Any())
             {
                 var mfaGroup = clientConfig.ActiveDirectory2FaGroup.FirstOrDefault(group => IsMemberOf(profile, group));
@@ -241,32 +222,6 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory
         private bool IsMemberOf(LdapProfile profile, string group)
         {
             return profile.MemberOf?.Any(g => g.ToLower() == group.ToLower().Trim()) ?? false;
-        }
-    }
-
-    public class UserSearchResult
-    {
-        public SearchResultEntry Entry { get; }
-        public LdapIdentity BaseDn { get; }
-
-        public UserSearchResult(SearchResultEntry entry, LdapIdentity baseDn)
-        {
-            Entry = entry ?? throw new ArgumentNullException(nameof(entry));
-            BaseDn = baseDn ?? throw new ArgumentNullException(nameof(baseDn));
-        }
-    }
-
-    public class LdapDomainEqualityComparer : IEqualityComparer<LdapIdentity>
-    {
-        public bool Equals(LdapIdentity x, LdapIdentity y)
-        {
-            if (x == null || y == null) return false;
-            return x == y || x.Name == y.Name;
-        }
-
-        public int GetHashCode(LdapIdentity obj)
-        {
-            return obj.GetHashCode();
         }
     }
 }

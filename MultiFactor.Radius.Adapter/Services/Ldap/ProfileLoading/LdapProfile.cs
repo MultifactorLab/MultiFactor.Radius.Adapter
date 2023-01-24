@@ -1,6 +1,6 @@
 ﻿using System.Collections.Generic;
 
-namespace MultiFactor.Radius.Adapter.Services.Ldap
+namespace MultiFactor.Radius.Adapter.Services.Ldap.ProfileLoading
 {
     public class LdapProfile
     {

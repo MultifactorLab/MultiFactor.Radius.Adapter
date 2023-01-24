@@ -2,9 +2,8 @@
 //Please see licence at 
 //https://github.com/MultifactorLab/MultiFactor.Radius.Adapter/blob/master/LICENSE.md
 
-using Microsoft.Extensions.DependencyInjection;
 using MultiFactor.Radius.Adapter.Configuration;
-using MultiFactor.Radius.Adapter.Services.Ldap.LdapMetadata;
+using MultiFactor.Radius.Adapter.Services.Ldap.ProfileLoading;
 using Serilog;
 using System;
 using System.Collections.Generic;
@@ -13,11 +12,15 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory
 {
     public class ActiveDirectoryServicesProvider
     {
-        private readonly IServiceProvider _provider;
+        private readonly ServiceConfiguration _serviceConfiguration;
+        private readonly ProfileLoaderFactory _profileLoaderFactory;
+        private readonly ILogger _logger;
 
-        public ActiveDirectoryServicesProvider(IServiceProvider provider)
+        public ActiveDirectoryServicesProvider(ServiceConfiguration serviceConfiguration, ProfileLoaderFactory profileLoaderFactory, ILogger logger)
         {
-            _provider = provider ?? throw new ArgumentNullException(nameof(provider));
+            _serviceConfiguration = serviceConfiguration ?? throw new ArgumentNullException(nameof(serviceConfiguration));
+            _profileLoaderFactory = profileLoaderFactory ?? throw new ArgumentNullException(nameof(profileLoaderFactory));
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
         /// <summary>
@@ -26,14 +29,9 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory
         public IDictionary<string, ActiveDirectoryService> GetServices()
         {
             var dict = new Dictionary<string, ActiveDirectoryService>();
-            var config = _provider.GetRequiredService<ServiceConfiguration>();
-            foreach (var domain in config.GetAllActiveDirectoryDomains())
+            foreach (var domain in _serviceConfiguration.GetAllActiveDirectoryDomains())
             {
-                dict.Add(domain, new ActiveDirectoryService(
-                    domain,
-                    _provider.GetRequiredService<ForestMetadataCache>(),
-                    _provider.GetRequiredService<ILogger>())
-                    );
+                dict.Add(domain, new ActiveDirectoryService(domain, _profileLoaderFactory, _logger));
             }
             return dict;
         }

@@ -3,11 +3,11 @@
 //https://github.com/MultifactorLab/MultiFactor.Radius.Adapter/blob/master/LICENSE.md
 
 using MultiFactor.Radius.Adapter.Configuration;
+using MultiFactor.Radius.Adapter.Services.Ldap.Connection;
 using Serilog;
 using System;
 using System.DirectoryServices.AccountManagement;
 using System.DirectoryServices.Protocols;
-using System.Net;
 using System.Text.RegularExpressions;
 namespace MultiFactor.Radius.Adapter.Services.Ldap
 {
@@ -46,19 +46,8 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
             {
                 _logger.Debug($"Verifying user '{logonName}' credential and status at {ldapUrl}");
 
-                using (var connection = new LdapConnection(ldapUrl.Authority))
+                using (var connection = LdapConnectionFactory.CreateConnection(ldapUrl, logonName, password))
                 {
-                    connection.Credential = new NetworkCredential(logonName, password);
-                    connection.SessionOptions.RootDseCache = true;
-                    connection.AuthType = AuthType.Basic;
-
-                    if (ldapUrl.Scheme.ToLower() == "ldaps")
-                    {
-                        connection.SessionOptions.SecureSocketLayer = true;
-                    }
-
-                    connection.Bind();
-
                     _logger.Information($"User '{user.Name}' credential and status verified successfully at {ldapUrl}");
 
                     return true;
