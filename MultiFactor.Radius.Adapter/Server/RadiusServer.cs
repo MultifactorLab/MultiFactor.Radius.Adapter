@@ -362,10 +362,10 @@ namespace MultiFactor.Radius.Adapter.Server
                                 var convertedValues = new List<object>();
                                 foreach (var val in matched.ToList())
                                 {
-                                    _logger.Debug("Added attribute '{attrname:l}:{attrval:l}' to reply", attr.Key, val.ToString());
+                                    _logger.Debug("Added/replaced attribute '{attrname:l}:{attrval:l}' to reply", attr.Key, val.ToString());
                                     convertedValues.Add(ConvertType(attr.Key, val));
                                 }
-                                responsePacket.Attributes.Add(attr.Key, convertedValues);
+                                responsePacket.Attributes[attr.Key] = convertedValues;
                             }
                         }
                     }
