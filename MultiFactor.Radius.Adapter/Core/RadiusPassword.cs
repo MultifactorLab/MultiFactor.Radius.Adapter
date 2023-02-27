@@ -85,18 +85,22 @@ namespace MultiFactor.Radius.Adapter.Core
         /// </summary>
         public static String Decrypt(Byte[] sharedSecret, Byte[] authenticator, Byte[] passwordBytes, Encoding encoding)
         {
-            var sb = new StringBuilder();
             var key = CreateKey(sharedSecret, authenticator);
+            var bytes = new List<Byte>();
 
             for (var n = 1; n <= passwordBytes.Length / 16; n++)
             {
                 var temp = new Byte[16];
                 Buffer.BlockCopy(passwordBytes, (n - 1) * 16, temp, 0, 16);
-                sb.Append(encoding.GetString(EncryptDecrypt(temp, key)));
+
+                var block = EncryptDecrypt(temp, key);
+                bytes.AddRange(block);
+
                 key = CreateKey(sharedSecret, temp);
             }
 
-            return sb.ToString().Replace("\0", "");
+            var ret = encoding.GetString(bytes.ToArray());
+            return ret.Replace("\0", "");
         }
 
         /// <summary>
