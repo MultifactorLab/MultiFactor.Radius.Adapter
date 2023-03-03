@@ -19,6 +19,7 @@ namespace MultiFactor.Radius.Adapter.Core
             }
 
             public const string AuthenticationCacheLifetime = "authentication-cache-lifetime";
+            public const string ApiTimeout = "multifactor-api-timeout";
 
             [Obsolete("Use AuthenticationCacheLifetime instead")]
             public const string BypassSecondFactorPeriod = "bypass-second-factor-period";

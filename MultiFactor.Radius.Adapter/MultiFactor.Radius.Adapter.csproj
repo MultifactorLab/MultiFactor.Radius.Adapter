@@ -162,6 +162,9 @@
     <Compile Include="Services\ActiveDirectory\LdapErrorReasonInfo.cs" />
     <Compile Include="Services\AuthenticatedClientCache.cs" />
     <Compile Include="Services\Ldap\LdapIdentityFactory.cs" />
+    <Compile Include="Services\MultiFactorApi\WebClientFactory.cs">
+      <SubType>Component</SubType>
+    </Compile>
     <Compile Include="Services\RandomWaiter.cs" />
     <Compile Include="Services\ActiveDirectory\MembershipVerification\ComplexMembershipVerificationResult.cs" />
     <Compile Include="Services\ActiveDirectory\MembershipVerification\MembershipVerificationResult.cs" />

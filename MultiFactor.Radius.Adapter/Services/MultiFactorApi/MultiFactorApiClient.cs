@@ -9,7 +9,6 @@ using MultiFactor.Radius.Adapter.Server;
 using Newtonsoft.Json;
 using Serilog;
 using System;
-using System.Collections.Concurrent;
 using System.Linq;
 using System.Net;
 using System.Text;
@@ -26,12 +25,14 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
         private ServiceConfiguration _serviceConfiguration;
         private readonly AuthenticatedClientCache _authenticatedClientCache;
         private ILogger _logger;
+        private readonly WebClientFactory _webClientFactory;
 
-        public MultiFactorApiClient(ServiceConfiguration serviceConfiguration, AuthenticatedClientCache authenticatedClientCache, ILogger logger)
+        public MultiFactorApiClient(ServiceConfiguration serviceConfiguration, AuthenticatedClientCache authenticatedClientCache, ILogger logger, WebClientFactory webClientFactory)
         {
             _serviceConfiguration = serviceConfiguration ?? throw new ArgumentNullException(nameof(serviceConfiguration));
             _authenticatedClientCache = authenticatedClientCache ?? throw new ArgumentNullException(nameof(authenticatedClientCache));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _webClientFactory = webClientFactory ?? throw new ArgumentNullException(nameof(webClientFactory));
         }
 
         public async Task<PacketCode> CreateSecondFactorRequest(PendingRequest request, ClientConfiguration clientConfig)
@@ -160,58 +161,33 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
 
         private async Task<MultiFactorAccessRequest> SendRequest(string url, object payload, ClientConfiguration clientConfiguration)
         {
-            try
+            //make sure we can communicate securely
+            ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
+            ServicePointManager.DefaultConnectionLimit = 100;
+
+            var requestJson = JsonConvert.SerializeObject(payload);
+            _logger.Debug("Sending request to API: {@payload}", payload);
+
+            using (var web = _webClientFactory.Create(clientConfiguration))
             {
-                //make sure we can communicate securely
-                ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
-                ServicePointManager.DefaultConnectionLimit = 100;
-
-                var json = JsonConvert.SerializeObject(payload);
-
-                _logger.Debug("Sending request to API: {@payload}", payload);
-
-                var requestData = Encoding.UTF8.GetBytes(json);
-                byte[] responseData = null;
-
-                //basic authorization
-                var auth = Convert.ToBase64String(Encoding.ASCII.GetBytes(clientConfiguration.MultifactorApiKey + ":" + clientConfiguration.MultiFactorApiSecret));
-
-                using (var web = new WebClient())
+                try
                 {
-                    web.Headers.Add("Content-Type", "application/json");
-                    web.Headers.Add("Authorization", "Basic " + auth);
+                    var responseData = await web.UploadDataTaskAsync(url, "POST", Encoding.UTF8.GetBytes(requestJson));
+                    var respJson = Encoding.UTF8.GetString(responseData);
+                    var response = JsonConvert.DeserializeObject<MultiFactorApiResponse<MultiFactorAccessRequest>>(respJson);
 
-                    if (!string.IsNullOrEmpty(_serviceConfiguration.ApiProxy))
+                    _logger.Debug("Received response from API: {@response}", response);
+                    if (!response.Success)
                     {
-                        _logger.Debug("Using proxy " + _serviceConfiguration.ApiProxy);
-                        var proxyUri = new Uri(_serviceConfiguration.ApiProxy);
-                        web.Proxy = new WebProxy(proxyUri);
-
-                        if (!string.IsNullOrEmpty(proxyUri.UserInfo))
-                        {
-                            var credentials = proxyUri.UserInfo.Split(new[] { ':' }, 2);
-                            web.Proxy.Credentials = new NetworkCredential(credentials[0], credentials[1]);
-                        }
+                        _logger.Warning("Got unsuccessful response from API: {@response}", response);
                     }
 
-                    responseData = await web.UploadDataTaskAsync(url, "POST", requestData);
-                }
-
-                json = Encoding.UTF8.GetString(responseData);
-                var response = JsonConvert.DeserializeObject<MultiFactorApiResponse<MultiFactorAccessRequest>>(json);
-
-                _logger.Debug("Received response from API: {@response}", response);
-
-                if (!response.Success)
+                    return response.Model;
+                } 
+                catch (Exception ex)
                 {
-                    _logger.Warning("Got unsuccessful response from API: {@response}", response);
+                    throw new MultifactorApiUnreachableException($"Multifactor API host unreachable: {url}. Reason: {ex.Message}", ex);
                 }
-
-                return response.Model;
-            }
-            catch (Exception ex)
-            {
-                throw new MultifactorApiUnreachableException($"Multifactor API host unreachable: {url}. Reason: {ex.Message}", ex);
             }
         }
 
@@ -320,14 +296,15 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
                 callingStationId = ip.ToString();
             }
 
-            _logger.Information("Second factor for user '{user:l}' verified successfully. Authenticator: '{authenticator:l}', account: '{account:l}', country: '{country:l}', region: '{region:l}', city: '{city:l}', calling-station-id: {clientIp}",
+            _logger.Information("Second factor for user '{user:l}' verified successfully. Authenticator: '{authenticator:l}', account: '{account:l}', country: '{country:l}', region: '{region:l}', city: '{city:l}', calling-station-id: {clientIp}, authenticatorId: {authenticatorId}",
                         userName,
                         response?.Authenticator,
                         response?.Account,
                         countryValue,
                         regionValue,
                         cityValue,
-                        callingStationId);
+                        callingStationId,
+                        response.AuthenticatorId);
         }
     }
 }
