@@ -183,15 +183,14 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
 
                     if (!string.IsNullOrEmpty(_serviceConfiguration.ApiProxy))
                     {
-                        _logger.Debug("Using proxy " + _serviceConfiguration.ApiProxy);
-                        var proxyUri = new Uri(_serviceConfiguration.ApiProxy);
-                        web.Proxy = new WebProxy(proxyUri);
-
-                        if (!string.IsNullOrEmpty(proxyUri.UserInfo))
+                        _logger.Debug("Using proxy " + _serviceConfiguration.ApiProxy); 
+                        if (!WebProxyFactory.TryCreateWebProxy(_serviceConfiguration.ApiProxy, out var webProxy))
                         {
-                            var credentials = proxyUri.UserInfo.Split(new[] { ':' }, 2);
-                            web.Proxy.Credentials = new NetworkCredential(credentials[0], credentials[1]);
+                            _logger.Error("Unable to initialize WebProxy {0}", 
+                                _serviceConfiguration.ApiProxy);
+                            throw new WebProxyException(_serviceConfiguration.ApiProxy);
                         }
+                        web.Proxy = webProxy;
                     }
 
                     responseData = await web.UploadDataTaskAsync(url, "POST", requestData);
