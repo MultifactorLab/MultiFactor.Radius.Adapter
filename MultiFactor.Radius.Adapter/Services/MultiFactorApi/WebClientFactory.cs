@@ -54,17 +54,13 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
             if (!string.IsNullOrEmpty(_serviceConfig.ApiProxy))
             {
                 _logger.Debug("Using proxy {addr:l}", _serviceConfig.ApiProxy);
-
-                var proxyUri = new Uri(_serviceConfig.ApiProxy);
-                web.Proxy = new WebProxy(proxyUri);
-
-                if (!string.IsNullOrEmpty(proxyUri.UserInfo))
+                if (!WebProxyFactory.TryCreateWebProxy(_serviceConfig.ApiProxy, out var webProxy))
                 {
-                    var credentials = proxyUri.UserInfo.Split(new[] { ':' }, 2);
-                    web.Proxy.Credentials = new NetworkCredential(credentials[0], credentials[1]);
+                    throw new Exception(
+                        "Unable to initialize WebProxy. Please, check whether multifactor-api-proxy URI is valid.");
                 }
+                web.Proxy = webProxy;
             }
-
             return web;
         }
 
