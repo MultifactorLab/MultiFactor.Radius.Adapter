@@ -205,9 +205,9 @@ namespace MultiFactor.Radius.Adapter.Configuration
             }
 
             var timeout = ParseTimeSpan(apiTimeout, TimeSpan.FromSeconds(100));
-            if (timeout.TotalSeconds < 3)
+            if (timeout.TotalSeconds < 15)
             {
-                timeout = TimeSpan.FromSeconds(3);
+                timeout = TimeSpan.FromSeconds(15);
             }
 
             var configuration = new ServiceConfiguration

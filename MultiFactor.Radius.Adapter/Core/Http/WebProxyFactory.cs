@@ -1,13 +1,13 @@
 using System;
 using System.Net;
 
-namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
+namespace MultiFactor.Radius.Adapter.Core.Http
 {
     public static class WebProxyFactory
     {
-        public static bool TryCreateWebProxy(string apiUri, out WebProxy proxy)
+        public static bool TryCreateWebProxy(string proxyAddress, out WebProxy proxy)
         {
-            if (!TryParseUri(apiUri, out var proxyUri))
+            if (!TryParseUri(proxyAddress, out var proxyUri))
             {
                 proxy = null;
                 return false;
@@ -20,7 +20,7 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
 
         private static bool TryParseUri(string apiUri, out Uri uri)
         {
-            if(Uri.TryCreate(apiUri, UriKind.Absolute,  out uri))
+            if (Uri.TryCreate(apiUri, UriKind.Absolute, out uri))
             {
                 return true;
             }
@@ -44,7 +44,7 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
                 return;
             }
 
-            var credentials = proxyUri.UserInfo.Split(new[] {':'}, 2);
+            var credentials = proxyUri.UserInfo.Split(new[] { ':' }, 2);
             proxy.Credentials = new NetworkCredential(credentials[0], credentials[1]);
         }
     }

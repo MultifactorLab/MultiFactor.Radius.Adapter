@@ -138,7 +138,7 @@ namespace MultiFactor.Radius.Adapter.Server
                 catch (ObjectDisposedException) { } // This is thrown when udpclient is disposed, can be safely ignored
                 catch (Exception ex)
                 {
-                    _logger.Error(ex, "Something went wrong transmitting packet: {msg:l}", ex.Message);
+                    _logger.Error("Something went wrong transmitting packet: {msg:l}", ex.Message);
                 }
             }
         }
