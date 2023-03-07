@@ -186,6 +186,7 @@
     <Compile Include="Core\Http\HttpClientAdapter.cs" />
     <Compile Include="Core\Http\IJsonDataSerializer.cs" />
     <Compile Include="Core\Http\NewtonsoftJsonDataSerializer.cs" />
+    <Compile Include="Core\RadiusPacketOptions.cs" />
     <Compile Include="Extensions\LoggingConfiguration.cs" />
     <Compile Include="Extensions\LogLevelConfiguration.cs" />
     <Compile Include="Extensions\ServicesConfiguration.cs" />
