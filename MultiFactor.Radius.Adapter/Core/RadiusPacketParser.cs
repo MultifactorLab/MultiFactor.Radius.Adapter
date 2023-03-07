@@ -54,7 +54,7 @@ namespace MultiFactor.Radius.Adapter.Core
         /// <summary>
         /// Parses packet bytes and returns an IRadiusPacket
         /// </summary>
-        public IRadiusPacket Parse(Byte[] packetBytes, Byte[] sharedSecret, byte[] requestAuthenticator = null, string encodingName = null)
+        public IRadiusPacket Parse(Byte[] packetBytes, Byte[] sharedSecret, byte[] requestAuthenticator = null, string encodingName = null, Action<RadiusPacketOptions> configure = null)
         {
             var packetLength = BitConverter.ToUInt16(packetBytes.Skip(2).Take(2).Reverse().ToArray(), 0);
             if (packetBytes.Length != packetLength)
@@ -68,6 +68,7 @@ namespace MultiFactor.Radius.Adapter.Core
                 Identifier = packetBytes[1],
                 Code = (PacketCode)packetBytes[0],
             };
+            packet.Configure(configure);
 
             Buffer.BlockCopy(packetBytes, 4, packet.Authenticator, 0, 16);
 
