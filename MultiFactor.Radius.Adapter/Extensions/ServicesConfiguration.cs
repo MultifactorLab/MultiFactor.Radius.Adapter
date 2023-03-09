@@ -70,7 +70,6 @@ namespace MultiFactor.Radius.Adapter.Extensions
             {
                 var config = prov.GetRequiredService<ServiceConfiguration>();
                 client.BaseAddress = new Uri(config.ApiUrl);
-                client.Timeout = config.ApiTimeout;
             }).ConfigurePrimaryHttpMessageHandler(prov =>
             {
                 var config = prov.GetRequiredService<ServiceConfiguration>();
