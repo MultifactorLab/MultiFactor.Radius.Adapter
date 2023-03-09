@@ -392,6 +392,12 @@ namespace MultiFactor.Radius.Adapter.Configuration
             ReadSignUpGroupsSettings(configuration, appSettings);
             ReadAuthenticationCacheSetting(appSettings, configuration);
 
+            var callindStationIdAttr = appSettings.Settings[Constants.Configuration.CallingStationIdAttribute]?.Value;
+            if (!string.IsNullOrWhiteSpace(callindStationIdAttr))
+            {
+                configuration.CallingStationIdVendorAttribute = callindStationIdAttr;
+            }
+
             return configuration;
         }
 
