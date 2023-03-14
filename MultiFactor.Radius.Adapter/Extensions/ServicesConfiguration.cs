@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using MultiFactor.Radius.Adapter.Configuration;
 using MultiFactor.Radius.Adapter.Core;
+using MultiFactor.Radius.Adapter.Core.Http;
 using MultiFactor.Radius.Adapter.Server;
 using MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing;
 using MultiFactor.Radius.Adapter.Services;
@@ -10,7 +11,9 @@ using MultiFactor.Radius.Adapter.Services.Ldap.LdapMetadata;
 using MultiFactor.Radius.Adapter.Services.MultiFactorApi;
 using Serilog;
 using Serilog.Core;
+using System;
 using System.IO;
+using System.Net.Http;
 
 namespace MultiFactor.Radius.Adapter.Extensions
 {
@@ -57,6 +60,31 @@ namespace MultiFactor.Radius.Adapter.Extensions
 
             services.AddSingleton(prov => new RandomWaiter(prov.GetRequiredService<ServiceConfiguration>().InvalidCredentialDelay));
             services.AddSingleton<AuthenticatedClientCache>();
+
+            services.AddSingleton<IJsonDataSerializer, NewtonsoftJsonDataSerializer>();
+            services.AddSingleton<HttpClientAdapter>();
+
+            services.AddHttpClient();
+
+            var clientBuilder = services.AddHttpClient(nameof(HttpClientAdapter), (prov, client) =>
+            {
+                var config = prov.GetRequiredService<ServiceConfiguration>();
+                client.BaseAddress = new Uri(config.ApiUrl);
+            }).ConfigurePrimaryHttpMessageHandler(prov =>
+            {
+                var config = prov.GetRequiredService<ServiceConfiguration>();
+                var handler = new HttpClientHandler();
+
+                if (string.IsNullOrWhiteSpace(config.ApiProxy)) return handler;
+
+                if (!WebProxyFactory.TryCreateWebProxy(config.ApiProxy, out var webProxy))
+                {
+                    throw new Exception("Unable to initialize WebProxy. Please, check whether multifactor-api-proxy URI is valid.");
+                }
+                handler.Proxy = webProxy;
+
+                return handler;
+            });
         }
     }
 }

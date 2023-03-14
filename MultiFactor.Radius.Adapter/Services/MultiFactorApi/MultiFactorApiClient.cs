@@ -5,11 +5,11 @@
 
 using MultiFactor.Radius.Adapter.Configuration;
 using MultiFactor.Radius.Adapter.Core;
+using MultiFactor.Radius.Adapter.Core.Http;
 using MultiFactor.Radius.Adapter.Server;
-using Newtonsoft.Json;
 using Serilog;
 using System;
-using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Text;
@@ -23,15 +23,15 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
     /// </summary>
     public class MultiFactorApiClient
     {
-        private ServiceConfiguration _serviceConfiguration;
         private readonly AuthenticatedClientCache _authenticatedClientCache;
         private ILogger _logger;
+        private readonly HttpClientAdapter _httpClientAdapter;
 
-        public MultiFactorApiClient(ServiceConfiguration serviceConfiguration, AuthenticatedClientCache authenticatedClientCache, ILogger logger)
+        public MultiFactorApiClient(AuthenticatedClientCache authenticatedClientCache, ILogger logger, HttpClientAdapter httpClientAdapter)
         {
-            _serviceConfiguration = serviceConfiguration ?? throw new ArgumentNullException(nameof(serviceConfiguration));
             _authenticatedClientCache = authenticatedClientCache ?? throw new ArgumentNullException(nameof(authenticatedClientCache));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _httpClientAdapter = httpClientAdapter ?? throw new ArgumentNullException(nameof(httpClientAdapter));
         }
 
         public async Task<PacketCode> CreateSecondFactorRequest(PendingRequest request, ClientConfiguration clientConfig)
@@ -78,7 +78,6 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
                 return PacketCode.AccessAccept;
             }
             
-            var url = _serviceConfiguration.ApiUrl + "/access/requests/ra";
             var payload = new
             {
                 Identity = userName,
@@ -100,7 +99,7 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
 
             try
             {
-                var response = await SendRequest(url, payload, clientConfig);
+                var response = await SendRequest("access/requests/ra", payload, clientConfig);
                 var responseCode = ConvertToRadiusCode(response);
 
                 request.State = response?.Id;
@@ -115,7 +114,11 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
                 if (responseCode == PacketCode.AccessReject)
                 {
                     _logger.Warning("Second factor verification for user '{user:l}' from {host:l}:{port} failed with reason='{reason:l}'. User phone {phone:l}",
-                        userName, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port, response?.ReplyMessage, response?.Phone);         
+                        userName, 
+                        request.RemoteEndpoint.Address, 
+                        request.RemoteEndpoint.Port, 
+                        response?.ReplyMessage, 
+                        response?.Phone);         
                 }
 
                 return responseCode;
@@ -126,9 +129,9 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
             }
         }
 
-        public async Task<PacketCode> Challenge(PendingRequest request, ClientConfiguration clientConfig, string userName, string answer, string state)
+        public async Task<PacketCode> Challenge(PendingRequest request, ClientConfiguration clientConfig, 
+            string userName, string answer, string state)
         {
-            var url = _serviceConfiguration.ApiUrl + "/access/requests/ra/challenge";
             var payload = new
             {
                 Identity = userName,
@@ -138,7 +141,7 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
 
             try
             {
-                var response = await SendRequest(url, payload, clientConfig);
+                var response = await SendRequest("access/requests/ra/challenge", payload, clientConfig);
                 var responseCode = ConvertToRadiusCode(response);
 
                 request.ReplyMessage = response.ReplyMessage;
@@ -155,52 +158,19 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
             {
                 return HandleException(ex, userName, request, clientConfig);
             }
-
         }
 
-        private async Task<MultiFactorAccessRequest> SendRequest(string url, object payload, ClientConfiguration clientConfiguration)
+        private async Task<MultiFactorAccessRequest> SendRequest(string url, object payload, ClientConfiguration clientConfig)
         {
+            var headers = new Dictionary<string, string>
+            {
+                {"Authorization", $"Basic {BuildBasicAuth(clientConfig)}" }
+            };
+
             try
             {
-                //make sure we can communicate securely
-                ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
-                ServicePointManager.DefaultConnectionLimit = 100;
-
-                var json = JsonConvert.SerializeObject(payload);
-
-                _logger.Debug("Sending request to API: {@payload}", payload);
-
-                var requestData = Encoding.UTF8.GetBytes(json);
-                byte[] responseData = null;
-
-                //basic authorization
-                var auth = Convert.ToBase64String(Encoding.ASCII.GetBytes(clientConfiguration.MultifactorApiKey + ":" + clientConfiguration.MultiFactorApiSecret));
-
-                using (var web = new WebClient())
-                {
-                    web.Headers.Add("Content-Type", "application/json");
-                    web.Headers.Add("Authorization", "Basic " + auth);
-
-                    if (!string.IsNullOrEmpty(_serviceConfiguration.ApiProxy))
-                    {
-                        _logger.Debug("Using proxy " + _serviceConfiguration.ApiProxy);
-                        var proxyUri = new Uri(_serviceConfiguration.ApiProxy);
-                        web.Proxy = new WebProxy(proxyUri);
-
-                        if (!string.IsNullOrEmpty(proxyUri.UserInfo))
-                        {
-                            var credentials = proxyUri.UserInfo.Split(new[] { ':' }, 2);
-                            web.Proxy.Credentials = new NetworkCredential(credentials[0], credentials[1]);
-                        }
-                    }
-
-                    responseData = await web.UploadDataTaskAsync(url, "POST", requestData);
-                }
-
-                json = Encoding.UTF8.GetString(responseData);
-                var response = JsonConvert.DeserializeObject<MultiFactorApiResponse<MultiFactorAccessRequest>>(json);
-
-                _logger.Debug("Received response from API: {@response}", response);
+                var response = await _httpClientAdapter
+                    .PostAsync<MultiFactorApiResponse<MultiFactorAccessRequest>>(url, payload, headers);
 
                 if (!response.Success)
                 {
@@ -208,11 +178,13 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
                 }
 
                 return response.Model;
-            }
+            } 
             catch (Exception ex)
             {
-                throw new MultifactorApiUnreachableException($"Multifactor API host unreachable: {url}. Reason: {ex.Message}", ex);
-            }
+                var message = ex is TaskCanceledException ? "Timed out" : ex.Message;
+                var err = $"Multifactor API host unreachable: {url}. Reason: {message}";
+                throw new MultifactorApiUnreachableException(err);
+            }  
         }
 
         private PacketCode HandleException(Exception ex, string username, PendingRequest request, ClientConfiguration clientConfig)
@@ -320,14 +292,21 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
                 callingStationId = ip.ToString();
             }
 
-            _logger.Information("Second factor for user '{user:l}' verified successfully. Authenticator: '{authenticator:l}', account: '{account:l}', country: '{country:l}', region: '{region:l}', city: '{city:l}', calling-station-id: {clientIp}",
+            _logger.Information("Second factor for user '{user:l}' verified successfully. Authenticator: '{authenticator:l}', account: '{account:l}', country: '{country:l}', region: '{region:l}', city: '{city:l}', calling-station-id: {clientIp}, authenticatorId: {authenticatorId}",
                         userName,
                         response?.Authenticator,
                         response?.Account,
                         countryValue,
                         regionValue,
                         cityValue,
-                        callingStationId);
+                        callingStationId,
+                        response.AuthenticatorId);
+        }
+
+        private static string BuildBasicAuth(ClientConfiguration clientConfig)
+        {
+            var bytes = Encoding.ASCII.GetBytes($"{clientConfig.MultifactorApiKey}:{clientConfig.MultiFactorApiSecret}");
+            return Convert.ToBase64String(bytes);
         }
     }
 }

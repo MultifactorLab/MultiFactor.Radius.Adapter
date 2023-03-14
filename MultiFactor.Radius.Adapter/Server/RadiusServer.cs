@@ -138,7 +138,7 @@ namespace MultiFactor.Radius.Adapter.Server
                 catch (ObjectDisposedException) { } // This is thrown when udpclient is disposed, can be safely ignored
                 catch (Exception ex)
                 {
-                    _logger.Error(ex, "Something went wrong transmitting packet: {msg:l}", ex.Message);
+                    _logger.Error("Something went wrong transmitting packet: {msg:l}", ex.Message);
                 }
             }
         }
@@ -202,7 +202,8 @@ namespace MultiFactor.Radius.Adapter.Server
 
             var requestPacket = _radiusPacketParser.Parse(packetBytes, 
                 Encoding.UTF8.GetBytes(clientConfiguration.RadiusSharedSecret), 
-                encodingName: clientConfiguration.RadiusPapEncoding);
+                encodingName: clientConfiguration.RadiusPapEncoding,
+                configure: x => x.CallingStationIdAttribute = clientConfiguration.CallingStationIdVendorAttribute);
             var requestScope = new RequestScope(clientConfiguration, remoteEndpoint, proxyEndpoint, requestPacket);
 
             LoggerScope.Wrap(ProcessRequest, requestScope);
