@@ -202,7 +202,8 @@ namespace MultiFactor.Radius.Adapter.Server
 
             var requestPacket = _radiusPacketParser.Parse(packetBytes, 
                 Encoding.UTF8.GetBytes(clientConfiguration.RadiusSharedSecret), 
-                encodingName: clientConfiguration.RadiusPapEncoding);
+                encodingName: clientConfiguration.RadiusPapEncoding,
+                configure: x => x.CallingStationIdAttribute = clientConfiguration.CallingStationIdVendorAttribute);
             var requestScope = new RequestScope(clientConfiguration, remoteEndpoint, proxyEndpoint, requestPacket);
 
             LoggerScope.Wrap(ProcessRequest, requestScope);

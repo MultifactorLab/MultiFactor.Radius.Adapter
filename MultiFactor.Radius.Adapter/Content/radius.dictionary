@@ -1810,6 +1810,18 @@ VendorSpecificAttribute	16313	4	VNC-PPPoE-CBQ-TX-Fallback	integer
 VendorSpecificAttribute	17458	0	CCA-AVPAIR	string
 VendorSpecificAttribute	17458	1	CCA-Service-Identifier	string
 
+# VendorId 25461
+VendorSpecificAttribute 25461	1	PaloAlto-Admin-Role	string
+VendorSpecificAttribute 25461	2	PaloAlto-Access-Domain	string
+VendorSpecificAttribute 25461	3	PaloAlto-Panorama-Admin-Role	string
+VendorSpecificAttribute 25461	4	PaloAlto-Access-Domain	string
+VendorSpecificAttribute 25461	5	PaloAlto-User-Group	string
+VendorSpecificAttribute 25461	6	PaloAlto-User-Domain	string
+VendorSpecificAttribute 25461	7	PaloAlto-Source-IP	string
+VendorSpecificAttribute 25461	8	PaloAlto-PaloAlto-Client-OS	string
+VendorSpecificAttribute 25461	9	PaloAlto-Client-Hostname	string
+VendorSpecificAttribute 25461	10	PaloAlto-GlobalProtect-Version	string
+
 # VendorId 774641 (Multifactor)
 VendorSpecificAttribute	774641	1	mfa-client-name	string
 VendorSpecificAttribute	774641	2	mfa-client-ver	string

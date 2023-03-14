@@ -220,5 +220,7 @@ namespace MultiFactor.Radius.Adapter.Configuration
         public string SignUpGroups { get; set; }
 
         public AuthenticatedClientCacheConfig AuthenticationCacheLifetime { get; internal set; }
+
+        public string CallingStationIdVendorAttribute { get; internal set; }
     }
 }

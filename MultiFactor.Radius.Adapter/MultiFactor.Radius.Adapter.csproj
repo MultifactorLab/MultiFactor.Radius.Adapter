@@ -149,6 +149,8 @@
     <Compile Include="Configuration\ValueElement.cs" />
     <Compile Include="Configuration\ValueElementCollection.cs" />
     <Compile Include="Core\Constants.cs" />
+    <Compile Include="Core\Http\WebProxyFactory.cs" />
+    <Compile Include="Core\RadiusPacketOptions.cs" />
     <Compile Include="Extensions\LoggingConfiguration.cs" />
     <Compile Include="Extensions\LogLevelConfiguration.cs" />
     <Compile Include="Extensions\ServicesConfiguration.cs" />
