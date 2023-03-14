@@ -53,6 +53,9 @@ namespace MultiFactor.Radius.Adapter.Configuration
 
         public PrivacyMode PrivacyMode { get; set; }
 
+
+        #region ActiveDirectory Authentication settings
+
         /// <summary>
         /// Active Directory Domain
         /// </summary>
@@ -144,6 +147,10 @@ namespace MultiFactor.Radius.Adapter.Configuration
             return true;
         }
 
+        #endregion
+
+        #region RADIUS Authentication settings
+
         /// <summary>
         /// This service RADIUS UDP Client endpoint
         /// </summary>
@@ -153,7 +160,14 @@ namespace MultiFactor.Radius.Adapter.Configuration
         /// </summary>
         public IPEndPoint NpsServerEndpoint { get; set; }
 
+        #endregion
+
+        #region General LDAP settings
+
         public Uri LdapUrl { get; set; }
+
+        #endregion
+
 
         /// <summary>
         /// Multifactor API key
@@ -206,6 +220,5 @@ namespace MultiFactor.Radius.Adapter.Configuration
         public string SignUpGroups { get; set; }
 
         public AuthenticatedClientCacheConfig AuthenticationCacheLifetime { get; internal set; }
-        public string CallingStationIdVendorAttribute { get; internal set; }
     }
 }

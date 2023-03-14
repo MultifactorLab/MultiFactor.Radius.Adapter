@@ -38,8 +38,6 @@ namespace MultiFactor.Radius.Adapter.Core
     /// </summary>
     public class RadiusPacket : IRadiusPacket
     {
-        private readonly RadiusPacketOptions _options = new RadiusPacketOptions();
-
         public PacketCode Code
         {
             get;
@@ -127,7 +125,7 @@ namespace MultiFactor.Radius.Adapter.Core
                 return GetString("MS-Client-Machine-Account-Name") ?? GetString("MS-RAS-Client-Name");
             }
         }
-        public string CallingStationId => GetCallingStationId();
+        public string CallingStationId => GetString("Calling-Station-Id") ?? RemoteHostName;
         public string CalledStationId => GetString("Called-Station-Id");
         public string NasIdentifier => GetString("NAS-Identifier");
         public string State => GetString("State");
@@ -220,11 +218,6 @@ namespace MultiFactor.Radius.Adapter.Core
                 Identifier = Identifier,
                 RequestAuthenticator = Authenticator
             };
-        }
-
-        public void Configure(Action<RadiusPacketOptions> configure)
-        {
-            configure?.Invoke(_options);
         }
 
 
@@ -321,17 +314,6 @@ namespace MultiFactor.Radius.Adapter.Core
         {
             var base64Authenticator = Authenticator.Base64();
             return $"{Code.ToString("d")}:{Identifier}:{remoteEndpoint}:{UserName}:{base64Authenticator}";
-        }
-
-        private string GetCallingStationId()
-        {
-            if (!string.IsNullOrWhiteSpace(_options.CallingStationIdAttribute))
-            {
-                return GetString(_options.CallingStationIdAttribute)
-                    ?? GetString("Calling-Station-Id")
-                    ?? RemoteHostName;
-            }
-            return GetString("Calling-Station-Id") ?? RemoteHostName;
         }
     }
 }

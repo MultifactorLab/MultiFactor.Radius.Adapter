@@ -14,7 +14,6 @@ using System.Text;
 using System.IO;
 using NetTools;
 using System.Text.RegularExpressions;
-using System.Globalization;
 
 namespace MultiFactor.Radius.Adapter.Configuration
 {
@@ -145,8 +144,6 @@ namespace MultiFactor.Radius.Adapter.Configuration
         /// </summary>
         public string ApiProxy { get; set; }
 
-        public TimeSpan ApiTimeout { get; set; }
-
         /// <summary>
         /// Logging level
         /// </summary>
@@ -184,7 +181,6 @@ namespace MultiFactor.Radius.Adapter.Configuration
             var serviceServerEndpointSetting    = appSettings.Settings["adapter-server-endpoint"]?.Value;
             var apiUrlSetting                   = appSettings.Settings["multifactor-api-url"]?.Value;
             var apiProxySetting                 = appSettings.Settings["multifactor-api-proxy"]?.Value;
-            var apiTimeout                      = appSettings.Settings[Constants.Configuration.ApiTimeout]?.Value;
             var logLevelSetting                 = appSettings.Settings["logging-level"]?.Value;
 
             if (string.IsNullOrEmpty(serviceServerEndpointSetting))
@@ -204,18 +200,11 @@ namespace MultiFactor.Radius.Adapter.Configuration
                 throw new Exception("Configuration error: Can't parse 'adapter-server-endpoint' value");
             }
 
-            var timeout = ParseTimeSpan(apiTimeout, TimeSpan.FromSeconds(100));
-            if (timeout.TotalSeconds < 15)
-            {
-                timeout = TimeSpan.FromSeconds(15);
-            }
-
             var configuration = new ServiceConfiguration
             {
                 ServiceServerEndpoint = serviceServerEndpoint,
                 ApiUrl = apiUrlSetting,
                 ApiProxy = apiProxySetting,
-                ApiTimeout = timeout,
                 LogLevel = logLevelSetting
             };
 
@@ -402,12 +391,6 @@ namespace MultiFactor.Radius.Adapter.Configuration
 
             ReadSignUpGroupsSettings(configuration, appSettings);
             ReadAuthenticationCacheSetting(appSettings, configuration);
-
-            var callindStationIdAttr = appSettings.Settings[Constants.Configuration.CallingStationIdAttribute]?.Value;
-            if (!string.IsNullOrWhiteSpace(callindStationIdAttr))
-            {
-                configuration.CallingStationIdVendorAttribute = callindStationIdAttr;
-            }
 
             return configuration;
         }
@@ -682,20 +665,9 @@ namespace MultiFactor.Radius.Adapter.Configuration
             configuration.SignUpGroups = signUpGroupsSettings;
         }
 
-        private static TimeSpan ParseTimeSpan(string value, TimeSpan? defaultValue = null)
-        {
-            var def = defaultValue ?? TimeSpan.Zero;
-            if (string.IsNullOrWhiteSpace(value)) return def;
-
-            if (TimeSpan.TryParseExact(value, @"hh\:mm\:ss", null, TimeSpanStyles.None, out var parsed))
-            {
-                return parsed;
-            }
-
-            throw new Exception($"Configuration error: Can't parse '{Constants.Configuration.ApiTimeout}' value");
-        }
-
         #endregion
+
+        #region static members
 
         /// <summary>
         /// Windows service unit name
@@ -718,5 +690,7 @@ namespace MultiFactor.Radius.Adapter.Configuration
                 return ConfigurationManager.AppSettings["service-display-name"] ?? "MultiFactor Radius Adapter";
             }
         }
+
+        #endregion
     }
 }
