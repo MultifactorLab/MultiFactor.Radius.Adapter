@@ -4,6 +4,7 @@
 
 using MultiFactor.Radius.Adapter.Core;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace MultiFactor.Radius.Adapter.Server
@@ -65,12 +66,12 @@ namespace MultiFactor.Radius.Adapter.Server
         /// <summary>
         /// User group condition
         /// </summary>
-        public string UserGroupCondition { get; set; }
+        public List<string> UserGroupCondition { get; set; }
 
         /// <summary>
         /// User name condition
         /// </summary>
-        public string UserNameCondition { get; set; }
+        public List<string> UserNameCondition { get; set; }
 
         /// <summary>
         /// Is match condition
@@ -96,26 +97,28 @@ namespace MultiFactor.Radius.Adapter.Server
             }
 
             //if matched user name condition
-            if (!string.IsNullOrEmpty(UserNameCondition))
+            if (UserNameCondition != null && UserNameCondition.Any())
             {
                 var userName = request.UserName;
-                var isCanonical = Utils.IsCanicalUserName(UserNameCondition);
-                if (isCanonical)
+                var canonicalUserName = Utils.CanonicalizeUserName(userName);
+                Func<string, bool> comapareLogic = (string conditionName) =>
                 {
-                    userName = Utils.CanonicalizeUserName(userName);
-                }
-
-                return string.Compare(userName, UserNameCondition, StringComparison.InvariantCultureIgnoreCase) == 0;
+                    var toMatch = Utils.IsCanicalUserName(conditionName)
+                            ? canonicalUserName
+                            : userName;
+                    return string.Compare(toMatch, conditionName,
+                        StringComparison.InvariantCultureIgnoreCase) == 0;
+                };
+                return UserNameCondition.Any(comapareLogic);
             }
 
             //if matched user group condition
-            if (!string.IsNullOrEmpty(UserGroupCondition))
+            if (UserGroupCondition != null && UserGroupCondition.Any())
             {
-                var isInGroup = request
-                    .UserGroups
-                    .Any(g => string.Compare(g, UserGroupCondition, StringComparison.InvariantCultureIgnoreCase) == 0);
-
-                return isInGroup;
+                return UserGroupCondition.Intersect(
+                     request.UserGroups,
+                     StringComparer.OrdinalIgnoreCase
+                ).Any();
             }
 
             return true; //without conditions
@@ -143,10 +146,16 @@ namespace MultiFactor.Radius.Adapter.Server
             switch (parts[0])
             {
                 case "UserGroup":
-                    UserGroupCondition = parts[1];
+                    UserGroupCondition = parts[1].Split(new[] { ';' },
+                        StringSplitOptions.RemoveEmptyEntries)
+                        .Select(x => x.Trim())
+                        .ToList();
                     break;
                 case "UserName":
-                    UserNameCondition = parts[1];
+                    UserNameCondition = parts[1].Split(new[] { ';' },
+                        StringSplitOptions.RemoveEmptyEntries)
+                        .Select(x => x.Trim())
+                        .ToList();
                     break;
                 default:
                     throw new Exception($"Unknown condition '{clause}'");
