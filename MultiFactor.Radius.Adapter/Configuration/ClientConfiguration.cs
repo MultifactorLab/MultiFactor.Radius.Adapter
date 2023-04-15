@@ -2,6 +2,7 @@
 //Please see licence at 
 //https://github.com/MultifactorLab/MultiFactor.Radius.Adapter/blob/master/LICENSE.md
 
+using MultiFactor.Radius.Adapter.Configuration.Features.PrivacyModeFeature;
 using MultiFactor.Radius.Adapter.Server;
 using System;
 using System.Collections.Generic;
@@ -51,7 +52,7 @@ namespace MultiFactor.Radius.Adapter.Configuration
         /// </summary>
         public bool BypassSecondFactorWhenApiUnreachable { get; set; }
 
-        public PrivacyMode PrivacyMode { get; set; }
+        public PrivacyModeDescriptor PrivacyMode { get; set; }
 
 
         #region ActiveDirectory Authentication settings
