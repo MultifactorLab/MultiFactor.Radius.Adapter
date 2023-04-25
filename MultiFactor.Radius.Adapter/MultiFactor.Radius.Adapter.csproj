@@ -137,7 +137,8 @@
     <Compile Include="Configuration\AuthenticatedClientCacheConfig.cs" />
     <Compile Include="Configuration\AuthenticationSource.cs" />
     <Compile Include="Configuration\ClientConfiguration.cs" />
-    <Compile Include="Configuration\PrivacyMode.cs" />
+    <Compile Include="Configuration\Features\PrivacyModeFeature\PrivacyMode.cs" />
+    <Compile Include="Configuration\Features\PrivacyModeFeature\PrivacyModeDescriptor.cs" />
     <Compile Include="Configuration\RadiusReplyAttributeElement.cs" />
     <Compile Include="Configuration\RadiusReplyAttributesCollection.cs" />
     <Compile Include="Configuration\RadiusReplyAttributesSection.cs" />

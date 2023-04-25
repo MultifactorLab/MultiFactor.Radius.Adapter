@@ -10,7 +10,6 @@ using MultiFactor.Radius.Adapter.Server;
 using Newtonsoft.Json;
 using Serilog;
 using System;
-using System.Collections.Concurrent;
 using System.Linq;
 using System.Net;
 using System.Text;
@@ -61,7 +60,7 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
             }
 
             //remove user information for privacy
-            switch (clientConfig.PrivacyMode)
+            switch (clientConfig.PrivacyMode.Mode)
             {
                 case PrivacyMode.Full:
                     displayName = null;
@@ -69,6 +68,31 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
                     userPhone = null;
                     callingStationId = "";
                     calledStationId = null;
+                    break;
+
+                case PrivacyMode.Partial:
+                    if (!clientConfig.PrivacyMode.HasField("Name"))
+                    {
+                        displayName = null;
+                    }
+
+                    if (!clientConfig.PrivacyMode.HasField("Email"))
+                    {
+                        email = null;
+                    }
+
+                    if (!clientConfig.PrivacyMode.HasField("Phone"))
+                    {
+                        userPhone = null;
+                    }
+
+                    if (!clientConfig.PrivacyMode.HasField("RemoteHost"))
+                    {
+                        callingStationId = "";
+                    }
+
+                    calledStationId = null;
+
                     break;
             }
     
