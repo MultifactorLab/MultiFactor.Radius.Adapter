@@ -14,24 +14,26 @@ namespace MultiFactor.Radius.Adapter.Server
     /// </summary>
     public class RadiusReplyAttributeValue
     {
-        public bool FromLdap { get; set; }
+        public bool FromLdap { get; }
+        public bool Sufficient { get; }
 
         /// <summary>
         /// Const value with optional condition
         /// </summary>
-        public RadiusReplyAttributeValue(object value, string conditionClause)
+        public RadiusReplyAttributeValue(object value, string conditionClause, bool sufficient = false)
         {
             Value = value;
             if (!string.IsNullOrEmpty(conditionClause))
             {
                 ParseConditionClause(conditionClause);
             }
+            Sufficient = sufficient;
         }
 
         /// <summary>
         /// Proxy value from LDAP attr
         /// </summary>
-        public RadiusReplyAttributeValue(string ldapAttributeName)
+        public RadiusReplyAttributeValue(string ldapAttributeName, bool sufficient = false)
         {
             if (string.IsNullOrEmpty(ldapAttributeName))
             {
@@ -40,6 +42,7 @@ namespace MultiFactor.Radius.Adapter.Server
 
             LdapAttributeName = ldapAttributeName;
             FromLdap = true;
+            Sufficient = sufficient;
         }   
 
         /// <summary>
@@ -50,28 +53,24 @@ namespace MultiFactor.Radius.Adapter.Server
         /// <summary>
         /// Ldap attr name to proxy value from
         /// </summary>
-        public string LdapAttributeName { get; set; }
+        public string LdapAttributeName { get; }
 
         /// <summary>
         /// Is list of all user groups attribute
         /// </summary>
-        public bool IsMemberOf
-        {
-            get
-            {
-                return LdapAttributeName?.ToLower() == "memberof";
-            }
-        }
+        public bool IsMemberOf => LdapAttributeName?.ToLower() == "memberof";
 
+        private readonly List<string> _userGroupCondition = new List<string>();
         /// <summary>
         /// User group condition
         /// </summary>
-        public List<string> UserGroupCondition { get; set; }
+        public string[] UserGroupCondition => _userGroupCondition.ToArray();
 
+        private readonly List<string> _userNameCondition = new List<string>();
         /// <summary>
         /// User name condition
         /// </summary>
-        public List<string> UserNameCondition { get; set; }
+        public string[] UserNameCondition => _userNameCondition.ToArray();
 
         /// <summary>
         /// Is match condition
@@ -97,7 +96,7 @@ namespace MultiFactor.Radius.Adapter.Server
             }
 
             //if matched user name condition
-            if (UserNameCondition != null && UserNameCondition.Any())
+            if (UserNameCondition.Length != 0)
             {
                 var userName = request.UserName;
                 var canonicalUserName = Utils.CanonicalizeUserName(userName);
@@ -113,7 +112,7 @@ namespace MultiFactor.Radius.Adapter.Server
             }
 
             //if matched user group condition
-            if (UserGroupCondition != null && UserGroupCondition.Any())
+            if (UserGroupCondition.Length != 0)
             {
                 return UserGroupCondition.Intersect(
                      request.UserGroups,
@@ -142,21 +141,16 @@ namespace MultiFactor.Radius.Adapter.Server
         private void ParseConditionClause(string clause)
         {
             var parts = clause.Split(new[] { '=' }, StringSplitOptions.RemoveEmptyEntries);
-
             switch (parts[0])
             {
                 case "UserGroup":
-                    UserGroupCondition = parts[1].Split(new[] { ';' },
-                        StringSplitOptions.RemoveEmptyEntries)
-                        .Select(x => x.Trim())
-                        .ToList();
+                    _userGroupCondition.AddRange(parts[1].Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries).Select(x => x.Trim()));
                     break;
+
                 case "UserName":
-                    UserNameCondition = parts[1].Split(new[] { ';' },
-                        StringSplitOptions.RemoveEmptyEntries)
-                        .Select(x => x.Trim())
-                        .ToList();
+                    _userNameCondition.AddRange(parts[1].Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries).Select(x => x.Trim()));
                     break;
+
                 default:
                     throw new Exception($"Unknown condition '{clause}'");
             }
