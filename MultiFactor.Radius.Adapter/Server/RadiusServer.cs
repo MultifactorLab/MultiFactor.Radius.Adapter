@@ -351,24 +351,10 @@ namespace MultiFactor.Radius.Adapter.Server
                     }
 
                     var clientConfiguration = _serviceConfiguration.GetClient(request);
-                    //add custom reply attributes
+
                     if (request.ResponseCode == PacketCode.AccessAccept)
                     {
-                        foreach (var attr in clientConfiguration.RadiusReplyAttributes)
-                        {
-                            //check condition
-                            var matched = attr.Value.Where(val => val.IsMatch(request)).SelectMany(val => val.GetValues(request));
-                            if (matched.Any())
-                            {
-                                var convertedValues = new List<object>();
-                                foreach (var val in matched.ToList())
-                                {
-                                    _logger.Debug("Added/replaced attribute '{attrname:l}:{attrval:l}' to reply", attr.Key, val.ToString());
-                                    convertedValues.Add(ConvertType(attr.Key, val));
-                                }
-                                responsePacket.Attributes[attr.Key] = convertedValues;
-                            }
-                        }
+                        AddCustomReplyAttributes(request, responsePacket, clientConfiguration);
                     }
 
                     break;
@@ -402,6 +388,36 @@ namespace MultiFactor.Radius.Adapter.Server
 
             var debugLog = request.RequestPacket.Code == PacketCode.StatusServer;
             Send(responsePacket, request.RequestPacket?.UserName, request.RemoteEndpoint, request.ProxyEndpoint, debugLog);
+        }
+
+        private void AddCustomReplyAttributes(PendingRequest request, IRadiusPacket responsePacket, ClientConfiguration clientConfiguration)
+        {
+            foreach (var attr in clientConfiguration.RadiusReplyAttributes)
+            {
+                var breakLoop = false;
+                var convertedValues = new List<object>();
+
+                foreach (var attrElement in attr.Value)
+                {
+                    // check condition
+                    if (!attrElement.IsMatch(request)) continue;
+
+                    foreach (var val in attrElement.GetValues(request))
+                    {
+                        _logger.Debug("Added/replaced attribute '{attrname:l}:{attrval:l}' to reply", attr.Key, val.ToString());
+                        convertedValues.Add(ConvertType(attr.Key, val));
+                    }
+
+                    if (attrElement.Sufficient)
+                    {
+                        breakLoop = true;
+                        break;
+                    }
+                }
+
+                responsePacket.Attributes[attr.Key] = convertedValues;
+                if (breakLoop) break;
+            }
         }
 
         private bool IsProxyProtocol(byte[] request, out IPEndPoint sourceEndpoint, out byte[] requestWithoutProxyHeader)

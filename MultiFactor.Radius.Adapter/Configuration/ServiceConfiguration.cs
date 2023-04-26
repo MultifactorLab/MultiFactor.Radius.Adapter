@@ -589,14 +589,14 @@ namespace MultiFactor.Radius.Adapter.Configuration
 
                     if (!string.IsNullOrEmpty(attribute.From))
                     {
-                        replyAttributes[attribute.Name].Add(new RadiusReplyAttributeValue(attribute.From));
+                        replyAttributes[attribute.Name].Add(new RadiusReplyAttributeValue(attribute.From, attribute.Sufficient));
                     }
                     else
                     {
                         try
                         {
                             var value = ParseRadiusReplyAttributeValue(radiusAttribute, attribute.Value);
-                            replyAttributes[attribute.Name].Add(new RadiusReplyAttributeValue(value, attribute.When));
+                            replyAttributes[attribute.Name].Add(new RadiusReplyAttributeValue(value, attribute.When, attribute.Sufficient));
                         }
                         catch (Exception ex)
                         {

@@ -31,5 +31,11 @@ namespace MultiFactor.Radius.Adapter.Configuration
         {
             get { return (string)this["from"]; }
         }
+        
+        [ConfigurationProperty("sufficient", IsKey = false, IsRequired = false)]
+        public bool Sufficient
+        {
+            get { return (bool)this["sufficient"]; }
+        }
     }
 }
