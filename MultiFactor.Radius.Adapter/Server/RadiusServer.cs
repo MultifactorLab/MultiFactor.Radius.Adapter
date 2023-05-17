@@ -94,6 +94,7 @@ namespace MultiFactor.Radius.Adapter.Server
                 var receiveTask = Receive();
 
                 _radiusRouter.RequestProcessed += RouterRequestProcessed;
+                _radiusRouter.RequestWillNotBeProcessed += RouterRequestWillNotBeProcessed;
 
                 _logger.Information("Server started");
             }
@@ -114,6 +115,7 @@ namespace MultiFactor.Radius.Adapter.Server
                 Running = false;
                 _server?.Close();
                 _radiusRouter.RequestProcessed -= RouterRequestProcessed;
+                _radiusRouter.RequestWillNotBeProcessed -= RouterRequestWillNotBeProcessed;
                 _logger.Information("Stopped");
             }
             else
@@ -389,6 +391,8 @@ namespace MultiFactor.Radius.Adapter.Server
             var debugLog = request.RequestPacket.Code == PacketCode.StatusServer;
             Send(responsePacket, request.RequestPacket?.UserName, request.RemoteEndpoint, request.ProxyEndpoint, debugLog);
         }
+
+        private void RouterRequestWillNotBeProcessed(object sender, PendingRequest request) { }
 
         private void AddCustomReplyAttributes(PendingRequest request, IRadiusPacket responsePacket, ClientConfiguration clientConfiguration)
         {
