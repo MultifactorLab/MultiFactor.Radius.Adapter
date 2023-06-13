@@ -24,6 +24,7 @@ namespace MultiFactor.Radius.Adapter.Server
         private ILogger _logger;
         private MultiFactorApiClient _multifactorApiClient;
         public event EventHandler<PendingRequest> RequestProcessed;
+        public event EventHandler<PendingRequest> RequestWillNotBeProcessed;
         private readonly ConcurrentDictionary<string, PendingRequest> _stateChallengePendingRequests = new ConcurrentDictionary<string, PendingRequest>();
         private PasswordChangeHandler _passwordChangeHandler;
         private readonly FirstAuthFactorProcessorProvider _firstAuthFactorProcessorProvider;
@@ -87,6 +88,12 @@ namespace MultiFactor.Radius.Adapter.Server
 
                 var firstAuthFactorProcessor = _firstAuthFactorProcessorProvider.GetProcessor(clientConfig.FirstFactorAuthenticationSource);
                 var firstFactorAuthenticationResultCode = await firstAuthFactorProcessor.ProcessFirstAuthFactorAsync(request, clientConfig);
+                if (firstFactorAuthenticationResultCode == PacketCode.DisconnectNak)
+                {
+                    RequestWillNotBeProcessed?.Invoke(this, request);
+                    return;
+                }
+
                 if (firstFactorAuthenticationResultCode != PacketCode.AccessAccept)
                 {
                     //User password expired ot must be changed
