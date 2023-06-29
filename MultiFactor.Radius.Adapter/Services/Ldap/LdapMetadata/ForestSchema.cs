@@ -1,5 +1,7 @@
-﻿using System;
+﻿using MultiFactor.Radius.Adapter.Services.ActiveDirectory;
+using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace MultiFactor.Radius.Adapter.Services.Ldap.LdapMetadata
 {
@@ -44,6 +46,15 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap.LdapMetadata
             }
 
             return defaultDomain;
+        }
+
+
+        public List<LdapIdentity> FindDomainByNetbiosName(string netbiosName)
+        {
+            return _domainNameSuffixes.Values
+                .Where(x => string.Equals(x.NetBiosName, netbiosName, StringComparison.OrdinalIgnoreCase))
+                .Distinct(new LdapDomainEqualityComparer())
+                .ToList();
         }
     }
 }

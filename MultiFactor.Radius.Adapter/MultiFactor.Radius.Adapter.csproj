@@ -154,6 +154,7 @@
     <Compile Include="Core\RadiusPacketOptions.cs" />
     <Compile Include="Extensions\LoggingConfiguration.cs" />
     <Compile Include="Extensions\LogLevelConfiguration.cs" />
+    <Compile Include="Extensions\SearchResponseExtensions.cs" />
     <Compile Include="Extensions\ServicesConfiguration.cs" />
     <Compile Include="Logging\Enrichers\CorrelationIdLogEventEnricher.cs" />
     <Compile Include="Core\RadiusPacketNasIdentifierParser.cs" />

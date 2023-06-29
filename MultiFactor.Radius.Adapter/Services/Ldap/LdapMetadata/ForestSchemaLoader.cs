@@ -1,4 +1,5 @@
 ﻿using MultiFactor.Radius.Adapter.Configuration;
+using MultiFactor.Radius.Adapter.Extensions;
 using Serilog;
 using System;
 using System.Collections.Generic;
@@ -12,6 +13,10 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap.LdapMetadata
         private readonly ClientConfiguration _clientConfig;
         private readonly ILogger _logger;
         private readonly LdapConnectionAdapter _connectionAdapter;
+
+        private const string CommonNameAttribute = "cn";
+        private const string UpnSuffixesAttribute = "uPNSuffixes";
+        private const string NetbiosNameAttribute = "netbiosname";
 
         public ForestSchemaLoader(ClientConfiguration clientConfig, LdapConnection connection, ILogger logger)
         {
@@ -29,7 +34,6 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap.LdapMetadata
 
             try
             {
-
                 domainNameSuffixes = new Dictionary<string, LdapIdentity>();
 
                 var trustedDomainsResult = _connectionAdapter.Query(
@@ -62,6 +66,11 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap.LdapMetadata
                     }
                 }
 
+                if (_clientConfig.IsNetbiosEnable)
+                {
+                    InitializeNetbiosNames(schema);
+                }
+
                 foreach (var domain in schema)
                 {
                     var domainSuffix = domain.DnToFqdn();
@@ -80,26 +89,35 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap.LdapMetadata
                                 "objectClass=*",
                                 SearchScope.Base,
                                 true,
-                                "uPNSuffixes");
+                                UpnSuffixesAttribute);
+                            List<string> uPNSuffixes = uPNSuffixesResult.GetAttributeValuesByName(UpnSuffixesAttribute);
 
-                            for (var i = 0; i < uPNSuffixesResult.Entries.Count; i++)
+                            foreach (var suffix in uPNSuffixes)
                             {
-                                var entry = uPNSuffixesResult.Entries[i];
-                                var attribute = entry.Attributes["uPNSuffixes"];
-                                if (attribute != null)
+                                if (!domainNameSuffixes.ContainsKey(suffix))
                                 {
-                                    for (var j = 0; j < attribute.Count; j++)
-                                    {
-                                        var suffix = attribute[j].ToString();
-
-                                        if (!domainNameSuffixes.ContainsKey(suffix))
-                                        {
-                                            domainNameSuffixes.Add(suffix, domain);
-                                            _logger.Debug($"Found alternative UPN suffix {suffix} for domain {domain.Name}");
-                                        }
-                                    }
+                                    domainNameSuffixes.Add(suffix, domain);
+                                    _logger.Debug($"Found alternative UPN suffix {suffix} for domain {domain.Name}");
                                 }
                             }
+                            //for (var i = 0; i < uPNSuffixesResult.Entries.Count; i++)
+                            //{
+                            //    var entry = uPNSuffixesResult.Entries[i];
+                            //    var attribute = entry.Attributes["uPNSuffixes"];
+                            //    if (attribute != null)
+                            //    {
+                            //        for (var j = 0; j < attribute.Count; j++)
+                            //        {
+                            //            var suffix = attribute[j].ToString();
+
+                            //            if (!domainNameSuffixes.ContainsKey(suffix))
+                            //            {
+                            //                domainNameSuffixes.Add(suffix, domain);
+                            //                _logger.Debug($"Found alternative UPN suffix {suffix} for domain {domain.Name}");
+                            //            }
+                            //        }
+                            //    }
+                            //}
                         }
                         catch (Exception ex)
                         {
@@ -115,6 +133,28 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap.LdapMetadata
             }
 
             return new ForestSchema(domainNameSuffixes);
+        }
+
+        private void InitializeNetbiosNames(List<LdapIdentity> schema)
+        {
+            foreach (var domain in schema)
+            {
+                var netbiosNameResponse = _connectionAdapter.Query(
+                    "CN=Partitions,CN=Configuration," + domain.Name,
+                    "(&(objectcategory=crossref)(netbiosname=*))",
+                    SearchScope.OneLevel,
+                    true, // TODO
+                    NetbiosNameAttribute);
+                List<string> netbiosNames = netbiosNameResponse.GetAttributeValuesByName(NetbiosNameAttribute);
+
+                if (netbiosNames.Count == 1)
+                {
+                    _logger.Information($"Find netbiosname {netbiosNames[0]} for domain {domain}");
+                    domain.SetNetBiosName(netbiosNames[0]);
+                    continue;
+                }
+                _logger.Warning($"Unexpected netbiosname(s) for domain {domain}:{string.Join(";", netbiosNames)}");
+            }
         }
     }
 }

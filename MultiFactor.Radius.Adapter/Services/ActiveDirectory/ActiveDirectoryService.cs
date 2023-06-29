@@ -13,7 +13,6 @@ using System.DirectoryServices.AccountManagement;
 using System.DirectoryServices.Protocols;
 using System.Linq;
 using System.Net;
-using System.Text.RegularExpressions;
 
 namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory
 {
@@ -22,8 +21,8 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory
     /// </summary>
     public class ActiveDirectoryService
     {
-        private ILogger _logger;
-        private string _domain;
+        private readonly ILogger _logger;
+        private readonly string _domain;
         private readonly ForestMetadataCache _forestMetadataCache;
 
         public ActiveDirectoryService(string domain, ForestMetadataCache forestMetadataCache, ILogger logger)
@@ -31,7 +30,6 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory
             _domain = domain ?? throw new ArgumentNullException(nameof(domain));
             _forestMetadataCache = forestMetadataCache ?? throw new ArgumentNullException(nameof(forestMetadataCache));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-
         }
 
         /// <summary>
@@ -50,6 +48,13 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory
             }
 
             var user = LdapIdentity.ParseUser(userName);
+
+            if (clientConfig.IsNetbiosEnable && user.HasNetbiosName())
+            {
+                _logger.Information($"Verify user {user.Name} by netbios {user.NetBiosName} flow");
+                return VerifyCredentialAndMembershipByNetbios(clientConfig, user, password, request);
+            }
+
             if (user.Type == IdentityType.UserPrincipalName)
             {
                 var suffix = user.UpnToSuffix();
@@ -68,20 +73,21 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory
                 }
             }
 
+            var userDomain = _domain;
             try
             {
-                _logger.Debug($"Verifying user '{{user:l}}' credential and status at {_domain}", user.Name);
+                _logger.Debug($"Verifying user '{{user:l}}' credential and status at {userDomain}", user.Name);
 
-                using (var connection = new LdapConnection(_domain))
+                using (var connection = new LdapConnection(userDomain))
                 {
                     connection.Credential = new NetworkCredential(user.Name, password);
                     connection.SessionOptions.RootDseCache = true;
                     connection.SessionOptions.ProtocolVersion = 3;
                     connection.Bind();
 
-                    _logger.Information($"User '{{user:l}}' credential and status verified successfully in {_domain}", user.Name);
+                    _logger.Information($"User '{{user:l}}' credential and status verified successfully in {userDomain}", user.Name);
 
-                    return VerifyMembership(clientConfig, connection, user, request);
+                    return VerifyMembership(clientConfig, connection, userDomain, user, request);
                 }
             }
             catch (LdapException lex)
@@ -90,19 +96,117 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory
                 {
                     var reason = LdapErrorReasonInfo.Create(lex.ServerErrorMessage);
                     request.MustChangePassword = reason.Flags.HasFlag(LdapErrorFlag.MustChangePassword);
+                    // user was found in this domain, but must change password before access is granted
+                    if (request.MustChangePassword)
+                    {
+                        request.MustChangePasswordDomain = userDomain;
+                    }
 
                     if (reason.Reason != LdapErrorReason.UnknownError)
                     {
-                        _logger.Warning($"Verification user '{{user:l}}' at {_domain} failed: {reason.ReasonText}", user.Name);
+                        _logger.Warning($"Verification user '{{user:l}}' at {userDomain} failed: {reason.ReasonText}", user.Name);
                         return false;
                     }
                 }
 
-                _logger.Error(lex, "Verification user '{user:l}' at {domain:l} failed: {msg:l} {srvmsg:l}", user.Name, _domain, lex.Message, lex.ServerErrorMessage);
+                _logger.Error(lex, "Verification user '{user:l}' at {domain:l} failed: {msg:l} {srvmsg:l}", user.Name, userDomain, lex.Message, lex.ServerErrorMessage);
             }
             catch (Exception ex)
             {
-                _logger.Error(ex, "Verification user '{user:l}' at {domain:l} failed: {msg:l}", user.Name, _domain, ex.Message);
+                _logger.Error(ex, "Verification user '{user:l}' at {domain:l} failed: {msg:l}", user.Name, userDomain, ex.Message);
+            }
+
+            return false;
+        }
+
+        private bool VerifyCredentialAndMembershipByNetbios(ClientConfiguration clientConfig, LdapIdentity user, string password, PendingRequest request)
+        {
+            List<string> netbiosDomain = new List<string>();
+            var userDomain = _domain;
+            // search for all permitted domains suitable for user netbios
+            // in rare cases, there may be more than one
+            try
+            {
+                _logger.Information($"Search for a suitable domain: userName={user.Name}, netbiosName={user.NetBiosName}");
+                using (var connection = new LdapConnection(userDomain))
+                {
+                    connection.Credential = new NetworkCredential(user.Name, password);
+                    connection.SessionOptions.RootDseCache = true;
+                    connection.SessionOptions.ProtocolVersion = 3;
+                    connection.Bind();
+
+                    var domain = LdapIdentity.FqdnToDn(userDomain);
+                    var schema = _forestMetadataCache.Get(
+                        clientConfig.Name,
+                        domain,
+                        () => new ForestSchemaLoader(clientConfig, connection, _logger).Load(domain));
+
+                    var suitableDomains = schema.FindDomainByNetbiosName(user.NetBiosName);
+                    foreach (var suitableDomain in suitableDomains)
+                    {
+                        var fqdn = suitableDomain.DnToFqdn();
+                        netbiosDomain.Add(fqdn);
+                    }
+
+                    switch (netbiosDomain.Count())
+                    {
+                        case 0:
+                            _logger.Warning($"There is no domain corresponding to netbiosName={user.NetBiosName} in the {userDomain} schema");
+                            return false;
+                        case 1:
+                            _logger.Information($"The domain corresponding to netbiosName={user.NetBiosName} was found:{netbiosDomain[0]}");
+                            break;
+                        default:
+                            _logger.Warning($"{netbiosDomain.Count()} domains found for a user with netbiosName={user.NetBiosName}:\r\n{string.Join(",", netbiosDomain)}");
+                            break;
+                    }
+                }
+
+                // verify user in all suitable domains
+                foreach (var domain in netbiosDomain)
+                {
+                    userDomain = domain;
+                    using (var connection = new LdapConnection(domain))
+                    {
+                        connection.Credential = new NetworkCredential(user.Name, password);
+                        connection.SessionOptions.RootDseCache = true;
+                        connection.SessionOptions.ProtocolVersion = 3;
+                        connection.Bind();
+
+                        _logger.Debug($"Verifying user '{{user:l}}' with netbiosname '{{netbios:l}}' credential and status at {domain}", user.Name, user.NetBiosName);
+                        if (VerifyMembership(clientConfig, connection, userDomain, user, request))
+                        {
+                            _logger.Information($"User '{{user:l}}' with netbiosname '{{netbios:l}}' credential and status verified successfully in {domain}", user.Name, user.NetBiosName);
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            }
+            catch (LdapException lex)
+            {
+                if (lex.ServerErrorMessage != null)
+                {
+                    var reason = LdapErrorReasonInfo.Create(lex.ServerErrorMessage);
+                    request.MustChangePassword = reason.Flags.HasFlag(LdapErrorFlag.MustChangePassword);
+                    // user was found in this domain, but must change password before access is granted
+                    if (request.MustChangePassword)
+                    {
+                        request.MustChangePasswordDomain = userDomain;
+                    }
+
+                    if (reason.Reason != LdapErrorReason.UnknownError)
+                    {
+                        _logger.Warning($"Verification user '{{user:l}}' with netbiosname '{{netbios:l}}' at {userDomain} failed: {reason.ReasonText}", user.Name, user.NetBiosName);
+                        return false;
+                    }
+                }
+
+                _logger.Error(lex, "Verification user '{user:l}' with netbiosname '{netbios:l}' at {domain:l} failed: {msg:l} {srvmsg:l}", user.Name, user.NetBiosName, userDomain, lex.Message, lex.ServerErrorMessage);
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Verification user '{user:l}' with netbiosname '{netbios:l}' at {domain:l} failed: {msg:l}", user.Name, user.NetBiosName, userDomain, ex.Message);
             }
 
             return false;
@@ -128,9 +232,10 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory
 
                     var domain = LdapIdentity.FqdnToDn(_domain);
                     var schema = _forestMetadataCache.Get(
-                        clientConfig.Name, 
+                        clientConfig.Name,
                         domain,
                         () => new ForestSchemaLoader(clientConfig, connection, _logger).Load(domain));
+                    //var suitableDomains = schema.FindDomainByNetbiosName(user.NetBiosName);
                     var profile = new ProfileLoader(schema, _logger).LoadProfile(clientConfig, connection, domain, identity);
                     if (profile == null)
                     {
@@ -167,12 +272,12 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory
             return false;
         }
 
-        private bool VerifyMembership(ClientConfiguration clientConfig, LdapConnection connection, LdapIdentity user, PendingRequest request)
+        private bool VerifyMembership(ClientConfiguration clientConfig, LdapConnection connection, string userDomain, LdapIdentity user, PendingRequest request)
         {
-            var domain = LdapIdentity.FqdnToDn(_domain);
+            var domain = LdapIdentity.FqdnToDn(userDomain);
             var schema = _forestMetadataCache.Get(
-                clientConfig.Name, 
-                domain, 
+                clientConfig.Name,
+                domain,
                 () => new ForestSchemaLoader(clientConfig, connection, _logger).Load(domain));
             var profile = new ProfileLoader(schema, _logger).LoadProfile(clientConfig, connection, domain, user);
             if (profile == null)

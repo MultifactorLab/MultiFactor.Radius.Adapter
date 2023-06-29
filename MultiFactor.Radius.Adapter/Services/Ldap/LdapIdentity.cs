@@ -7,6 +7,7 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
     public class LdapIdentity
     {
         public string Name { get; set; }
+        public string NetBiosName { get; private set; } = string.Empty;
         public IdentityType Type { get; set; }
         public string TypeName
         {
@@ -26,6 +27,7 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
             }
         }
 
+        // метод используется в разных сервисах, во всех может быть ситуация с превиндоус?
         public static LdapIdentity ParseUser(string name)
         {
             return Parse(name, true);
@@ -86,11 +88,13 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
             if (string.IsNullOrEmpty(name)) throw new ArgumentNullException(nameof(name));
 
             var identity = name.ToLower();
-
+            string netBiosName = string.Empty;
             //remove DOMAIN\\ prefix
+            // можем ли мы это убрать для групп? метод используется для парсинга не только юзеров
             var index = identity.IndexOf("\\");
             if (index > 0)
             {
+                netBiosName = identity.Substring(0, index);
                 identity = identity.Substring(index + 1);
             }
 
@@ -108,7 +112,8 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
             return new LdapIdentity
             {
                 Name = identity,
-                Type = type
+                Type = type,
+                NetBiosName = netBiosName,
             };
         }
 
@@ -134,6 +139,13 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
             var index = Name.IndexOf("@");
             return Name.Substring(index + 1).ToLower();
         }
+
+        public void SetNetBiosName(string netbiosName)
+        {
+            NetBiosName = netbiosName;
+        }
+
+        public bool HasNetbiosName() => !string.IsNullOrEmpty(NetBiosName);
 
         public override string ToString()
         {
