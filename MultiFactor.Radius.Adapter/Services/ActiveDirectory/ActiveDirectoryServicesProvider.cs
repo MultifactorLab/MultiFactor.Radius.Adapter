@@ -32,6 +32,7 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory
                 dict.Add(domain, new ActiveDirectoryService(
                     domain,
                     _provider.GetRequiredService<ForestMetadataCache>(),
+                    _provider.GetRequiredService<NetbiosService>(),
                     _provider.GetRequiredService<ILogger>())
                     );
             }

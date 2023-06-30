@@ -292,7 +292,6 @@ namespace MultiFactor.Radius.Adapter.Configuration
             var bypassSecondFactorWhenApiUnreachableSetting         = appSettings.Settings["bypass-second-factor-when-api-unreachable"]?.Value;
             var multiFactorApiKeySetting                            = appSettings.Settings["multifactor-nas-identifier"]?.Value;
             var multiFactorApiSecretSetting                         = appSettings.Settings["multifactor-shared-secret"]?.Value;
-            var netbiosEnable                                       = appSettings.Settings["netbios-enable"]?.Value ?? "false";
 
             if (string.IsNullOrEmpty(firstFactorAuthenticationSourceSettings))
             {
@@ -330,17 +329,6 @@ namespace MultiFactor.Radius.Adapter.Configuration
                 }
             }
 
-            if (!bool.TryParse(netbiosEnable, out bool netbiosEnableValue))
-            {
-                throw new Exception("Configuration error: Can't parse 'netbios-enable' value. Must be one of: true, false");
-            }
-
-
-            if (netbiosEnableValue && activeDirectorySection != null && activeDirectorySection.RequiresUpn)
-            {
-                throw new Exception("Both NetbiosName and RequiresUpn configured.");
-            }
-
             var configuration = new ClientConfiguration
             {
                 Name = name,
@@ -349,7 +337,6 @@ namespace MultiFactor.Radius.Adapter.Configuration
                 FirstFactorAuthenticationSource = firstFactorAuthenticationSource,
                 MultifactorApiKey = multiFactorApiKeySetting,
                 MultiFactorApiSecret = multiFactorApiSecretSetting,
-                IsNetbiosEnable = netbiosEnableValue,
             };
 
             if (bypassSecondFactorWhenApiUnreachableSetting != null)

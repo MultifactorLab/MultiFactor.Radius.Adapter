@@ -163,7 +163,7 @@ namespace MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing
         }
 
         private LdapConnection CreateConnection(string currentDomain)
-        {
+        {   
             var connection = new LdapConnection(currentDomain);
             connection.SessionOptions.ProtocolVersion = 3;
             connection.SessionOptions.RootDseCache = true;

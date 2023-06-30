@@ -45,16 +45,32 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap.LdapMetadata
                 }
             }
 
+
+            //netibosname match
+            foreach (var key in _domainNameSuffixes.Keys)
+            {
+                if (key.ToLower().StartsWith(userDomainSuffix))
+                {
+                    return _domainNameSuffixes[key];
+                }
+            }
+
             return defaultDomain;
         }
 
-
-        public List<LdapIdentity> FindDomainByNetbiosName(string netbiosName)
+        public string FindDomainByNetbiosName(string netbiosName)
         {
-            return _domainNameSuffixes.Values
-                .Where(x => string.Equals(x.NetBiosName, netbiosName, StringComparison.OrdinalIgnoreCase))
-                .Distinct(new LdapDomainEqualityComparer())
-                .ToList();
+            var matchedDomains = new List<LdapIdentity>();
+            foreach (var suffix in _domainNameSuffixes.Keys)
+            {
+                if (suffix.StartsWith(netbiosName))
+                    matchedDomains.Add(_domainNameSuffixes[suffix]);
+            }
+
+            var suitableDomains = matchedDomains.Distinct(new LdapDomainEqualityComparer());
+            if (suitableDomains.Count() != 1)
+                throw new Exception("No domain was found for netbiosName");
+            return suitableDomains.Single().DnToFqdn();
         }
     }
 }

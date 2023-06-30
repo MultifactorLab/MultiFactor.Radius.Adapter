@@ -88,7 +88,7 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
                 }
             }
 
-            _logger.Debug($"User '{{user:l}}' profile loaded: {profile.DistinguishedName}", user.Name);
+            _logger.Debug($"User '{{user:l}}' profile loaded: {profile.DistinguishedName} (upn={{upn:l}})", user.Name, profile.Upn);
 
             //nested groups if configured
             if (clientConfig.ShouldLoadUserGroups())
@@ -136,7 +136,12 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
 
         private UserSearchResult FindUser(LdapIdentity user, IReadOnlyList<LdapIdentity> baseDnList, LdapConnectionAdapter connectionAdapter, params string[] attrs)
         {
-            var searchFilter = $"(&(objectClass=user)({user.TypeName}={user.Name}))";
+            // search by netbios\name does not work
+            // therefore, even a user with netbios needs to be searched by upn
+            // however, if we are looking for a user with an alternative suffix, we need to use sAMAccountName instead of upn
+            var searchFilter = user.HasNetbiosName()
+                ? $"(&(objectClass=user)(|({user.TypeName}={user.Name})({IdentityType.SamAccountName}={user.Name.Split('@')[0]})))"
+                : $"(&(objectClass=user)({user.TypeName}={user.Name}))";
 
             foreach (var baseDn in baseDnList)
             {

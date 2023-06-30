@@ -27,7 +27,6 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
             }
         }
 
-        // метод используется в разных сервисах, во всех может быть ситуация с превиндоус?
         public static LdapIdentity ParseUser(string name)
         {
             return Parse(name, true);
@@ -90,15 +89,14 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
             var identity = name.ToLower();
             string netBiosName = string.Empty;
             //remove DOMAIN\\ prefix
-            // можем ли мы это убрать для групп? метод используется для парсинга не только юзеров
+            var type = IdentityType.SamAccountName;
             var index = identity.IndexOf("\\");
             if (index > 0)
             {
+                type = IdentityType.SamAccountName;
                 netBiosName = identity.Substring(0, index);
                 identity = identity.Substring(index + 1);
             }
-
-            var type = isUser ? IdentityType.SamAccountName : IdentityType.Name;
 
             if (identity.Contains("="))
             {

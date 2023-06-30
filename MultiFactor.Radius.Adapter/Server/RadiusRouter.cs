@@ -101,6 +101,7 @@ namespace MultiFactor.Radius.Adapter.Server
                     {
                         request.MustChangePassword = true;
                         request.ResponseCode = _passwordChangeHandler.HandleRequest(request, clientConfig);
+                        _logger.Information($"CreatePasswordChallengeState: {request.State}");
                         RequestProcessed?.Invoke(this, request);
                         return;
                     }

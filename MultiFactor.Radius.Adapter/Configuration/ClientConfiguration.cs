@@ -223,7 +223,5 @@ namespace MultiFactor.Radius.Adapter.Configuration
         public AuthenticatedClientCacheConfig AuthenticationCacheLifetime { get; internal set; }
 
         public string CallingStationIdVendorAttribute { get; internal set; }
-
-        public bool IsNetbiosEnable { get; set; }
     }
 }

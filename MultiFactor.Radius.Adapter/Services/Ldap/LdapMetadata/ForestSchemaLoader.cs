@@ -30,46 +30,23 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap.LdapMetadata
             if (root is null) throw new ArgumentNullException(nameof(root));
             _logger.Debug($"Loading forest schema from {root.Name}");
 
-            var domainNameSuffixes = new Dictionary<string, LdapIdentity>();
 
+            var domainNameSuffixes = new Dictionary<string, LdapIdentity>();
             try
             {
-                domainNameSuffixes = new Dictionary<string, LdapIdentity>();
-
                 var trustedDomainsResult = _connectionAdapter.Query(
                     "CN=System," + root.Name,
                     "objectClass=trustedDomain",
                     SearchScope.OneLevel,
                     true,
-                    "cn");
+                    CommonNameAttribute);
 
                 var schema = new List<LdapIdentity> { root };
-
-                for (var i = 0; i < trustedDomainsResult.Entries.Count; i++)
-                {
-                    var entry = trustedDomainsResult.Entries[i];
-                    var attribute = entry.Attributes["cn"];
-                    if (attribute != null)
-                    {
-                        var domain = attribute[0].ToString();
-                        if (_clientConfig.IsPermittedDomain(domain))
-                        {
-                            var trustPartner = LdapIdentity.FqdnToDn(domain);
-
-                            _logger.Debug($"Found trusted domain {trustPartner.Name}");
-
-                            if (!schema.Contains(trustPartner))
-                            {
-                                schema.Add(trustPartner);
-                            }
-                        }
-                    }
-                }
-
-                if (_clientConfig.IsNetbiosEnable)
-                {
-                    InitializeNetbiosNames(schema);
-                }
+                var trustedDomains = trustedDomainsResult.GetAttributeValuesByName(CommonNameAttribute)
+                    .Where(domain => _clientConfig.IsPermittedDomain(domain))
+                    .Select(domain => LdapIdentity.FqdnToDn(domain));
+                _logger.Debug($"Found trusted domains:\r\n{string.Join(";", trustedDomains)}");
+                schema.AddRange(trustedDomains);
 
                 foreach (var domain in schema)
                 {
@@ -92,32 +69,11 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap.LdapMetadata
                                 UpnSuffixesAttribute);
                             List<string> uPNSuffixes = uPNSuffixesResult.GetAttributeValuesByName(UpnSuffixesAttribute);
 
-                            foreach (var suffix in uPNSuffixes)
+                            foreach (var suffix in uPNSuffixes.Where(upn => !domainNameSuffixes.ContainsKey(upn)))
                             {
-                                if (!domainNameSuffixes.ContainsKey(suffix))
-                                {
-                                    domainNameSuffixes.Add(suffix, domain);
-                                    _logger.Debug($"Found alternative UPN suffix {suffix} for domain {domain.Name}");
-                                }
+                                domainNameSuffixes.Add(suffix, domain);
+                                _logger.Debug($"Found alternative UPN suffix {suffix} for domain {domain.Name}");
                             }
-                            //for (var i = 0; i < uPNSuffixesResult.Entries.Count; i++)
-                            //{
-                            //    var entry = uPNSuffixesResult.Entries[i];
-                            //    var attribute = entry.Attributes["uPNSuffixes"];
-                            //    if (attribute != null)
-                            //    {
-                            //        for (var j = 0; j < attribute.Count; j++)
-                            //        {
-                            //            var suffix = attribute[j].ToString();
-
-                            //            if (!domainNameSuffixes.ContainsKey(suffix))
-                            //            {
-                            //                domainNameSuffixes.Add(suffix, domain);
-                            //                _logger.Debug($"Found alternative UPN suffix {suffix} for domain {domain.Name}");
-                            //            }
-                            //        }
-                            //    }
-                            //}
                         }
                         catch (Exception ex)
                         {
