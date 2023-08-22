@@ -274,7 +274,7 @@ namespace MultiFactor.Radius.Adapter.Server
             }
 
 
-            var request = new PendingRequest 
+            var request = new PendingRequest(requestScope.ClientConfiguration)
             { 
                 RemoteEndpoint = requestScope.RemoteEndpoint, 
                 ProxyEndpoint = requestScope.ProxyEndpoint, 

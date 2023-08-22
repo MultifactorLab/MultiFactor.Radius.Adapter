@@ -4,6 +4,7 @@
 
 
 using MultiFactor.Radius.Adapter.Configuration;
+using MultiFactor.Radius.Adapter.Configuration.Features.PreAuthnModeFeature;
 using MultiFactor.Radius.Adapter.Core;
 using MultiFactor.Radius.Adapter.Core.Http;
 using MultiFactor.Radius.Adapter.Server;
@@ -293,10 +294,15 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
             }
 
             //check password challenge (otp or passcode)
-            var userPassword = request.RequestPacket.TryGetUserPassword();
+            var userPassword = string.Empty;
+            if (clientConfiguration.PreAuthnMode.Mode == PreAuthnMode.Otp)
+                userPassword = request.GetOtp();
+            else
+                userPassword = request.RequestPacket.TryGetUserPassword();
 
             //only if first authentication factor is None, assuming that Password contains OTP code
-            if (clientConfiguration.FirstFactorAuthenticationSource != AuthenticationSource.None)
+            if (clientConfiguration.PreAuthnMode.Mode != PreAuthnMode.Otp
+                && clientConfiguration.FirstFactorAuthenticationSource != AuthenticationSource.None)
             {
                 return null;
             }

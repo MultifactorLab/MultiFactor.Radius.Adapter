@@ -3,6 +3,7 @@
 //https://github.com/MultifactorLab/MultiFactor.Radius.Adapter/blob/master/LICENSE.md
 
 using MultiFactor.Radius.Adapter.Configuration;
+using MultiFactor.Radius.Adapter.Configuration.Features.PreAuthnModeFeature;
 using MultiFactor.Radius.Adapter.Core;
 using MultiFactor.Radius.Adapter.Services.ActiveDirectory;
 using Serilog;
@@ -32,7 +33,12 @@ namespace MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing
         public Task<PacketCode> ProcessFirstAuthFactorAsync(PendingRequest request, ClientConfiguration clientConfig)
         {
             var userName = request.UserName;
-            var password = request.RequestPacket.TryGetUserPassword();
+            var password = string.Empty;
+
+            if (clientConfig.PreAuthnMode.Mode == PreAuthnMode.Otp)
+                password = request.GetPassword();
+            else
+                password = request.RequestPacket.TryGetUserPassword();
 
             if (string.IsNullOrEmpty(userName))
             {
