@@ -3,6 +3,8 @@
 //https://github.com/MultifactorLab/MultiFactor.Radius.Adapter/blob/master/LICENSE.md
 
 using MultiFactor.Radius.Adapter.Configuration;
+using MultiFactor.Radius.Adapter.Configuration.Features.PreAuthnModeFeature;
+using MultiFactor.Radius.Adapter.Configuration.Features.PreAuthnModeFeature;
 using MultiFactor.Radius.Adapter.Core;
 using MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing;
 using MultiFactor.Radius.Adapter.Services.MultiFactorApi;
@@ -92,6 +94,11 @@ namespace MultiFactor.Radius.Adapter.Server
                 {
                     RequestWillNotBeProcessed?.Invoke(this, request);
                     return;
+                }
+
+                if (clientConfig.PreAuthnMode.Mode == PreAuthnMode.Otp)
+                {
+                    int i = 0;
                 }
 
                 if (firstFactorAuthenticationResultCode != PacketCode.AccessAccept)

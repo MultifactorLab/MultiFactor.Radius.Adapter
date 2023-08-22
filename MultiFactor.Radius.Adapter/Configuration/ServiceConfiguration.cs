@@ -2,13 +2,19 @@
 //Please see licence at 
 //https://github.com/MultifactorLab/MultiFactor.Radius.Adapter/blob/master/LICENSE.md
 
+using MultiFactor.Radius.Adapter.Configuration.Features.PreAuthnModeFeature;
+using MultiFactor.Radius.Adapter.Configuration.Features.PrivacyModeFeature;
 using MultiFactor.Radius.Adapter.Core;
 using MultiFactor.Radius.Adapter.Server;
+using MultiFactor.Radius.Adapter.Services.MultiFactorApi;
+using NetTools;
 using Serilog;
 using System;
 using System.Linq;
 using System.Collections.Generic;
 using System.Configuration;
+using System.IO;
+using System.Linq;
 using System.Net;
 using System.Text;
 using System.IO;
@@ -397,6 +403,15 @@ namespace MultiFactor.Radius.Adapter.Configuration
             if (!string.IsNullOrWhiteSpace(callindStationIdAttr))
             {
                 configuration.CallingStationIdVendorAttribute = callindStationIdAttr;
+            }
+
+            try
+            {
+                configuration.PreAuthnMode = PreAuthnModeDescriptor.Create(appSettings.Settings[Literals.Configuration.PreAuthnMode]?.Value);
+            }
+            catch
+            {
+                throw new Exception($"Configuration error: Can't parse '{Literals.Configuration.PreAuthnMode}' value. Must be one of: otp, none");
             }
 
             return configuration;

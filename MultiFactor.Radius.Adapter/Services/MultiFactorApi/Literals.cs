@@ -12,6 +12,7 @@
         public static class Configuration
         {
             public const string PrivacyMode = "privacy-mode";
+            public const string PreAuthnMode = "second-pre-authentication-method";
         }
     }
 }
