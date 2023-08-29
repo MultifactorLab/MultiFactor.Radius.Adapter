@@ -1,5 +1,4 @@
-﻿using MultiFactor.Radius.Adapter.Configuration.Features.PrivacyModeFeature;
-using System;
+﻿using System;
 
 namespace MultiFactor.Radius.Adapter.Configuration.Features.PreAuthnModeFeature
 {
@@ -22,7 +21,7 @@ namespace MultiFactor.Radius.Adapter.Configuration.Features.PreAuthnModeFeature
 
         private static PreAuthnMode GetMode(string value)
         {
-            if (!Enum.TryParse<PreAuthnMode>(value, true, out var parsed)) throw new Exception("Unexpected Pre-authentication mode value");
+            Enum.TryParse<PreAuthnMode>(value, true, out var parsed);
             return parsed;
         }
     }

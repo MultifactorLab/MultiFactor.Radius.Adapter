@@ -4,7 +4,6 @@
 
 using MultiFactor.Radius.Adapter.Configuration;
 using MultiFactor.Radius.Adapter.Configuration.Features.PreAuthnModeFeature;
-using MultiFactor.Radius.Adapter.Configuration.Features.PreAuthnModeFeature;
 using MultiFactor.Radius.Adapter.Core;
 using MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing;
 using MultiFactor.Radius.Adapter.Services.MultiFactorApi;
@@ -91,9 +90,9 @@ namespace MultiFactor.Radius.Adapter.Server
                 if (clientConfig.PreAuthnMode.Mode == PreAuthnMode.Otp)
                 {
                     var otp = request.GetOtp();
-                    var isOtp = Regex.IsMatch(otp.Trim(), "^[0-9]{1,6}$");
+                    var isOtp = Regex.IsMatch(otp.Trim(), "^[0-9]{6,6}$");
 
-                    if (string.IsNullOrWhiteSpace(otp) || !isOtp)
+                    if (!isOtp)
                     {
                         request.ResponseCode = PacketCode.AccessReject;
                         RequestProcessed?.Invoke(this, request);
@@ -105,7 +104,8 @@ namespace MultiFactor.Radius.Adapter.Server
                     if (request.ResponseCode != PacketCode.AccessAccept)
                     {
                         request.ResponseCode = PacketCode.AccessReject;
-                        //    //log that second f didnt work 
+                        
+                        _logger.Error("The second factor was rejected");
                         RequestProcessed?.Invoke(this, request);
                         return;
                     }

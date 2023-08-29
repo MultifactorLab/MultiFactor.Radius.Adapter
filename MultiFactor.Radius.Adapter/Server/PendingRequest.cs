@@ -11,6 +11,7 @@ namespace MultiFactor.Radius.Adapter.Server
 {
     public class PendingRequest
     {
+        public const int OtpLength = 6;
         public PendingRequest()
         {
             ResponseCode = PacketCode.AccessReject;
@@ -61,27 +62,25 @@ namespace MultiFactor.Radius.Adapter.Server
         public IDictionary<string, object> LdapAttrs { get; set; }
 
         /// <summary>
-        /// Gets password from ResponsePacket.UserPassword, skipping OTP (the last 6 characters)
+        /// Gets password from ResponsePacket.UserPassword, skipping OTP (the last OtpLength characters)
         /// </summary>
         public string GetPassword()
         {
             var passwordAndOtp = RequestPacket.TryGetUserPassword();
-            var otpLength = 6;
-            var lastIndex = passwordAndOtp.Length - otpLength;
+            var lastIndex = passwordAndOtp.Length - OtpLength;
             var password = passwordAndOtp.Substring(0, lastIndex);
 
             return password;
         }
 
         /// <summary>
-        /// Gets OTP (the last 6 characters) from ResponsePacket.UserPassword, skipping password 
+        /// Gets OTP (the last OtpLength characters) from ResponsePacket.UserPassword, skipping password 
         /// </summary>
         public string GetOtp()
         {
             var passwordAndOtp = RequestPacket.TryGetUserPassword();
-            var otpLength = 6;
-            var firstIndex = passwordAndOtp.Length - otpLength;
-            var otp = passwordAndOtp.Substring(firstIndex, otpLength);
+            var firstIndex = passwordAndOtp.Length - OtpLength;
+            var otp = passwordAndOtp.Substring(firstIndex, OtpLength);
 
             return otp;
         }

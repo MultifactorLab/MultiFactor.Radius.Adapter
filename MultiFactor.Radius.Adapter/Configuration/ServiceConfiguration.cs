@@ -10,18 +10,13 @@ using MultiFactor.Radius.Adapter.Services.MultiFactorApi;
 using NetTools;
 using Serilog;
 using System;
-using System.Linq;
 using System.Collections.Generic;
 using System.Configuration;
 using System.IO;
 using System.Linq;
 using System.Net;
 using System.Text;
-using System.IO;
-using NetTools;
 using System.Text.RegularExpressions;
-using MultiFactor.Radius.Adapter.Configuration.Features.PrivacyModeFeature;
-using MultiFactor.Radius.Adapter.Services.MultiFactorApi;
 
 namespace MultiFactor.Radius.Adapter.Configuration
 {

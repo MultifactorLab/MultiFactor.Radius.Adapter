@@ -22,20 +22,20 @@
 //OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 //SOFTWARE.
 
+using MultiFactor.Radius.Adapter.Configuration;
 using MultiFactor.Radius.Adapter.Core;
+using MultiFactor.Radius.Adapter.Logging;
+using MultiFactor.Radius.Adapter.Services;
 using Serilog;
 using System;
+using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Net;
+using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Net.Sockets;
-using MultiFactor.Radius.Adapter.Services;
-using System.Globalization;
-using System.Collections.Generic;
-using MultiFactor.Radius.Adapter.Configuration;
-using MultiFactor.Radius.Adapter.Logging;
 
 namespace MultiFactor.Radius.Adapter.Server
 {
