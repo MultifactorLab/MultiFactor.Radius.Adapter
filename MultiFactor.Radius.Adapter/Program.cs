@@ -98,7 +98,7 @@ namespace MultiFactor.Radius.Adapter
             }
             finally 
             {
-                provider.Dispose();
+                provider?.Dispose();
             }
         }
 
