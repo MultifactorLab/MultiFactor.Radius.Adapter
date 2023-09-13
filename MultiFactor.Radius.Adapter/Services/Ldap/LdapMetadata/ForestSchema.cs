@@ -68,9 +68,13 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap.LdapMetadata
             }
 
             var suitableDomains = matchedDomains.Distinct(new LdapDomainEqualityComparer());
-            if (suitableDomains.Count() != 1)
-                throw new Exception("No domain was found for netbiosName");
-            return suitableDomains.Single().DnToFqdn();
+
+            if (suitableDomains.Count() == 1)
+                return suitableDomains.Single().DnToFqdn();
+            if (suitableDomains.Count() == 0)
+                throw new Exception($"No domain was found for '{netbiosName}' netbiosName");
+
+            throw new Exception($"Ambiguous domain for '{netbiosName}' netbiosName");
         }
     }
 }
