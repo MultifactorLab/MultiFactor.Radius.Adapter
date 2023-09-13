@@ -46,8 +46,8 @@ namespace MultiFactor.Radius.Adapter.Server
             if (passwordChangeRequest.NewPasswordEncryptedData != null)
             {
                 //re-entered new password
-                var newPassword1 = _dataProtectionService.Unprotect(clientConfig, passwordChangeRequest.NewPasswordEncryptedData);
-                if (newPassword1 != newPassword)
+                var decryptedNewPassword = _dataProtectionService.Unprotect(clientConfig, passwordChangeRequest.NewPasswordEncryptedData);
+                if (decryptedNewPassword != newPassword)
                 {
                     return PasswordsNotMatchChallenge(request, passwordChangeRequest);
                 }

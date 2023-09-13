@@ -48,12 +48,12 @@ namespace MultiFactor.Radius.Adapter
                         return;
                 }
             }
-
+            ServiceProvider provider = null; 
             try
             {
                 var services = new ServiceCollection();
                 services.ConfigureApplicationServices(levelSwitch, syslogInfoMessage);
-                var provider = services.BuildServiceProvider();
+                provider = services.BuildServiceProvider();
 
                 var adapterService = provider.GetRequiredService<AdapterService>();
 
@@ -95,6 +95,10 @@ namespace MultiFactor.Radius.Adapter
             catch (Exception ex)
             {
                 Log.Logger.Error($"Unable to start: {ex.Message}");
+            }
+            finally 
+            {
+                provider?.Dispose();
             }
         }
 

@@ -48,6 +48,7 @@ namespace MultiFactor.Radius.Adapter.Extensions
             services.AddSingleton<PasswordChangeHandler>();
             services.AddSingleton<ActiveDirectoryMembershipVerifier>();
             services.AddSingleton<ForestMetadataCache>();
+            services.AddSingleton<NetbiosService>();
 
             services.AddSingleton<IFirstAuthFactorProcessor, ActiveDirectoryFirstAuthFactorProcessor>();
             services.AddSingleton<IFirstAuthFactorProcessor, AdLdsFirstAuthFactorProcessor>();

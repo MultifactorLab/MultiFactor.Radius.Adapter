@@ -1,4 +1,5 @@
 ﻿using MultiFactor.Radius.Adapter.Configuration;
+using MultiFactor.Radius.Adapter.Extensions;
 using Serilog;
 using System;
 using System.Collections.Generic;
@@ -13,6 +14,10 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap.LdapMetadata
         private readonly ILogger _logger;
         private readonly LdapConnectionAdapter _connectionAdapter;
 
+        private const string CommonNameAttribute = "cn";
+        private const string UpnSuffixesAttribute = "uPNSuffixes";
+        private const string NetbiosNameAttribute = "netbiosname";
+
         public ForestSchemaLoader(ClientConfiguration clientConfig, LdapConnection connection, ILogger logger)
         {
             _clientConfig = clientConfig ?? throw new ArgumentNullException(nameof(clientConfig));
@@ -25,42 +30,23 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap.LdapMetadata
             if (root is null) throw new ArgumentNullException(nameof(root));
             _logger.Debug($"Loading forest schema from {root.Name}");
 
-            var domainNameSuffixes = new Dictionary<string, LdapIdentity>();
 
+            var domainNameSuffixes = new Dictionary<string, LdapIdentity>();
             try
             {
-
-                domainNameSuffixes = new Dictionary<string, LdapIdentity>();
-
                 var trustedDomainsResult = _connectionAdapter.Query(
                     "CN=System," + root.Name,
                     "objectClass=trustedDomain",
                     SearchScope.OneLevel,
                     true,
-                    "cn");
+                    CommonNameAttribute);
 
                 var schema = new List<LdapIdentity> { root };
-
-                for (var i = 0; i < trustedDomainsResult.Entries.Count; i++)
-                {
-                    var entry = trustedDomainsResult.Entries[i];
-                    var attribute = entry.Attributes["cn"];
-                    if (attribute != null)
-                    {
-                        var domain = attribute[0].ToString();
-                        if (_clientConfig.IsPermittedDomain(domain))
-                        {
-                            var trustPartner = LdapIdentity.FqdnToDn(domain);
-
-                            _logger.Debug($"Found trusted domain {trustPartner.Name}");
-
-                            if (!schema.Contains(trustPartner))
-                            {
-                                schema.Add(trustPartner);
-                            }
-                        }
-                    }
-                }
+                var trustedDomains = trustedDomainsResult.GetAttributeValuesByName(CommonNameAttribute)
+                    .Where(domain => _clientConfig.IsPermittedDomain(domain))
+                    .Select(domain => LdapIdentity.FqdnToDn(domain));
+                _logger.Debug($"Found trusted domains:\r\n{string.Join(";", trustedDomains)}");
+                schema.AddRange(trustedDomains);
 
                 foreach (var domain in schema)
                 {
@@ -80,25 +66,13 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap.LdapMetadata
                                 "objectClass=*",
                                 SearchScope.Base,
                                 true,
-                                "uPNSuffixes");
+                                UpnSuffixesAttribute);
+                            List<string> uPNSuffixes = uPNSuffixesResult.GetAttributeValuesByName(UpnSuffixesAttribute);
 
-                            for (var i = 0; i < uPNSuffixesResult.Entries.Count; i++)
+                            foreach (var suffix in uPNSuffixes.Where(upn => !domainNameSuffixes.ContainsKey(upn)))
                             {
-                                var entry = uPNSuffixesResult.Entries[i];
-                                var attribute = entry.Attributes["uPNSuffixes"];
-                                if (attribute != null)
-                                {
-                                    for (var j = 0; j < attribute.Count; j++)
-                                    {
-                                        var suffix = attribute[j].ToString();
-
-                                        if (!domainNameSuffixes.ContainsKey(suffix))
-                                        {
-                                            domainNameSuffixes.Add(suffix, domain);
-                                            _logger.Debug($"Found alternative UPN suffix {suffix} for domain {domain.Name}");
-                                        }
-                                    }
-                                }
+                                domainNameSuffixes.Add(suffix, domain);
+                                _logger.Debug($"Found alternative UPN suffix {suffix} for domain {domain.Name}");
                             }
                         }
                         catch (Exception ex)
@@ -115,6 +89,28 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap.LdapMetadata
             }
 
             return new ForestSchema(domainNameSuffixes);
+        }
+
+        private void InitializeNetbiosNames(List<LdapIdentity> schema)
+        {
+            foreach (var domain in schema)
+            {
+                var netbiosNameResponse = _connectionAdapter.Query(
+                    "CN=Partitions,CN=Configuration," + domain.Name,
+                    "(&(objectcategory=crossref)(netbiosname=*))",
+                    SearchScope.OneLevel,
+                    true, // TODO
+                    NetbiosNameAttribute);
+                List<string> netbiosNames = netbiosNameResponse.GetAttributeValuesByName(NetbiosNameAttribute);
+
+                if (netbiosNames.Count == 1)
+                {
+                    _logger.Information($"Find netbiosname {netbiosNames[0]} for domain {domain}");
+                    domain.SetNetBiosName(netbiosNames[0]);
+                    continue;
+                }
+                _logger.Warning($"Unexpected netbiosname(s) for domain {domain}:{string.Join(";", netbiosNames)}");
+            }
         }
     }
 }

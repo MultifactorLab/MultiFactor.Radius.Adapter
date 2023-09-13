@@ -3,15 +3,14 @@
 //https://github.com/MultifactorLab/MultiFactor.Radius.Adapter/blob/master/LICENSE.md
 
 using MultiFactor.Radius.Adapter.Configuration;
+using MultiFactor.Radius.Adapter.Interop;
 using MultiFactor.Radius.Adapter.Server;
 using MultiFactor.Radius.Adapter.Services.Ldap;
 using MultiFactor.Radius.Adapter.Services.Ldap.LdapMetadata;
 using Serilog;
 using System;
-using System.DirectoryServices.AccountManagement;
 using System.DirectoryServices.Protocols;
 using System.Linq;
-using System.Net;
 
 namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory.MembershipVerification
 {
@@ -19,11 +18,13 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory.MembershipVerifica
     {
         private readonly ILogger _logger;
         private readonly ForestMetadataCache _metadataCache;
+        private readonly NetbiosService _netbiosService;
 
-        public ActiveDirectoryMembershipVerifier(ILogger logger, ForestMetadataCache metadataCache)
+        public ActiveDirectoryMembershipVerifier(ILogger logger, ForestMetadataCache metadataCache, NetbiosService netbiosService)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _metadataCache = metadataCache ?? throw new ArgumentNullException(nameof(metadataCache));
+            _netbiosService = netbiosService;
         }
 
         /// <summary>
@@ -48,13 +49,23 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory.MembershipVerifica
             //trying to authenticate for each domain/forest
             foreach (var domain in clientConfig.SplittedActiveDirectoryDomains)
             {
-                var domainIdentity = LdapIdentity.FqdnToDn(domain);
-
+                var userDomain = domain;
+                var domainIdentity = LdapIdentity.FqdnToDn(userDomain);
                 try
                 {
                     var user = LdapIdentityFactory.CreateUserIdentity(clientConfig, userName);
-
                     _logger.Debug($"Verifying user '{{user:l}}' membership at {domainIdentity}", user.Name);
+
+                    if (user.HasNetbiosName())
+                    {
+                        user = _netbiosService.ConvertToUpnUser(clientConfig, user, userDomain);
+                        var suffix = user.UpnToSuffix();
+                        if (!clientConfig.IsPermittedDomain(suffix))
+                        {
+                            throw new UserDomainNotPermittedException($"User domain {suffix} not permitted");
+                        }
+                    }
+
                     using (var connection = CreateConnection(domain))
                     {
                         var schema = _metadataCache.Get(
@@ -113,11 +124,12 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory.MembershipVerifica
 
         private LdapConnection CreateConnection(string currentDomain)
         {
+            _logger.Debug($"Start connection to {currentDomain}");
             var connection = new LdapConnection(currentDomain);
             connection.SessionOptions.ProtocolVersion = 3;
             connection.SessionOptions.RootDseCache = true;
             connection.Bind();
-
+            _logger.Debug($"Start bind to {currentDomain}");
             return connection;
         }
 

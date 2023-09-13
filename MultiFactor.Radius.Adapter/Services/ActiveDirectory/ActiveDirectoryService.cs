@@ -3,6 +3,7 @@
 //https://github.com/MultifactorLab/MultiFactor.Radius.Adapter/blob/master/LICENSE.md
 
 using MultiFactor.Radius.Adapter.Configuration;
+using MultiFactor.Radius.Adapter.Interop;
 using MultiFactor.Radius.Adapter.Server;
 using MultiFactor.Radius.Adapter.Services.Ldap;
 using MultiFactor.Radius.Adapter.Services.Ldap.LdapMetadata;
@@ -13,7 +14,6 @@ using System.DirectoryServices.AccountManagement;
 using System.DirectoryServices.Protocols;
 using System.Linq;
 using System.Net;
-using System.Text.RegularExpressions;
 
 namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory
 {
@@ -22,16 +22,17 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory
     /// </summary>
     public class ActiveDirectoryService
     {
-        private ILogger _logger;
-        private string _domain;
+        private readonly ILogger _logger;
+        private readonly string _domain;
         private readonly ForestMetadataCache _forestMetadataCache;
+        private readonly NetbiosService _netbiosService;
 
-        public ActiveDirectoryService(string domain, ForestMetadataCache forestMetadataCache, ILogger logger)
+        public ActiveDirectoryService(string domain, ForestMetadataCache forestMetadataCache, NetbiosService netbiosService, ILogger logger)
         {
             _domain = domain ?? throw new ArgumentNullException(nameof(domain));
             _forestMetadataCache = forestMetadataCache ?? throw new ArgumentNullException(nameof(forestMetadataCache));
+            _netbiosService = netbiosService ?? throw new ArgumentNullException(nameof(netbiosService));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-
         }
 
         /// <summary>
@@ -50,6 +51,19 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory
             }
 
             var user = LdapIdentity.ParseUser(userName);
+            var userDomain = _domain;
+
+            if (clientConfig.RequiresUpn && user.Type != IdentityType.UserPrincipalName)
+            {
+                _logger.Warning("Only UserPrincipalName format permitted, see configuration");
+                return false;
+            }
+
+            if (user.HasNetbiosName())
+            {
+                user = _netbiosService.ConvertToUpnUser(clientConfig, user, userDomain);
+            }
+
             if (user.Type == IdentityType.UserPrincipalName)
             {
                 var suffix = user.UpnToSuffix();
@@ -59,18 +73,10 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory
                     return false;
                 }
             }
-            else
-            {
-                if (clientConfig.RequiresUpn)
-                {
-                    _logger.Warning("Only UserPrincipalName format permitted, see configuration");
-                    return false;
-                }
-            }
 
             try
             {
-                _logger.Debug($"Verifying user '{{user:l}}' credential and status at {_domain}", user.Name);
+                _logger.Debug($"Verifying user '{{user:l}}' credential and status at {userDomain}", user.Name);
 
                 using (var connection = new LdapConnection(_domain))
                 {
@@ -79,9 +85,9 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory
                     connection.SessionOptions.ProtocolVersion = 3;
                     connection.Bind();
 
-                    _logger.Information($"User '{{user:l}}' credential and status verified successfully in {_domain}", user.Name);
+                    _logger.Information($"User '{{user:l}}' credential and status verified successfully in {userDomain}", user.Name);
 
-                    return VerifyMembership(clientConfig, connection, user, request);
+                    return VerifyMembership(clientConfig, connection, userDomain, user, request);
                 }
             }
             catch (LdapException lex)
@@ -93,16 +99,17 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory
 
                     if (reason.Reason != LdapErrorReason.UnknownError)
                     {
-                        _logger.Warning($"Verification user '{{user:l}}' at {_domain} failed: {reason.ReasonText}", user.Name);
+                        _logger.Warning($"Verification user '{{user:l}}' at {userDomain} failed: {reason.ReasonText}", user.Name);
                         return false;
                     }
                 }
 
-                _logger.Error(lex, "Verification user '{user:l}' at {domain:l} failed: {msg:l} {srvmsg:l}", user.Name, _domain, lex.Message, lex.ServerErrorMessage);
+                _logger.Error(lex, "Verification user '{user:l}' at {domain:l} failed: {msg:l} {srvmsg:l}", user.Name, userDomain, lex.Message, lex.ServerErrorMessage);
             }
+
             catch (Exception ex)
             {
-                _logger.Error(ex, "Verification user '{user:l}' at {domain:l} failed: {msg:l}", user.Name, _domain, ex.Message);
+                _logger.Error(ex, "Verification user '{user:l}' at {domain:l} failed: {msg:l}", user.Name, userDomain, ex.Message);
             }
 
             return false;
@@ -128,9 +135,17 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory
 
                     var domain = LdapIdentity.FqdnToDn(_domain);
                     var schema = _forestMetadataCache.Get(
-                        clientConfig.Name, 
+                        clientConfig.Name,
                         domain,
                         () => new ForestSchemaLoader(clientConfig, connection, _logger).Load(domain));
+
+                    if (identity.HasNetbiosName())
+                    {
+                        _logger.Information($"Trying to resolve domain by netbios {identity.NetBiosName} for password changing, user:{identity.Name}.");
+                        identity = _netbiosService.ConvertToUpnUser(clientConfig, identity, _domain);
+                        domain = LdapIdentity.FqdnToDn(identity.UpnToSuffix());
+                    }
+
                     var profile = new ProfileLoader(schema, _logger).LoadProfile(clientConfig, connection, domain, identity);
                     if (profile == null)
                     {
@@ -167,12 +182,12 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory
             return false;
         }
 
-        private bool VerifyMembership(ClientConfiguration clientConfig, LdapConnection connection, LdapIdentity user, PendingRequest request)
+        private bool VerifyMembership(ClientConfiguration clientConfig, LdapConnection connection, string userDomain, LdapIdentity user, PendingRequest request)
         {
-            var domain = LdapIdentity.FqdnToDn(_domain);
+            var domain = LdapIdentity.FqdnToDn(userDomain);
             var schema = _forestMetadataCache.Get(
-                clientConfig.Name, 
-                domain, 
+                clientConfig.Name,
+                domain,
                 () => new ForestSchemaLoader(clientConfig, connection, _logger).Load(domain));
             var profile = new ProfileLoader(schema, _logger).LoadProfile(clientConfig, connection, domain, user);
             if (profile == null)
