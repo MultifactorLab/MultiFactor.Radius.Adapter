@@ -2,6 +2,7 @@
 //Please see licence at 
 //https://github.com/MultifactorLab/MultiFactor.Radius.Adapter/blob/master/LICENSE.md
 
+using MultiFactor.Radius.Adapter.Configuration;
 using MultiFactor.Radius.Adapter.Core;
 using System.Collections.Generic;
 using System.Net;
@@ -10,11 +11,21 @@ namespace MultiFactor.Radius.Adapter.Server
 {
     public class PendingRequest
     {
+        public const int OtpLength = 6;
         public PendingRequest()
         {
             ResponseCode = PacketCode.AccessReject;
             UserGroups = new List<string>();
         }
+
+        public PendingRequest(ClientConfiguration clientConfiguration)
+        {
+            ResponseCode = PacketCode.AccessReject;
+            UserGroups = new List<string>();
+            ClientConfig = clientConfiguration;
+        }
+
+        public readonly ClientConfiguration ClientConfig;
 
         /// <summary>
         /// Client endpoint
@@ -49,5 +60,29 @@ namespace MultiFactor.Radius.Adapter.Server
         public string MustChangePasswordDomain { get; set; }
 
         public IDictionary<string, object> LdapAttrs { get; set; }
+
+        /// <summary>
+        /// Gets password from ResponsePacket.UserPassword, skipping OTP (the last OtpLength characters)
+        /// </summary>
+        public string GetPassword()
+        {
+            var passwordAndOtp = RequestPacket.TryGetUserPassword();
+            var lastIndex = passwordAndOtp.Length - OtpLength;
+            var password = passwordAndOtp.Substring(0, lastIndex);
+
+            return password;
+        }
+
+        /// <summary>
+        /// Gets OTP (the last OtpLength characters) from ResponsePacket.UserPassword, skipping password 
+        /// </summary>
+        public string GetOtp()
+        {
+            var passwordAndOtp = RequestPacket.TryGetUserPassword();
+            var firstIndex = passwordAndOtp.Length - OtpLength;
+            var otp = passwordAndOtp.Substring(firstIndex, OtpLength);
+
+            return otp;
+        }
     }
 }

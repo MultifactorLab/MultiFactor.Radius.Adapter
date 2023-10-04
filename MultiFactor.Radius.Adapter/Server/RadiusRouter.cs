@@ -3,6 +3,7 @@
 //https://github.com/MultifactorLab/MultiFactor.Radius.Adapter/blob/master/LICENSE.md
 
 using MultiFactor.Radius.Adapter.Configuration;
+using MultiFactor.Radius.Adapter.Configuration.Features.PreAuthnModeFeature;
 using MultiFactor.Radius.Adapter.Core;
 using MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing;
 using MultiFactor.Radius.Adapter.Services.MultiFactorApi;
@@ -86,6 +87,31 @@ namespace MultiFactor.Radius.Adapter.Server
                     }
                 }
 
+                if (clientConfig.PreAuthnMode.Mode == PreAuthnMode.Otp)
+                {
+                    var otp = request.GetOtp();
+                    var isOtp = Regex.IsMatch(otp.Trim(), "^[0-9]{6,6}$");
+
+                    if (!isOtp)
+                    {
+                        request.ResponseCode = PacketCode.AccessReject;
+                        RequestProcessed?.Invoke(this, request);
+                        return;
+                    }
+
+                    request.ResponseCode = await ProcessSecondAuthenticationFactor(request, clientConfig);
+
+                    if (request.ResponseCode != PacketCode.AccessAccept)
+                    {
+                        request.ResponseCode = PacketCode.AccessReject;
+                        
+                        _logger.Error("The second factor was rejected");
+                        RequestProcessed?.Invoke(this, request);
+                        return;
+                    }
+
+                }
+
                 var firstAuthFactorProcessor = _firstAuthFactorProcessorProvider.GetProcessor(clientConfig.FirstFactorAuthenticationSource);
                 var firstFactorAuthenticationResultCode = await firstAuthFactorProcessor.ProcessFirstAuthFactorAsync(request, clientConfig);
                 if (firstFactorAuthenticationResultCode == PacketCode.DisconnectNak)
@@ -128,13 +154,16 @@ namespace MultiFactor.Radius.Adapter.Server
                     return;
                 }
 
-                request.ResponseCode = await ProcessSecondAuthenticationFactor(request, clientConfig);
-                if (request.ResponseCode == PacketCode.AccessChallenge)
-                {
-                    AddStateChallengePendingRequest(request.State, request);
-                }
+                if (clientConfig.PreAuthnMode.Mode != PreAuthnMode.Otp)
+                { 
+                    request.ResponseCode = await ProcessSecondAuthenticationFactor(request, clientConfig);
+                    if (request.ResponseCode == PacketCode.AccessChallenge)
+                    {
+                        AddStateChallengePendingRequest(request.State, request);
+                    }
 
-                RequestProcessed?.Invoke(this, request);
+                    RequestProcessed?.Invoke(this, request);
+                }
             }
             catch(Exception ex)
             {
