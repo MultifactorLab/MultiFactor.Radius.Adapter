@@ -89,6 +89,8 @@ The component's parameters are stored in ```MultiFactor.Radius.Adapter.exe.confi
 
 <!-- Access to the Multifactor API via HTTP proxy (optional)-->
 <!--add key="multifactor-api-proxy" value="http://proxy:3128"/-->
+<!--Timeout for requests in the Multifactor API in seconds, the minimum value is 65 seconds-->
+<add key="multifactor-api-timeout" value="65"/>
 
 <!-- Logging level: 'Debug', 'Info', 'Warn', 'Error' -->
 <add key="logging-level" value="Debug"/>
