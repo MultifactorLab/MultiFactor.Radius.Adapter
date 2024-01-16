@@ -17,7 +17,7 @@ using System.Net.Http;
 
 namespace MultiFactor.Radius.Adapter.Extensions
 {
-    public static class ServicesConfiguration
+    public static class ServiceCollectionExtensions
     {
         public static void ConfigureApplicationServices(this IServiceCollection services, LoggingLevelSwitch levelSwitch, string syslogInfoMessage)
         {

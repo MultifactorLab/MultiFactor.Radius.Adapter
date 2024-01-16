@@ -2,20 +2,21 @@
 //Please see licence at 
 //https://github.com/MultifactorLab/MultiFactor.Radius.Adapter/blob/master/LICENSE.md
 
+using MultiFactor.Radius.Adapter.Configuration.Features.PrivacyModeFeature;
 using MultiFactor.Radius.Adapter.Core;
 using MultiFactor.Radius.Adapter.Server;
+using MultiFactor.Radius.Adapter.Services.MultiFactorApi;
+using NetTools;
 using Serilog;
 using System;
-using System.Linq;
 using System.Collections.Generic;
 using System.Configuration;
+using System.IO;
+using System.Linq;
 using System.Net;
 using System.Text;
-using System.IO;
-using NetTools;
 using System.Text.RegularExpressions;
-using MultiFactor.Radius.Adapter.Configuration.Features.PrivacyModeFeature;
-using MultiFactor.Radius.Adapter.Services.MultiFactorApi;
+using System.Threading;
 
 namespace MultiFactor.Radius.Adapter.Configuration
 {
@@ -164,8 +165,6 @@ namespace MultiFactor.Radius.Adapter.Configuration
 
         #endregion
 
-        private const int _minimalApiTimeout = 65;
-
         public static string GetLogFormat()
         {
             var appSettings = ConfigurationManager.AppSettings;
@@ -204,7 +203,6 @@ namespace MultiFactor.Radius.Adapter.Configuration
                 throw new Exception("Configuration error: 'multifactor-api-url' element not found");
             }
 
-            TimeSpan apiTimeout = ParseHttpTimeout(mfTimeoutSetting);
 
             if (string.IsNullOrEmpty(logLevelSetting))
             {
@@ -215,6 +213,8 @@ namespace MultiFactor.Radius.Adapter.Configuration
                 throw new Exception("Configuration error: Can't parse 'adapter-server-endpoint' value");
             }
 
+            TimeSpan apiTimeout = ParseHttpTimeout(mfTimeoutSetting);
+            
             var configuration = new ServiceConfiguration
             {
                 ServiceServerEndpoint = serviceServerEndpoint,
@@ -299,21 +299,16 @@ namespace MultiFactor.Radius.Adapter.Configuration
 
         private static TimeSpan ParseHttpTimeout(string mfTimeoutSetting)
         {
-            TimeSpan apiTimeout;
-            if (!int.TryParse(mfTimeoutSetting, out var httpRequestTimeout))
-            {
-                apiTimeout = TimeSpan.FromSeconds(_minimalApiTimeout);
-            }
-            else
-            {
-                apiTimeout = httpRequestTimeout == 0
-                    ? new TimeSpan(0, 0, 0, 0, -1) // infinity timeout
-                    : httpRequestTimeout < _minimalApiTimeout
-                        ? TimeSpan.FromSeconds(_minimalApiTimeout)  // minimal timeout
-                        : TimeSpan.FromSeconds(httpRequestTimeout); // timeout from config
-            }
-            
-            return apiTimeout;
+            TimeSpan _minimalApiTimeout = TimeSpan.FromSeconds(65);
+
+            if(!TimeSpan.TryParseExact(mfTimeoutSetting, @"hh\:mm\:ss", null, System.Globalization.TimeSpanStyles.None, out var httpRequestTimeout))
+                return _minimalApiTimeout;
+
+            return httpRequestTimeout == TimeSpan.Zero ?
+                Timeout.InfiniteTimeSpan // infinity timeout
+                : httpRequestTimeout < _minimalApiTimeout
+                    ? _minimalApiTimeout  // minimal timeout
+                    : httpRequestTimeout; // timeout from config
         }
 
         public static ClientConfiguration Load(string name, IRadiusDictionary dictionary, AppSettingsSection appSettings, RadiusReplyAttributesSection radiusReplyAttributesSection, ActiveDirectorySection activeDirectorySection, UserNameTransformRulesSection userNameTransformRulesSection)

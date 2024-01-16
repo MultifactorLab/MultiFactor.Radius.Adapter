@@ -214,10 +214,10 @@
     <Compile Include="Core\Constants.cs" />
     <Compile Include="Core\Http\WebProxyFactory.cs" />
     <Compile Include="Core\RadiusPacketOptions.cs" />
-    <Compile Include="Extensions\LoggingConfiguration.cs" />
-    <Compile Include="Extensions\LogLevelConfiguration.cs" />
+    <Compile Include="Extensions\LoggerConfigurationExtensions.cs" />
+    <Compile Include="Extensions\LoggingLevelSwitchExtensions.cs" />
     <Compile Include="Extensions\SearchResponseExtensions.cs" />
-    <Compile Include="Extensions\ServicesConfiguration.cs" />
+    <Compile Include="Extensions\ServiceCollectionExtensions.cs" />
     <Compile Include="Interop\NameTranslator.cs" />
     <Compile Include="Interop\NativeMethods.cs" />
     <Compile Include="Interop\SafeDsHandle.cs" />
