@@ -2,20 +2,21 @@
 //Please see licence at 
 //https://github.com/MultifactorLab/MultiFactor.Radius.Adapter/blob/master/LICENSE.md
 
+using MultiFactor.Radius.Adapter.Configuration.Features.PrivacyModeFeature;
 using MultiFactor.Radius.Adapter.Core;
 using MultiFactor.Radius.Adapter.Server;
+using MultiFactor.Radius.Adapter.Services.MultiFactorApi;
+using NetTools;
 using Serilog;
 using System;
-using System.Linq;
 using System.Collections.Generic;
 using System.Configuration;
+using System.IO;
+using System.Linq;
 using System.Net;
 using System.Text;
-using System.IO;
-using NetTools;
 using System.Text.RegularExpressions;
-using MultiFactor.Radius.Adapter.Configuration.Features.PrivacyModeFeature;
-using MultiFactor.Radius.Adapter.Services.MultiFactorApi;
+using System.Threading;
 
 namespace MultiFactor.Radius.Adapter.Configuration
 {
@@ -27,12 +28,12 @@ namespace MultiFactor.Radius.Adapter.Configuration
         /// <summary>
         /// List of clients with identification by client ip
         /// </summary>
-        private IDictionary<IPAddress, ClientConfiguration> _ipClients;
+        private readonly IDictionary<IPAddress, ClientConfiguration> _ipClients;
 
         /// <summary>
         /// List of clients with identification by NAS-Identifier attr
         /// </summary>
-        private IDictionary<string, ClientConfiguration> _nasIdClients;
+        private readonly IDictionary<string, ClientConfiguration> _nasIdClients;
 
         public ServiceConfiguration()
         {
@@ -141,10 +142,16 @@ namespace MultiFactor.Radius.Adapter.Configuration
         /// Multifactor API URL
         /// </summary>
         public string ApiUrl { get; set; }
+
         /// <summary>
         /// HTTP Proxy for API
         /// </summary>
         public string ApiProxy { get; set; }
+
+        /// <summary>
+        /// Timeout for MFA request
+        /// </summary>
+        public TimeSpan ApiTimeout { get; set; }
 
         /// <summary>
         /// Logging level
@@ -154,6 +161,7 @@ namespace MultiFactor.Radius.Adapter.Configuration
         public bool SingleClientMode { get; set; }
 
         public RandomWaiterConfig InvalidCredentialDelay { get; set; }
+
 
         #endregion
 
@@ -179,11 +187,12 @@ namespace MultiFactor.Radius.Adapter.Configuration
 
             var appSettingsSection = serviceConfig.GetSection("appSettings");
             var appSettings = appSettingsSection as AppSettingsSection;
-            
-            var serviceServerEndpointSetting    = appSettings.Settings["adapter-server-endpoint"]?.Value;
-            var apiUrlSetting                   = appSettings.Settings["multifactor-api-url"]?.Value;
-            var apiProxySetting                 = appSettings.Settings["multifactor-api-proxy"]?.Value;
-            var logLevelSetting                 = appSettings.Settings["logging-level"]?.Value;
+
+            var serviceServerEndpointSetting = appSettings.Settings["adapter-server-endpoint"]?.Value;
+            var apiUrlSetting = appSettings.Settings["multifactor-api-url"]?.Value;
+            var apiProxySetting = appSettings.Settings["multifactor-api-proxy"]?.Value;
+            var mfTimeoutSetting = appSettings.Settings["multifactor-api-timeout"]?.Value;
+            var logLevelSetting = appSettings.Settings["logging-level"]?.Value;
 
             if (string.IsNullOrEmpty(serviceServerEndpointSetting))
             {
@@ -193,6 +202,8 @@ namespace MultiFactor.Radius.Adapter.Configuration
             {
                 throw new Exception("Configuration error: 'multifactor-api-url' element not found");
             }
+
+
             if (string.IsNullOrEmpty(logLevelSetting))
             {
                 throw new Exception("Configuration error: 'logging-level' element not found");
@@ -202,11 +213,14 @@ namespace MultiFactor.Radius.Adapter.Configuration
                 throw new Exception("Configuration error: Can't parse 'adapter-server-endpoint' value");
             }
 
+            TimeSpan apiTimeout = ParseHttpTimeout(mfTimeoutSetting);
+            
             var configuration = new ServiceConfiguration
             {
                 ServiceServerEndpoint = serviceServerEndpoint,
                 ApiUrl = apiUrlSetting,
                 ApiProxy = apiProxySetting,
+                ApiTimeout = apiTimeout,
                 LogLevel = logLevelSetting
             };
 
@@ -225,11 +239,8 @@ namespace MultiFactor.Radius.Adapter.Configuration
             if (clientConfigFiles.Length == 0)
             {
                 //check if we have anything
-                var ffas = appSettings.Settings["first-factor-authentication-source"]?.Value;
-                if (ffas == null)
-                {
-                    throw new ConfigurationErrorsException("No clients' config files found. Use one of the *.template files in the /clients folder to customize settings. Then save this file as *.config.");
-                }
+                _ = (appSettings.Settings["first-factor-authentication-source"]?.Value)
+                    ?? throw new ConfigurationErrorsException("No clients' config files found. Use one of the *.template files in the /clients folder to customize settings. Then save this file as *.config.");
 
                 var radiusReplyAttributesSection = ConfigurationManager.GetSection("RadiusReply") as RadiusReplyAttributesSection;
                 var activeDirectorySection = ConfigurationManager.GetSection("ActiveDirectory") as ActiveDirectorySection;
@@ -245,8 +256,10 @@ namespace MultiFactor.Radius.Adapter.Configuration
                 {
                     logger.Information($"Loading client configuration from {Path.GetFileName(clientConfigFile)}");
 
-                    var customConfigFileMap = new ExeConfigurationFileMap();
-                    customConfigFileMap.ExeConfigFilename = clientConfigFile;
+                    var customConfigFileMap = new ExeConfigurationFileMap
+                    {
+                        ExeConfigFilename = clientConfigFile
+                    };
 
                     var config = ConfigurationManager.OpenMappedExeConfiguration(customConfigFileMap, ConfigurationUserLevel.None);
                     var clientSettings = (AppSettingsSection)config.GetSection("appSettings");
@@ -256,8 +269,8 @@ namespace MultiFactor.Radius.Adapter.Configuration
 
                     var client = Load(Path.GetFileNameWithoutExtension(clientConfigFile), dictionary, clientSettings, radiusReplyAttributesSection, activeDirectorySection, userNameTransformRulesSection);
 
-                    var radiusClientNasIdentifierSetting    = clientSettings.Settings["radius-client-nas-identifier"]?.Value;
-                    var radiusClientIpSetting               = clientSettings.Settings["radius-client-ip"]?.Value;
+                    var radiusClientNasIdentifierSetting = clientSettings.Settings["radius-client-nas-identifier"]?.Value;
+                    var radiusClientIpSetting = clientSettings.Settings["radius-client-ip"]?.Value;
 
                     if (!string.IsNullOrEmpty(radiusClientNasIdentifierSetting))
                     {
@@ -284,14 +297,28 @@ namespace MultiFactor.Radius.Adapter.Configuration
             return configuration;
         }
 
+        private static TimeSpan ParseHttpTimeout(string mfTimeoutSetting)
+        {
+            TimeSpan _minimalApiTimeout = TimeSpan.FromSeconds(65);
+
+            if(!TimeSpan.TryParseExact(mfTimeoutSetting, @"hh\:mm\:ss", null, System.Globalization.TimeSpanStyles.None, out var httpRequestTimeout))
+                return _minimalApiTimeout;
+
+            return httpRequestTimeout == TimeSpan.Zero ?
+                Timeout.InfiniteTimeSpan // infinity timeout
+                : httpRequestTimeout < _minimalApiTimeout
+                    ? _minimalApiTimeout  // minimal timeout
+                    : httpRequestTimeout; // timeout from config
+        }
+
         public static ClientConfiguration Load(string name, IRadiusDictionary dictionary, AppSettingsSection appSettings, RadiusReplyAttributesSection radiusReplyAttributesSection, ActiveDirectorySection activeDirectorySection, UserNameTransformRulesSection userNameTransformRulesSection)
         {
-            var radiusSharedSecretSetting                           = appSettings.Settings["radius-shared-secret"]?.Value;
-            var radiusPapEncodingSetting                            = appSettings.Settings["radius-pap-encoding"]?.Value;
-            var firstFactorAuthenticationSourceSettings             = appSettings.Settings["first-factor-authentication-source"]?.Value;
-            var bypassSecondFactorWhenApiUnreachableSetting         = appSettings.Settings["bypass-second-factor-when-api-unreachable"]?.Value;
-            var multiFactorApiKeySetting                            = appSettings.Settings["multifactor-nas-identifier"]?.Value;
-            var multiFactorApiSecretSetting                         = appSettings.Settings["multifactor-shared-secret"]?.Value;
+            var radiusSharedSecretSetting = appSettings.Settings["radius-shared-secret"]?.Value;
+            var radiusPapEncodingSetting = appSettings.Settings["radius-pap-encoding"]?.Value;
+            var firstFactorAuthenticationSourceSettings = appSettings.Settings["first-factor-authentication-source"]?.Value;
+            var bypassSecondFactorWhenApiUnreachableSetting = appSettings.Settings["bypass-second-factor-when-api-unreachable"]?.Value;
+            var multiFactorApiKeySetting = appSettings.Settings["multifactor-nas-identifier"]?.Value;
+            var multiFactorApiSecretSetting = appSettings.Settings["multifactor-shared-secret"]?.Value;
 
             if (string.IsNullOrEmpty(firstFactorAuthenticationSourceSettings))
             {
@@ -412,7 +439,7 @@ namespace MultiFactor.Radius.Adapter.Configuration
                 {
                     configuration.AuthenticationCacheLifetime = AuthenticatedClientCacheConfig.CreateFromTimeSpan(setting);
                 }
-                else 
+                else
                 {
                     configuration.AuthenticationCacheLifetime = AuthenticatedClientCacheConfig.CreateFromMinutes(legacySetting);
                 }
@@ -434,15 +461,15 @@ namespace MultiFactor.Radius.Adapter.Configuration
 
         private static void LoadActiveDirectoryAuthenticationSourceSettings(ClientConfiguration configuration, AppSettingsSection appSettings, ActiveDirectorySection activeDirectorySection, bool mandatory)
         {
-            var activeDirectoryDomainSetting                = appSettings.Settings["active-directory-domain"]?.Value;
-            var activeDirectoryGroupSetting                 = appSettings.Settings["active-directory-group"]?.Value;
-            var activeDirectory2FaGroupSetting              = appSettings.Settings["active-directory-2fa-group"]?.Value;
-            var activeDirectory2FaBypassGroupSetting        = appSettings.Settings["active-directory-2fa-bypass-group"]?.Value;
-            var useActiveDirectoryUserPhoneSetting          = appSettings.Settings["use-active-directory-user-phone"]?.Value;
-            var useActiveDirectoryMobileUserPhoneSetting    = appSettings.Settings["use-active-directory-mobile-user-phone"]?.Value;
-            var phoneAttributes                             = appSettings.Settings["phone-attribute"]?.Value;
-            var loadActiveDirectoryNestedGroupsSettings     = appSettings.Settings["load-active-directory-nested-groups"]?.Value;
-            var useUpnAsIdentitySetting                     = appSettings.Settings["use-upn-as-identity"]?.Value;
+            var activeDirectoryDomainSetting = appSettings.Settings["active-directory-domain"]?.Value;
+            var activeDirectoryGroupSetting = appSettings.Settings["active-directory-group"]?.Value;
+            var activeDirectory2FaGroupSetting = appSettings.Settings["active-directory-2fa-group"]?.Value;
+            var activeDirectory2FaBypassGroupSetting = appSettings.Settings["active-directory-2fa-bypass-group"]?.Value;
+            var useActiveDirectoryUserPhoneSetting = appSettings.Settings["use-active-directory-user-phone"]?.Value;
+            var useActiveDirectoryMobileUserPhoneSetting = appSettings.Settings["use-active-directory-mobile-user-phone"]?.Value;
+            var phoneAttributes = appSettings.Settings["phone-attribute"]?.Value;
+            var loadActiveDirectoryNestedGroupsSettings = appSettings.Settings["load-active-directory-nested-groups"]?.Value;
+            var useUpnAsIdentitySetting = appSettings.Settings["use-upn-as-identity"]?.Value;
 
             if (mandatory && string.IsNullOrEmpty(activeDirectoryDomainSetting))
             {
@@ -542,8 +569,8 @@ namespace MultiFactor.Radius.Adapter.Configuration
 
         private static void LoadRadiusAuthenticationSourceSettings(ClientConfiguration configuration, AppSettingsSection appSettings)
         {
-            var serviceClientEndpointSetting    = appSettings.Settings["adapter-client-endpoint"]?.Value;
-            var npsEndpointSetting              = appSettings.Settings["nps-server-endpoint"]?.Value;
+            var serviceClientEndpointSetting = appSettings.Settings["adapter-client-endpoint"]?.Value;
+            var npsEndpointSetting = appSettings.Settings["nps-server-endpoint"]?.Value;
 
             if (string.IsNullOrEmpty(serviceClientEndpointSetting))
             {
@@ -576,11 +603,8 @@ namespace MultiFactor.Radius.Adapter.Configuration
                 foreach (var member in radiusReplyAttributesSection.Members)
                 {
                     var attribute = member as RadiusReplyAttributeElement;
-                    var radiusAttribute = dictionary.GetAttribute(attribute.Name);
-                    if (radiusAttribute == null)
-                    {
-                        throw new ConfigurationErrorsException($"Unknown attribute '{attribute.Name}' in RadiusReply configuration element, please see dictionary");
-                    }
+                    var radiusAttribute = dictionary.GetAttribute(attribute.Name)
+                        ?? throw new ConfigurationErrorsException($"Unknown attribute '{attribute.Name}' in RadiusReply configuration element, please see dictionary");
                     
                     if (!replyAttributes.ContainsKey(attribute.Name))
                     {
@@ -600,7 +624,7 @@ namespace MultiFactor.Radius.Adapter.Configuration
                         }
                         catch (Exception ex)
                         {
-                            throw new ConfigurationErrorsException($"Error while parsing attribute '{radiusAttribute.Name}' with {radiusAttribute.Type} value '{attribute.Value}' in RadiusReply configuration element: {ex.Message}"); 
+                            throw new ConfigurationErrorsException($"Error while parsing attribute '{radiusAttribute.Name}' with {radiusAttribute.Type} value '{attribute.Value}' in RadiusReply configuration element: {ex.Message}");
                         }
                     }
                 }
@@ -635,10 +659,9 @@ namespace MultiFactor.Radius.Adapter.Configuration
 
         private static bool TryParseIPEndPoint(string text, out IPEndPoint ipEndPoint)
         {
-            Uri uri;
             ipEndPoint = null;
 
-            if (Uri.TryCreate(string.Concat("tcp://", text), UriKind.Absolute, out uri))
+            if (Uri.TryCreate(string.Concat("tcp://", text), UriKind.Absolute, out Uri uri))
             {
                 ipEndPoint = new IPEndPoint(IPAddress.Parse(uri.Host), uri.Port < 0 ? 0 : uri.Port);
                 return true;
