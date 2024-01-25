@@ -46,7 +46,17 @@ namespace MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing
 
                     request.Upn = attrs["userPrincipalName"].FirstOrDefault();
                 }
+                if (clientConfig.TwoFAIdentityAttribyte != null)
+                {
+                    var attrs = LoadRequiredAttributes(request, clientConfig, clientConfig.TwoFAIdentityAttribyte);
+                    if (!attrs.ContainsKey(clientConfig.TwoFAIdentityAttribyte))
+                    {
+                        _logger.Warning("Attribute '{TwoFAIdentityAttribyte}' was not loaded", clientConfig.TwoFAIdentityAttribyte);
+                        return Task.FromResult(PacketCode.AccessReject);
+                    }
 
+                    request.TwoFAIdentityAttribyte = attrs[clientConfig.TwoFAIdentityAttribyte].FirstOrDefault();
+                }
                 return Task.FromResult(PacketCode.AccessAccept);
             }
 

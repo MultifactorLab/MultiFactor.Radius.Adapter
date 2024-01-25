@@ -196,7 +196,7 @@ namespace MultiFactor.Radius.Adapter.Server
         /// </summary>
         private async Task<PacketCode> ProcessChallenge(PendingRequest request, ClientConfiguration clientConfig, string state)
         {
-            var userName = request.UserName;
+            var userName = request.SecondFactorIdentity;
 
             if (string.IsNullOrEmpty(userName))
             {

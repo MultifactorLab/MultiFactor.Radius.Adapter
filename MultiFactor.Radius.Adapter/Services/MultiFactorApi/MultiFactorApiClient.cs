@@ -43,7 +43,7 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
 
         public async Task<PacketCode> CreateSecondFactorRequest(PendingRequest request, ClientConfiguration clientConfig)
         {
-            var userName = request.UserName;
+            var userName = request.SecondFactorIdentity;
             var displayName = request.DisplayName;
             var email = request.EmailAddress;
             var userPhone = request.UserPhone;
@@ -106,7 +106,7 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
             //try to get authenticated client to bypass second factor if configured
             if (_authenticatedClientCache.TryHitCache(request.RequestPacket.CallingStationId, userName, clientConfig))
             {
-                _logger.Information("Bypass second factor for user '{user:l}' from {host:l}:{port}", userName, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
+                _logger.Information("Bypass second factor for user '{name:l}' with identity attribyte '{user:l}' from {host:l}:{port}", request.UserName, userName, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
                 return PacketCode.AccessAccept;
             }
 
@@ -146,8 +146,8 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
 
                 if (responseCode == PacketCode.AccessReject)
                 {
-                    _logger.Warning("Second factor verification for user '{user:l}' from {host:l}:{port} failed with reason='{reason:l}'. User phone {phone:l}",
-                        userName, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port, response?.ReplyMessage, response?.Phone);
+                    _logger.Warning("Second factor verification for user '{name:l}' with identity attribyte '{user:l}' from {host:l}:{port} failed with reason='{reason:l}'. User phone {phone:l}",
+                        request.UserName, userName, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port, response?.ReplyMessage, response?.Phone);
                 }
 
                 return responseCode;
@@ -214,6 +214,7 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
                 };
                 message.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", auth);
                 var res = await httpClient.SendAsync(message);
+                res.EnsureSuccessStatusCode();
                 var jsonResponse = await res.Content.ReadAsStringAsync();
                 var response = JsonSerializer.Deserialize<MultiFactorApiResponse<MultiFactorAccessRequest>>(jsonResponse, _serialazerOptions);
 

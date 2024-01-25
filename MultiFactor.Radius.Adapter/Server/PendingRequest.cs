@@ -39,6 +39,7 @@ namespace MultiFactor.Radius.Adapter.Server
         public string State { get; set; }
         public string ReplyMessage { get; set; }
         public string UserName { get; set; }
+        public string TwoFAIdentityAttribyte { private get; set; }
         public string Upn { get; set; }
         public string DisplayName { get; set; }
         public string UserPhone { get; set; }
@@ -47,6 +48,11 @@ namespace MultiFactor.Radius.Adapter.Server
         public IList<string> UserGroups { get; set; }
         public bool MustChangePassword { get; set; }
         public string MustChangePasswordDomain { get; set; }
+
+        /// <summary>
+        /// Should use for 2FA request to MFA API.
+        /// </summary>
+        public string SecondFactorIdentity => TwoFAIdentityAttribyte ?? UserName;
 
         public IDictionary<string, object> LdapAttrs { get; set; }
     }

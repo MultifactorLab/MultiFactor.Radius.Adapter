@@ -14,6 +14,7 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
         public string DisplayName { get; set; }
         public string Email { get; set; }
         public string Phone { get; set; }
+        public string SecondFactorIdentity { get; set; }
         public IList<string> MemberOf { get; set; }
 
         public LdapIdentity BaseDn { get; set; }

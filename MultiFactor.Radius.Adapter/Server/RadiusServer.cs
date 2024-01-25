@@ -279,7 +279,7 @@ namespace MultiFactor.Radius.Adapter.Server
                 RemoteEndpoint = requestScope.RemoteEndpoint, 
                 ProxyEndpoint = requestScope.ProxyEndpoint, 
                 RequestPacket = requestScope.Packet, 
-                UserName = requestScope.Packet.UserName 
+                UserName = requestScope.Packet.UserName
             };
 
             Task.Run(async () => await _radiusRouter.HandleRequest(request, requestScope.ClientConfiguration));

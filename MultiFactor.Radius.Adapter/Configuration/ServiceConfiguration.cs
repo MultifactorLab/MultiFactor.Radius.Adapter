@@ -246,7 +246,7 @@ namespace MultiFactor.Radius.Adapter.Configuration
                 var activeDirectorySection = ConfigurationManager.GetSection("ActiveDirectory") as ActiveDirectorySection;
                 var userNameTransformRulesSection = ConfigurationManager.GetSection("UserNameTransformRules") as UserNameTransformRulesSection;
 
-                var client = Load("General", dictionary, appSettings, radiusReplyAttributesSection, activeDirectorySection, userNameTransformRulesSection);
+                var client = LoadClientSettings("General", dictionary, appSettings, radiusReplyAttributesSection, activeDirectorySection, userNameTransformRulesSection, logger);
                 configuration.AddClient(IPAddress.Any, client);
                 configuration.SingleClientMode = true;
             }
@@ -267,7 +267,7 @@ namespace MultiFactor.Radius.Adapter.Configuration
                     var activeDirectorySection = config.GetSection("ActiveDirectory") as ActiveDirectorySection;
                     var userNameTransformRulesSection = config.GetSection("UserNameTransformRules") as UserNameTransformRulesSection;
 
-                    var client = Load(Path.GetFileNameWithoutExtension(clientConfigFile), dictionary, clientSettings, radiusReplyAttributesSection, activeDirectorySection, userNameTransformRulesSection);
+                    var client = LoadClientSettings(Path.GetFileNameWithoutExtension(clientConfigFile), dictionary, clientSettings, radiusReplyAttributesSection, activeDirectorySection, userNameTransformRulesSection, logger);
 
                     var radiusClientNasIdentifierSetting = clientSettings.Settings["radius-client-nas-identifier"]?.Value;
                     var radiusClientIpSetting = clientSettings.Settings["radius-client-ip"]?.Value;
@@ -311,7 +311,7 @@ namespace MultiFactor.Radius.Adapter.Configuration
                     : httpRequestTimeout; // timeout from config
         }
 
-        public static ClientConfiguration Load(string name, IRadiusDictionary dictionary, AppSettingsSection appSettings, RadiusReplyAttributesSection radiusReplyAttributesSection, ActiveDirectorySection activeDirectorySection, UserNameTransformRulesSection userNameTransformRulesSection)
+        public static ClientConfiguration LoadClientSettings(string name, IRadiusDictionary dictionary, AppSettingsSection appSettings, RadiusReplyAttributesSection radiusReplyAttributesSection, ActiveDirectorySection activeDirectorySection, UserNameTransformRulesSection userNameTransformRulesSection, ILogger logger)
         {
             var radiusSharedSecretSetting = appSettings.Settings["radius-shared-secret"]?.Value;
             var radiusPapEncodingSetting = appSettings.Settings["radius-pap-encoding"]?.Value;
@@ -387,20 +387,20 @@ namespace MultiFactor.Radius.Adapter.Configuration
             {
                 case AuthenticationSource.ActiveDirectory:
                     //active directory authentication and membership settings
-                    LoadActiveDirectoryAuthenticationSourceSettings(configuration, appSettings, activeDirectorySection, true);
+                    LoadActiveDirectoryAuthenticationSourceSettings(configuration, appSettings, activeDirectorySection, true, logger);
                     break;
                 case AuthenticationSource.Radius:
                     //radius authentication settings
                     LoadRadiusAuthenticationSourceSettings(configuration, appSettings);
                     //active directory membership only settings
-                    LoadActiveDirectoryAuthenticationSourceSettings(configuration, appSettings, activeDirectorySection, false);
+                    LoadActiveDirectoryAuthenticationSourceSettings(configuration, appSettings, activeDirectorySection, false, logger);
                     break;
                 case AuthenticationSource.AdLds:
                     LoadAdLdsAuthenticationSourceSettings(configuration, appSettings);
                     break;
                 case AuthenticationSource.None:
                     //active directory membership only settings
-                    LoadActiveDirectoryAuthenticationSourceSettings(configuration, appSettings, activeDirectorySection, false);
+                    LoadActiveDirectoryAuthenticationSourceSettings(configuration, appSettings, activeDirectorySection, false, logger);
                     break;
             }
 
@@ -459,7 +459,7 @@ namespace MultiFactor.Radius.Adapter.Configuration
             }
         }
 
-        private static void LoadActiveDirectoryAuthenticationSourceSettings(ClientConfiguration configuration, AppSettingsSection appSettings, ActiveDirectorySection activeDirectorySection, bool mandatory)
+        private static void LoadActiveDirectoryAuthenticationSourceSettings(ClientConfiguration configuration, AppSettingsSection appSettings, ActiveDirectorySection activeDirectorySection, bool mandatory, ILogger logger)
         {
             var activeDirectoryDomainSetting = appSettings.Settings["active-directory-domain"]?.Value;
             var activeDirectoryGroupSetting = appSettings.Settings["active-directory-group"]?.Value;
@@ -470,6 +470,7 @@ namespace MultiFactor.Radius.Adapter.Configuration
             var phoneAttributes = appSettings.Settings["phone-attribute"]?.Value;
             var loadActiveDirectoryNestedGroupsSettings = appSettings.Settings["load-active-directory-nested-groups"]?.Value;
             var useUpnAsIdentitySetting = appSettings.Settings["use-upn-as-identity"]?.Value;
+            var twoFAIdentityAttribyteSetting = appSettings.Settings["use-attribute-as-identity"]?.Value;
 
             if (mandatory && string.IsNullOrEmpty(activeDirectoryDomainSetting))
             {
@@ -529,8 +530,17 @@ namespace MultiFactor.Radius.Adapter.Configuration
 
             if (bool.TryParse(useUpnAsIdentitySetting, out var useUpnAsIdentity))
             {
+                logger.Warning("The setting 'use-upn-as-identity' is deprecated, use 'use-attribute-as-identity' instead");
                 configuration.UseUpnAsIdentity = useUpnAsIdentity;
             }
+
+            if (!string.IsNullOrEmpty(twoFAIdentityAttribyteSetting))
+            {
+                configuration.TwoFAIdentityAttribyte = twoFAIdentityAttribyteSetting;
+                if(configuration.UseUpnAsIdentity)
+                    throw new Exception("Configuration error: Using settings 'use-upn-as-identity' and 'use-attribute-as-identity' together is unacceptable. Prefer using 'use-attribute-as-identity'.");
+            }
+            
 
             if (activeDirectorySection != null)
             {

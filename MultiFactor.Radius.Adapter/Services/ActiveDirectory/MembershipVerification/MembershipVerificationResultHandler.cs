@@ -44,6 +44,7 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory.MembershipVerifica
             request.EmailAddress = profile.Email;
             request.UserPhone = profile.Phone;
             request.LdapAttrs = profile.LdapAttrs;
+            request.TwoFAIdentityAttribyte = profile.SecondFactorIdentity;
 
             if (profile.MemberOf != null)
             {

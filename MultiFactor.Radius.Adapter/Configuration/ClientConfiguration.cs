@@ -54,6 +54,7 @@ namespace MultiFactor.Radius.Adapter.Configuration
 
         public PrivacyModeDescriptor PrivacyMode { get; set; }
 
+        public string TwoFAIdentityAttribyte { get; set; }
 
         #region ActiveDirectory Authentication settings
 
