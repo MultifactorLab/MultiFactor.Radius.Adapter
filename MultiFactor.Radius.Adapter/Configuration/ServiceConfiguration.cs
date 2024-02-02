@@ -528,20 +528,23 @@ namespace MultiFactor.Radius.Adapter.Configuration
                 configuration.ActiveDirectory2FaBypassGroup = activeDirectory2FaBypassGroupSetting.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
             }
 
-            if (bool.TryParse(useUpnAsIdentitySetting, out var useUpnAsIdentity))
-            {
-                logger.Warning("The setting 'use-upn-as-identity' is deprecated, use 'use-attribute-as-identity' instead");
-                configuration.UseUpnAsIdentity = useUpnAsIdentity;
-            }
-
+            // MUST be before 'use-upn-as-identity' check
             if (!string.IsNullOrEmpty(twoFAIdentityAttribyteSetting))
             {
                 configuration.TwoFAIdentityAttribyte = twoFAIdentityAttribyteSetting;
-                if(configuration.UseUpnAsIdentity)
-                    throw new Exception("Configuration error: Using settings 'use-upn-as-identity' and 'use-attribute-as-identity' together is unacceptable. Prefer using 'use-attribute-as-identity'.");
             }
-            
 
+            //legacy settings for 2fa identity
+            if (bool.TryParse(useUpnAsIdentitySetting, out var useUpnAsIdentity))
+            {
+                if (!string.IsNullOrEmpty(twoFAIdentityAttribyteSetting))
+                    throw new Exception("Configuration error: Using settings 'use-upn-as-identity' and 'use-attribute-as-identity' together is unacceptable. Prefer using 'use-attribute-as-identity'.");
+
+                logger.Warning("The setting 'use-upn-as-identity' is deprecated, use 'use-attribute-as-identity' instead");
+                configuration.TwoFAIdentityAttribyte = "userPrincipalName";
+            }
+
+            
             if (activeDirectorySection != null)
             {
                 var includedDomains = (from object value in activeDirectorySection.IncludedDomains

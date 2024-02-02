@@ -136,7 +136,7 @@ namespace MultiFactor.Radius.Adapter.Server
 
                 RequestProcessed?.Invoke(this, request);
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 _logger.Error(ex, "Request handling error: {msg:l}", ex.Message);
             }
@@ -196,7 +196,7 @@ namespace MultiFactor.Radius.Adapter.Server
         /// </summary>
         private async Task<PacketCode> ProcessChallenge(PendingRequest request, ClientConfiguration clientConfig, string state)
         {
-            var userName = request.SecondFactorIdentity;
+            var userName = request.UserName;
 
             if (string.IsNullOrEmpty(userName))
             {
@@ -218,7 +218,7 @@ namespace MultiFactor.Radius.Adapter.Server
                         _logger.Warning("Can't find User-Password with user response in message id={id} from {host:l}:{port}", request.RequestPacket.Identifier, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
                         return PacketCode.AccessReject;
                     }
-                    
+
                     break;
                 case AuthenticationType.MSCHAP2:
                     var msChapResponse = request.RequestPacket.GetAttribute<byte[]>("MS-CHAP2-Response");
@@ -239,12 +239,13 @@ namespace MultiFactor.Radius.Adapter.Server
                     return PacketCode.AccessReject;
             }
 
-            response = await _multifactorApiClient.Challenge(request, clientConfig, userName, userAnswer, state);
+            var stateChallengePendingRequest = GetStateChallengeRequest(state);
+            request.TwoFAIdentityAttribyte = stateChallengePendingRequest.GetSecondFactorIdentity(clientConfig);
+            response = await _multifactorApiClient.Challenge(request, clientConfig, userAnswer, state);
 
             switch (response)
             {
                 case PacketCode.AccessAccept:
-                    var stateChallengePendingRequest = GetStateChallengeRequest(state);
                     if (stateChallengePendingRequest != null)
                     {
                         request.UserGroups = stateChallengePendingRequest.UserGroups;

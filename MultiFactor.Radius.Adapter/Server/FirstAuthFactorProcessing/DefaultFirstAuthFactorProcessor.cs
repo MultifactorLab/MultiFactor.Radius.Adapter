@@ -33,39 +33,28 @@ namespace MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing
 
         public Task<PacketCode> ProcessFirstAuthFactorAsync(PendingRequest request, ClientConfiguration clientConfig)
         {
-            if (!clientConfig.CheckMembership)
+            if (clientConfig.CheckMembership)
             {
-                if (clientConfig.UseUpnAsIdentity)
-                {
-                    var attrs = LoadRequiredAttributes(request, clientConfig, "userPrincipalName");
-                    if (!attrs.ContainsKey("userPrincipalName"))
-                    {
-                        _logger.Warning("Attribute 'userPrincipalName' was not loaded");
-                        return Task.FromResult(PacketCode.AccessReject);
-                    }
+                // check membership without AD authentication
+                var result = _membershipVerifier.VerifyMembership(request, clientConfig);
+                var handler = new MembershipVerificationResultHandler(result);
 
-                    request.Upn = attrs["userPrincipalName"].FirstOrDefault();
-                }
-                if (clientConfig.TwoFAIdentityAttribyte != null)
-                {
-                    var attrs = LoadRequiredAttributes(request, clientConfig, clientConfig.TwoFAIdentityAttribyte);
-                    if (!attrs.ContainsKey(clientConfig.TwoFAIdentityAttribyte))
-                    {
-                        _logger.Warning("Attribute '{TwoFAIdentityAttribyte}' was not loaded", clientConfig.TwoFAIdentityAttribyte);
-                        return Task.FromResult(PacketCode.AccessReject);
-                    }
-
-                    request.TwoFAIdentityAttribyte = attrs[clientConfig.TwoFAIdentityAttribyte].FirstOrDefault();
-                }
-                return Task.FromResult(PacketCode.AccessAccept);
+                handler.EnrichRequest(request);
+                return Task.FromResult(handler.GetDecision());
             }
 
-            // check membership without AD authentication
-            var result = _membershipVerifier.VerifyMembership(request, clientConfig);
-            var handler = new MembershipVerificationResultHandler(result);
+            if (clientConfig.UseIdentityAttribute)
+            {
+                var attrs = LoadRequiredAttributes(request, clientConfig, clientConfig.TwoFAIdentityAttribyte);
+                if (!attrs.ContainsKey(clientConfig.TwoFAIdentityAttribyte))
+                {
+                    _logger.Warning("Attribute '{TwoFAIdentityAttribyte}' was not loaded", clientConfig.TwoFAIdentityAttribyte);
+                    return Task.FromResult(PacketCode.AccessReject);
+                }
 
-            handler.EnrichRequest(request);
-            return Task.FromResult(handler.GetDecision());
+                request.TwoFAIdentityAttribyte = attrs[clientConfig.TwoFAIdentityAttribyte].FirstOrDefault();
+            }
+            return Task.FromResult(PacketCode.AccessAccept);
         }
 
         private Dictionary<string, string[]> LoadRequiredAttributes(PendingRequest request, ClientConfiguration clientConfig, params string[] attrs)

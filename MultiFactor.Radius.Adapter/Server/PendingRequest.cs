@@ -2,6 +2,7 @@
 //Please see licence at 
 //https://github.com/MultifactorLab/MultiFactor.Radius.Adapter/blob/master/LICENSE.md
 
+using MultiFactor.Radius.Adapter.Configuration;
 using MultiFactor.Radius.Adapter.Core;
 using System.Collections.Generic;
 using System.Net;
@@ -52,7 +53,7 @@ namespace MultiFactor.Radius.Adapter.Server
         /// <summary>
         /// Should use for 2FA request to MFA API.
         /// </summary>
-        public string SecondFactorIdentity => TwoFAIdentityAttribyte ?? UserName;
+        public string GetSecondFactorIdentity(ClientConfiguration clientConfiguration) => clientConfiguration.UseIdentityAttribute ? TwoFAIdentityAttribyte : UserName;
 
         public IDictionary<string, object> LdapAttrs { get; set; }
     }

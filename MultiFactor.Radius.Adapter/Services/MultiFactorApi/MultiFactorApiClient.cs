@@ -43,7 +43,7 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
 
         public async Task<PacketCode> CreateSecondFactorRequest(PendingRequest request, ClientConfiguration clientConfig)
         {
-            var userName = request.SecondFactorIdentity;
+            var userName = request.GetSecondFactorIdentity(clientConfig);
             var displayName = request.DisplayName;
             var email = request.EmailAddress;
             var userPhone = request.UserPhone;
@@ -56,14 +56,10 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
                 calledStationId = request.RequestPacket.CalledStationId;
             }
 
-            if (clientConfig.UseUpnAsIdentity)
+            if (string.IsNullOrEmpty(userName))
             {
-                if (string.IsNullOrEmpty(request.Upn))
-                {
-                    throw new ArgumentNullException("UserPrincipalName");
-                }
-
-                userName = request.Upn;
+                _logger.Warning("Empty user name for second factor request. Request rejected.");
+                return PacketCode.AccessReject;
             }
 
             //remove user information for privacy
@@ -158,9 +154,10 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
             }
         }
 
-        public async Task<PacketCode> Challenge(PendingRequest request, ClientConfiguration clientConfig, string userName, string answer, string state)
+        public async Task<PacketCode> Challenge(PendingRequest request, ClientConfiguration clientConfig,  string answer, string state)
         {
             var url = _serviceConfiguration.ApiUrl + "/access/requests/ra/challenge";
+            var userName = request.GetSecondFactorIdentity(clientConfig);
             var payload = new
             {
                 Identity = userName,
@@ -187,7 +184,6 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
             {
                 return HandleException(ex, userName, request, clientConfig);
             }
-
         }
 
         private async Task<MultiFactorAccessRequest> SendRequest(string url, object payload, ClientConfiguration clientConfiguration)
