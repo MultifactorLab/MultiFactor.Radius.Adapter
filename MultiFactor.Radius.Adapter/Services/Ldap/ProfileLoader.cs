@@ -31,6 +31,11 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
 
             var queryAttributes = new List<string> { "DistinguishedName", "displayName", "mail", "memberOf", "userPrincipalName" };
 
+            if (clientConfig.UseIdentityAttribute && !queryAttributes.Contains(clientConfig.TwoFAIdentityAttribyte))
+            {
+                queryAttributes.Add(clientConfig.TwoFAIdentityAttribyte);
+            }
+
             var ldapReplyAttributes = clientConfig.GetLdapReplyAttributes();
             foreach (var ldapReplyAttribute in ldapReplyAttributes)
             {
@@ -57,6 +62,7 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
             profile.DisplayName = result.Entry.Attributes["displayName"]?[0]?.ToString();
             profile.Email = result.Entry.Attributes["mail"]?[0]?.ToString();
             profile.Upn = result.Entry.Attributes["userPrincipalName"]?[0]?.ToString();
+            profile.SecondFactorIdentity = clientConfig.UseIdentityAttribute ? result.Entry.Attributes[clientConfig.TwoFAIdentityAttribyte]?[0]?.ToString() : null;
 
             //additional attributes for radius response
             foreach (var key in profile.LdapAttrs.Keys.ToList()) //to list to avoid collection was modified exception
