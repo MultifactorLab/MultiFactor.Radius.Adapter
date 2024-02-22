@@ -33,32 +33,31 @@ namespace MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing
 
         public Task<PacketCode> ProcessFirstAuthFactorAsync(PendingRequest request)
         {
-            if (!request.Configuration.CheckMembership)
+            if (request.Configuration.CheckMembership)
             {
-                if (request.Configuration.UseUpnAsIdentity)
-                {
-                    var attrs = LoadRequiredAttributes(request, request.Configuration, "userPrincipalName");
-                    if (!attrs.ContainsKey("userPrincipalName"))
-                    {
-                        _logger.Warning("Attribute 'userPrincipalName' was not loaded");
-                        return Task.FromResult(PacketCode.AccessReject);
-                    }
+                // check membership without AD authentication
+                var result = _membershipVerifier.VerifyMembership(request);
+                var handler = new MembershipVerificationResultHandler(result);
 
-                    request.Upn = attrs["userPrincipalName"].FirstOrDefault();
-                }
-
-                return Task.FromResult(PacketCode.AccessAccept);
+                handler.EnrichRequest(request);
+                return Task.FromResult(handler.GetDecision());
             }
 
-            // check membership without AD authentication
-            var result = _membershipVerifier.VerifyMembership(request, request.Configuration);
-            var handler = new MembershipVerificationResultHandler(result);
+            if (request.Configuration.UseIdentityAttribute)
+            {
+                var attrs = LoadRequiredAttributes(request, request.Configuration.TwoFAIdentityAttribyte);
+                if (!attrs.ContainsKey(request.Configuration.TwoFAIdentityAttribyte))
+                {
+                    _logger.Warning("Attribute '{TwoFAIdentityAttribyte}' was not loaded", request.Configuration.TwoFAIdentityAttribyte);
+                    return Task.FromResult(PacketCode.AccessReject);
+                }
 
-            handler.EnrichRequest(request);
-            return Task.FromResult(handler.GetDecision());
+                request.TwoFAIdentityAttribyte = attrs[request.Configuration.TwoFAIdentityAttribyte].FirstOrDefault();
+            }
+            return Task.FromResult(PacketCode.AccessAccept);
         }
 
-        private Dictionary<string, string[]> LoadRequiredAttributes(PendingRequest request, ClientConfiguration clientConfig, params string[] attrs)
+        private Dictionary<string, string[]> LoadRequiredAttributes(PendingRequest request, params string[] attrs)
         {
             var userName = request.UserName;
             if (string.IsNullOrEmpty(userName))
@@ -67,7 +66,7 @@ namespace MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing
             }
 
             var attributes = new Dictionary<string, string[]>();
-            foreach (var domain in clientConfig.SplittedActiveDirectoryDomains)
+            foreach (var domain in request.Configuration.SplittedActiveDirectoryDomains)
             {
                 if (attributes.Any()) break;
 
@@ -75,15 +74,15 @@ namespace MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing
 
                 try
                 {
-                    var user = LdapIdentityFactory.CreateUserIdentity(clientConfig, userName);
+                    var user = LdapIdentityFactory.CreateUserIdentity(request.Configuration, userName);
 
                     _logger.Debug($"Loading attributes for user '{{user:l}}' at {domainIdentity}", user.Name);
                     using (var connection = CreateConnection(domain))
                     {
                         var schema = _metadataCache.Get(
-                            clientConfig.Name,
+                            request.Configuration.Name,
                             domainIdentity,
-                            () => new ForestSchemaLoader(clientConfig, connection, _logger).Load(domainIdentity));
+                            () => new ForestSchemaLoader(request.Configuration, connection, _logger).Load(domainIdentity));
 
                         attributes = new ProfileLoader(schema, _logger).LoadAttributes(connection, domainIdentity, user, attrs);
                     }

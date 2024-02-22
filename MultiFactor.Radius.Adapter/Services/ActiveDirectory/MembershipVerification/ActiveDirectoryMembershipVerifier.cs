@@ -3,7 +3,6 @@
 //https://github.com/MultifactorLab/MultiFactor.Radius.Adapter/blob/master/LICENSE.md
 
 using MultiFactor.Radius.Adapter.Configuration;
-using MultiFactor.Radius.Adapter.Interop;
 using MultiFactor.Radius.Adapter.Server;
 using MultiFactor.Radius.Adapter.Services.Ldap;
 using MultiFactor.Radius.Adapter.Services.Ldap.LdapMetadata;
@@ -30,10 +29,9 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory.MembershipVerifica
         /// <summary>
         /// Validate user membership within Active Directory Domain without password authentication
         /// </summary>
-        public ComplexMembershipVerificationResult VerifyMembership(PendingRequest request, ClientConfiguration clientConfig)
+        public ComplexMembershipVerificationResult VerifyMembership(PendingRequest request)
         {
             if (request is null) throw new ArgumentNullException(nameof(request));
-            if (clientConfig is null) throw new ArgumentNullException(nameof(clientConfig));
 
             var result = new ComplexMembershipVerificationResult();
 
@@ -48,20 +46,20 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory.MembershipVerifica
             LdapProfile profile = null;
 
             //trying to authenticate for each domain/forest
-            foreach (var domain in clientConfig.SplittedActiveDirectoryDomains)
+            foreach (var domain in request.Configuration.SplittedActiveDirectoryDomains)
             {
                 var userDomain = domain;
                 var domainIdentity = LdapIdentity.FqdnToDn(userDomain);
                 try
                 {
-                    var user = LdapIdentityFactory.CreateUserIdentity(clientConfig, userName);
+                    var user = LdapIdentityFactory.CreateUserIdentity(request.Configuration, userName);
                     _logger.Debug($"Verifying user '{{user:l}}' membership at {domainIdentity}", user.Name);
 
                     if (user.HasNetbiosName())
                     {
-                        user = _netbiosService.ConvertToUpnUser(clientConfig, user, userDomain);
+                        user = _netbiosService.ConvertToUpnUser(request.Configuration, user, userDomain);
                         var suffix = user.UpnToSuffix();
-                        if (!clientConfig.IsPermittedDomain(suffix))
+                        if (!request.Configuration.IsPermittedDomain(suffix))
                         {
                             throw new UserDomainNotPermittedException($"User domain {suffix} not permitted");
                         }
@@ -70,14 +68,14 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory.MembershipVerifica
                     using (var connection = CreateConnection(domain))
                     {
                         var schema = _metadataCache.Get(
-                            clientConfig.Name,
+                            request.Configuration.Name,
                             domainIdentity,
-                            () => new ForestSchemaLoader(clientConfig, connection, _logger).Load(domainIdentity));
+                            () => new ForestSchemaLoader(request.Configuration, connection, _logger).Load(domainIdentity));
 
                         if (profile == null)
                         {
                             profile = new ProfileLoader(schema, _logger)
-                                .LoadProfile(clientConfig, connection, domainIdentity, user);
+                                .LoadProfile(request.Configuration, connection, domainIdentity, user);
                         }
                         if (profile == null)
                         {
@@ -87,7 +85,7 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory.MembershipVerifica
                             continue;
                         }
 
-                        var res = VerifyMembership(clientConfig, profile, domainIdentity, user);
+                        var res = VerifyMembership(request.Configuration, profile, domainIdentity, user);
                         result.AddDomainResult(res);
 
                         if (res.IsSuccess) break;

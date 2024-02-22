@@ -6,12 +6,16 @@ using System.Collections.Generic;
 
 namespace MultiFactor.Radius.Adapter.Server
 {
+    //Changing the password consists of three stages:
+    //1. Сreating a challenge (make user to enter a new password)
+    //2. Re-entering the password to confirm and verify that these passwords match and also meet security requirements
+    //3. Сhanging the password in LDAP
     public class PasswordChangeHandler
     {
-        private CacheService _cache;
+        private readonly CacheService _cache;
 
-        private DataProtectionService _dataProtectionService;
-        private IDictionary<string, ActiveDirectoryService> _activeDirectoryServices;
+        private readonly DataProtectionService _dataProtectionService;
+        private readonly IDictionary<string, ActiveDirectoryService> _activeDirectoryServices;
 
         public PasswordChangeHandler(CacheService cache, IDictionary<string, ActiveDirectoryService> activeDirectoryServices)
         {
@@ -21,14 +25,15 @@ namespace MultiFactor.Radius.Adapter.Server
             _dataProtectionService = new DataProtectionService();
         }
 
-        public PacketCode HandleRequest(PendingRequest request)
+        /// <summary>
+        /// Make user repeat password or try finalize password change flow and change password in AD.
+        /// </summary>
+        /// <returns></returns>
+        /// <exception cref="ArgumentNullException"></exception>
+        /// <remarks>Step 2 and 3 of password change flow.</remarks>
+        public PacketCode TryContinuePasswordChallenge(PendingRequest request)
         {
             if (request == null) throw new ArgumentNullException(nameof(request));
-
-            if (request.MustChangePassword)
-            {
-                return CreatePasswordChallenge(request);
-            }
 
             var passwordChangeRequest = _cache.GetPasswordChangeRequest(request.RequestPacket.State);
             if (passwordChangeRequest == null)
@@ -72,8 +77,19 @@ namespace MultiFactor.Radius.Adapter.Server
             return RepeatPasswordChallenge(request, passwordChangeRequest);
         }
 
-        private PacketCode CreatePasswordChallenge(PendingRequest request)
+        /// <summary>
+        /// Set request state and response code to initialize password change challenge.
+        /// </summary>
+        /// <returns>AccessChallenge packet code if user must change password; AccessAccept otherwise</returns>
+        /// <exception cref="ArgumentNullException"></exception>
+        public PacketCode TryCreatePasswordChallenge(PendingRequest request)
         {
+            if (request == null) throw new ArgumentNullException(nameof(request));
+
+            if (!request.MustChangePassword)
+            {
+                return PacketCode.AccessAccept; //not a password change request, continue authentication
+            }
             var passwordChangeRequest = new PasswordChangeRequest
             {
                 Domain = request.MustChangePasswordDomain,

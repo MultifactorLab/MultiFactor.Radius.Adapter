@@ -55,6 +55,8 @@ namespace MultiFactor.Radius.Adapter.Configuration
 
         public PrivacyModeDescriptor PrivacyMode { get; set; }
 
+        public string TwoFAIdentityAttribyte { get; set; }
+
         public PreAuthnModeDescriptor PreAuthnMode { get; set; }
 
         #region ActiveDirectory Authentication settings
@@ -118,8 +120,8 @@ namespace MultiFactor.Radius.Adapter.Configuration
         /// </summary>
         public bool RequiresUpn { get; set; }
 
-        //Lookup for UPN and use it instead of uid
-        public bool UseUpnAsIdentity { get; set; }
+        //Lookup for some attribute and use it for 2fa instead of uid
+        public bool UseIdentityAttribute => !string.IsNullOrEmpty(TwoFAIdentityAttribyte);
 
         /// <summary>
         /// Use only these domains within forest(s)

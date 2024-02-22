@@ -10,6 +10,7 @@ using MultiFactor.Radius.Adapter.Services.MultiFactorApi;
 using Serilog;
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -22,16 +23,17 @@ namespace MultiFactor.Radius.Adapter.Server
     /// </summary>
     public class RadiusRouter
     {
-        private ILogger _logger;
-        private MultiFactorApiClient _multifactorApiClient;
         public event EventHandler<PendingRequest> RequestProcessed;
         public event EventHandler<PendingRequest> RequestWillNotBeProcessed;
         private readonly ConcurrentDictionary<string, PendingRequest> _stateChallengePendingRequests = new ConcurrentDictionary<string, PendingRequest>();
-        private PasswordChangeHandler _passwordChangeHandler;
+        private readonly MultiFactorApiClient _multifactorApiClient;
+        private readonly PasswordChangeHandler _passwordChangeHandler;
         private readonly FirstAuthFactorProcessorProvider _firstAuthFactorProcessorProvider;
-        private DateTime _startedAt = DateTime.Now;
+        private readonly DateTime _startedAt = DateTime.Now;
+        private readonly ILogger _logger;
 
-        public RadiusRouter(MultiFactorApiClient multifactorApiClient,
+        public RadiusRouter(
+            MultiFactorApiClient multifactorApiClient,
             PasswordChangeHandler passwordChangeHandler,
             FirstAuthFactorProcessorProvider firstAuthFactorProcessorProvider,
             ILogger logger)
@@ -50,9 +52,9 @@ namespace MultiFactor.Radius.Adapter.Server
                 {
                     //status
                     var uptime = (DateTime.Now - _startedAt);
-                    request.ReplyMessage = $"Server up {uptime.Days} days {uptime.ToString("hh\\:mm\\:ss")}";
+                    request.ReplyMessage = $"Server up {uptime.Days} days {uptime:hh\\:mm\\:ss}";
                     request.ResponseCode = PacketCode.AccessAccept;
-                    RequestProcessed?.Invoke(this, request);
+                    CreateAndSendRadiusResponse(request);
                     return;
                 }
 
@@ -62,13 +64,15 @@ namespace MultiFactor.Radius.Adapter.Server
                     return;
                 }
 
+                var hs = new HashSet<string>();
+
                 ProcessUserNameTransformRules(request);
 
-                var passwordChangeStatusCode = _passwordChangeHandler.HandleRequest(request);
+                var passwordChangeStatusCode = _passwordChangeHandler.TryContinuePasswordChallenge(request);
                 if (passwordChangeStatusCode != PacketCode.AccessAccept)
                 {
                     request.ResponseCode = passwordChangeStatusCode;
-                    RequestProcessed?.Invoke(this, request);
+                    CreateAndSendRadiusResponse(request);
                     return;
                 }
 
@@ -82,7 +86,7 @@ namespace MultiFactor.Radius.Adapter.Server
                         request.ResponseCode = await ProcessChallenge(request, receivedState);
                         request.State = receivedState;  //state for Access-Challenge message if otp is wrong (3 times allowed)
 
-                        RequestProcessed?.Invoke(this, request);
+                        CreateAndSendRadiusResponse(request);
                         return; //stop authentication process after otp code verification
                     }
                 }
@@ -129,16 +133,15 @@ namespace MultiFactor.Radius.Adapter.Server
                     //User password expired ot must be changed
                     if (request.MustChangePassword)
                     {
-                        request.MustChangePassword = true;
-                        request.ResponseCode = _passwordChangeHandler.HandleRequest(request);
+                        request.ResponseCode = _passwordChangeHandler.TryCreatePasswordChallenge(request);
                         _logger.Information($"CreatePasswordChallengeState: {request.State}");
-                        RequestProcessed?.Invoke(this, request);
+                        CreateAndSendRadiusResponse(request);
                         return;
                     }
 
                     //first factor authentication rejected
                     request.ResponseCode = firstFactorAuthenticationResultCode;
-                    RequestProcessed?.Invoke(this, request);
+                    CreateAndSendRadiusResponse(request);
 
                     //stop authencation process
                     return;
@@ -152,7 +155,7 @@ namespace MultiFactor.Radius.Adapter.Server
                         userName, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
 
                     request.ResponseCode = PacketCode.AccessAccept;
-                    RequestProcessed?.Invoke(this, request);
+                    CreateAndSendRadiusResponse(request);
 
                     //stop authencation process
                     return;
@@ -166,12 +169,11 @@ namespace MultiFactor.Radius.Adapter.Server
                     {
                         AddStateChallengePendingRequest(request.State, request);
                     }
-
-                    RequestProcessed?.Invoke(this, request);
                 }
 
+                CreateAndSendRadiusResponse(request);
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 _logger.Error(ex, "Request handling error: {msg:l}", ex.Message);
             }
@@ -253,7 +255,7 @@ namespace MultiFactor.Radius.Adapter.Server
                         _logger.Warning("Can't find User-Password with user response in message id={id} from {host:l}:{port}", request.RequestPacket.Id.Identifier, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
                         return PacketCode.AccessReject;
                     }
-                    
+
                     break;
                 case AuthenticationType.MSCHAP2:
                     var msChapResponse = request.RequestPacket.GetAttribute<byte[]>("MS-CHAP2-Response");
@@ -275,12 +277,13 @@ namespace MultiFactor.Radius.Adapter.Server
                     return PacketCode.AccessReject;
             }
 
-            response = await _multifactorApiClient.Challenge(request, userName, userAnswer, state);
+            var stateChallengePendingRequest = GetStateChallengeRequest(state);
+            request.TwoFAIdentityAttribyte = stateChallengePendingRequest.GetSecondFactorIdentity(request.Configuration);
+            response = await _multifactorApiClient.Challenge(request, userAnswer, state);
 
             switch (response)
             {
                 case PacketCode.AccessAccept:
-                    var stateChallengePendingRequest = GetStateChallengeRequest(state);
                     if (stateChallengePendingRequest != null)
                     {
                         request.UserGroups = stateChallengePendingRequest.UserGroups;
@@ -295,6 +298,9 @@ namespace MultiFactor.Radius.Adapter.Server
 
             return response;
         }
+
+        private void CreateAndSendRadiusResponse(PendingRequest request) => RequestProcessed?.Invoke(this, request);
+
 
         /// <summary>
         /// Add authenticated request to local cache for otp/challenge
