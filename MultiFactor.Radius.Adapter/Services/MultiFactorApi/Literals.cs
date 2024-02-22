@@ -8,10 +8,5 @@
             public const string Denied = "Denied";
             public const string AwaitingAuthentication = "AwaitingAuthentication";
         }
-
-        public static class Configuration
-        {
-            public const string PrivacyMode = "privacy-mode";
-        }
     }
 }

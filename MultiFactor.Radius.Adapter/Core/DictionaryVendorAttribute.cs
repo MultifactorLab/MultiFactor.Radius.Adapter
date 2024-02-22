@@ -39,7 +39,7 @@ namespace MultiFactor.Radius.Adapter.Core
         /// <param name="name"></param>
         /// <param name="vendorCode"></param>        
         /// <param name="type"></param>
-        public DictionaryVendorAttribute(UInt32 vendorId, String name, UInt32 vendorCode, String type) : base(name, 26, type)
+        public DictionaryVendorAttribute(UInt32 vendorId, String name, UInt32 vendorCode, String type) : base(name, RadiusAttributeCode.VendorSpecific, type)
         {
             VendorId = vendorId;
             VendorCode = vendorCode;

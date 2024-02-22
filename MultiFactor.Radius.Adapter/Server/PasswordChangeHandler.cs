@@ -1,5 +1,4 @@
-﻿using MultiFactor.Radius.Adapter.Configuration;
-using MultiFactor.Radius.Adapter.Core;
+﻿using MultiFactor.Radius.Adapter.Core;
 using MultiFactor.Radius.Adapter.Services;
 using MultiFactor.Radius.Adapter.Services.ActiveDirectory;
 using System;
@@ -22,13 +21,13 @@ namespace MultiFactor.Radius.Adapter.Server
             _dataProtectionService = new DataProtectionService();
         }
 
-        public PacketCode HandleRequest(PendingRequest request, ClientConfiguration clientConfig)
+        public PacketCode HandleRequest(PendingRequest request)
         {
             if (request == null) throw new ArgumentNullException(nameof(request));
 
             if (request.MustChangePassword)
             {
-                return CreatePasswordChallenge(request, clientConfig);
+                return CreatePasswordChallenge(request);
             }
 
             var passwordChangeRequest = _cache.GetPasswordChangeRequest(request.RequestPacket.State);
@@ -46,16 +45,16 @@ namespace MultiFactor.Radius.Adapter.Server
             if (passwordChangeRequest.NewPasswordEncryptedData != null)
             {
                 //re-entered new password
-                var decryptedNewPassword = _dataProtectionService.Unprotect(clientConfig, passwordChangeRequest.NewPasswordEncryptedData);
+                var decryptedNewPassword = _dataProtectionService.Unprotect(request.Configuration, passwordChangeRequest.NewPasswordEncryptedData);
                 if (decryptedNewPassword != newPassword)
                 {
                     return PasswordsNotMatchChallenge(request, passwordChangeRequest);
                 }
 
-                var currentPassword = _dataProtectionService.Unprotect(clientConfig, passwordChangeRequest.CurrentPasswordEncryptedData);
+                var currentPassword = _dataProtectionService.Unprotect(request.Configuration, passwordChangeRequest.CurrentPasswordEncryptedData);
                 var activeDirectoryService = _activeDirectoryServices[passwordChangeRequest.Domain];
 
-                if (activeDirectoryService.ChangePassword(clientConfig, request.UserName, currentPassword, newPassword, out var passwordDoesNotMeetRequirements))
+                if (activeDirectoryService.ChangePassword(request.Configuration, request.UserName, currentPassword, newPassword, out var passwordDoesNotMeetRequirements))
                 {
                     _cache.Remove(request.RequestPacket.State);
                     return PacketCode.AccessAccept;
@@ -70,15 +69,15 @@ namespace MultiFactor.Radius.Adapter.Server
                 return PacketCode.AccessReject;
             }
 
-            return RepeatPasswordChallenge(request, clientConfig, passwordChangeRequest);
+            return RepeatPasswordChallenge(request, passwordChangeRequest);
         }
 
-        private PacketCode CreatePasswordChallenge(PendingRequest request, ClientConfiguration clientConfig)
+        private PacketCode CreatePasswordChallenge(PendingRequest request)
         {
             var passwordChangeRequest = new PasswordChangeRequest
             {
                 Domain = request.MustChangePasswordDomain,
-                CurrentPasswordEncryptedData = _dataProtectionService.Protect(clientConfig, request.RequestPacket.TryGetUserPassword())
+                CurrentPasswordEncryptedData = _dataProtectionService.Protect(request.Configuration, request.RequestPacket.TryGetUserPassword())
             };
             _cache.RegisterPasswordChangeRequest(passwordChangeRequest);
 
@@ -98,9 +97,9 @@ namespace MultiFactor.Radius.Adapter.Server
             return PacketCode.AccessChallenge;
         }
 
-        private PacketCode RepeatPasswordChallenge(PendingRequest request, ClientConfiguration clientConfig, PasswordChangeRequest passwordChangeRequest)
+        private PacketCode RepeatPasswordChallenge(PendingRequest request, PasswordChangeRequest passwordChangeRequest)
         {
-            passwordChangeRequest.NewPasswordEncryptedData = _dataProtectionService.Protect(clientConfig, request.RequestPacket.TryGetUserPassword());
+            passwordChangeRequest.NewPasswordEncryptedData = _dataProtectionService.Protect(request.Configuration, request.RequestPacket.TryGetUserPassword());
 
             _cache.RegisterPasswordChangeRequest(passwordChangeRequest);
 

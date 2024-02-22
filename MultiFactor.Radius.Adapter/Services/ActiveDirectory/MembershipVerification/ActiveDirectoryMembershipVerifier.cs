@@ -40,7 +40,8 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory.MembershipVerifica
             var userName = request.UserName;
             if (string.IsNullOrEmpty(userName))
             {
-                _logger.Warning("Can't find User-Name in message id={id} from {host:l}:{port}", request.RequestPacket.Identifier, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
+                _logger.Warning("Can't find User-Name in message id={id} from {host:l}:{port}", 
+                    request.RequestPacket.Id.Identifier, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
                 return result;
             }
 

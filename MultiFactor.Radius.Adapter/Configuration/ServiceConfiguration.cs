@@ -2,6 +2,7 @@
 //Please see licence at 
 //https://github.com/MultifactorLab/MultiFactor.Radius.Adapter/blob/master/LICENSE.md
 
+using MultiFactor.Radius.Adapter.Configuration.Features.PreAuthnModeFeature;
 using MultiFactor.Radius.Adapter.Configuration.Features.PrivacyModeFeature;
 using MultiFactor.Radius.Adapter.Core;
 using MultiFactor.Radius.Adapter.Server;
@@ -376,11 +377,11 @@ namespace MultiFactor.Radius.Adapter.Configuration
 
             try
             {
-                configuration.PrivacyMode = PrivacyModeDescriptor.Create(appSettings.Settings[Literals.Configuration.PrivacyMode]?.Value);
+                configuration.PrivacyMode = PrivacyModeDescriptor.Create(appSettings.Settings[Constants.Configuration.PrivacyMode]?.Value);
             }
             catch
             {
-                throw new Exception($"Configuration error: Can't parse '{Literals.Configuration.PrivacyMode}' value. Must be one of: Full, None, Partial:Field1,Field2");
+                throw new Exception($"Configuration error: Can't parse '{Constants.Configuration.PrivacyMode}' value. Must be one of: Full, None, Partial:Field1,Field2");
             }
 
             switch (configuration.FirstFactorAuthenticationSource)
@@ -424,6 +425,15 @@ namespace MultiFactor.Radius.Adapter.Configuration
             if (!string.IsNullOrWhiteSpace(callindStationIdAttr))
             {
                 configuration.CallingStationIdVendorAttribute = callindStationIdAttr;
+            }
+
+            try
+            {
+                configuration.PreAuthnMode = PreAuthnModeDescriptor.Create(appSettings.Settings[Constants.Configuration.PreAuthnMode]?.Value, PreAuthnModeSettings.Default);
+            }
+            catch
+            {
+                throw new Exception($"Configuration error: Can't parse '{Constants.Configuration.PreAuthnMode}' value. Must be one of: otp, none");
             }
 
             return configuration;

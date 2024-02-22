@@ -31,13 +31,13 @@ namespace MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing
 
         public AuthenticationSource AuthenticationSource => AuthenticationSource.None;
 
-        public Task<PacketCode> ProcessFirstAuthFactorAsync(PendingRequest request, ClientConfiguration clientConfig)
+        public Task<PacketCode> ProcessFirstAuthFactorAsync(PendingRequest request)
         {
-            if (!clientConfig.CheckMembership)
+            if (!request.Configuration.CheckMembership)
             {
-                if (clientConfig.UseUpnAsIdentity)
+                if (request.Configuration.UseUpnAsIdentity)
                 {
-                    var attrs = LoadRequiredAttributes(request, clientConfig, "userPrincipalName");
+                    var attrs = LoadRequiredAttributes(request, request.Configuration, "userPrincipalName");
                     if (!attrs.ContainsKey("userPrincipalName"))
                     {
                         _logger.Warning("Attribute 'userPrincipalName' was not loaded");
@@ -51,7 +51,7 @@ namespace MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing
             }
 
             // check membership without AD authentication
-            var result = _membershipVerifier.VerifyMembership(request, clientConfig);
+            var result = _membershipVerifier.VerifyMembership(request, request.Configuration);
             var handler = new MembershipVerificationResultHandler(result);
 
             handler.EnrichRequest(request);
@@ -63,7 +63,7 @@ namespace MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing
             var userName = request.UserName;
             if (string.IsNullOrEmpty(userName))
             {
-                throw new Exception($"Can't find User-Name in message id={request.RequestPacket.Identifier} from {request.RemoteEndpoint.Address}:{request.RemoteEndpoint.Port}");
+                throw new Exception($"Can't find User-Name in message id={request.RequestPacket.Id.Identifier} from {request.RemoteEndpoint.Address}:{request.RemoteEndpoint.Port}");
             }
 
             var attributes = new Dictionary<string, string[]>();

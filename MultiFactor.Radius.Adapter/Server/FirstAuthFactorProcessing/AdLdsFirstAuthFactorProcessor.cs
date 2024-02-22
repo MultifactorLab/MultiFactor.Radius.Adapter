@@ -25,25 +25,25 @@ namespace MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing
 
         public AuthenticationSource AuthenticationSource => AuthenticationSource.AdLds;
 
-        public Task<PacketCode> ProcessFirstAuthFactorAsync(PendingRequest request, ClientConfiguration clientConfig)
+        public Task<PacketCode> ProcessFirstAuthFactorAsync(PendingRequest request)
         {
             var userName = request.UserName;
             var password = request.RequestPacket.TryGetUserPassword();
 
             if (string.IsNullOrEmpty(userName))
             {
-                _logger.Warning("Can't find User-Name in message id={id} from {host:l}:{port}", request.RequestPacket.Identifier, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
+                _logger.Warning("Can't find User-Name in message id={id} from {host:l}:{port}", request.RequestPacket.Id.Identifier, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
                 return Task.FromResult(PacketCode.AccessReject);
             }
 
             if (string.IsNullOrEmpty(password))
             {
-                _logger.Warning("Can't find User-Password in message id={id} from {host:l}:{port}", request.RequestPacket.Identifier, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
+                _logger.Warning("Can't find User-Password in message id={id} from {host:l}:{port}", request.RequestPacket.Id.Identifier, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
                 return Task.FromResult(PacketCode.AccessReject);
             }
 
             var ldapService = new AdLdsService(_logger);
-            var isValid = ldapService.VerifyCredentialAndMembership(userName, password, clientConfig);
+            var isValid = ldapService.VerifyCredentialAndMembership(userName, password, request.Configuration);
             return Task.FromResult(isValid ? PacketCode.AccessAccept : PacketCode.AccessReject);
         }
     }

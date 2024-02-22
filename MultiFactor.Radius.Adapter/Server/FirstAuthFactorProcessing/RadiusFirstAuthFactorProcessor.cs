@@ -39,19 +39,19 @@ namespace MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing
 
         public AuthenticationSource AuthenticationSource => AuthenticationSource.Radius;
 
-        public async Task<PacketCode> ProcessFirstAuthFactorAsync(PendingRequest request, ClientConfiguration clientConfig)
+        public async Task<PacketCode> ProcessFirstAuthFactorAsync(PendingRequest request)
         {
-            var radiusResponse = await ProcessRadiusAuthentication(request, clientConfig);
+            var radiusResponse = await ProcessRadiusAuthentication(request, request.Configuration);
             if (radiusResponse != PacketCode.AccessAccept)
             {
                 return radiusResponse;
             }
 
-            if (!clientConfig.CheckMembership)
+            if (!request.Configuration.CheckMembership)
             {
-                if (clientConfig.UseUpnAsIdentity)
+                if (request.Configuration.UseUpnAsIdentity)
                 {
-                    var attrs = LoadRequiredAttributes(request, clientConfig, "userPrincipalName");
+                    var attrs = LoadRequiredAttributes(request, request.Configuration, "userPrincipalName");
                     if (!attrs.ContainsKey("userPrincipalName"))
                     {
                         _logger.Warning("Attribute 'userPrincipalName' was not loaded");
@@ -65,7 +65,7 @@ namespace MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing
             }
 
             // check membership without AD authentication
-            var result = _membershipVerifier.VerifyMembership(request, clientConfig);
+            var result = _membershipVerifier.VerifyMembership(request, request.Configuration);
             var handler = new MembershipVerificationResultHandler(result);
 
             handler.EnrichRequest(request);
@@ -79,28 +79,28 @@ namespace MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing
                 //sending request to Remote Radius Server
                 using (var client = new RadiusClient(clientConfig.ServiceClientEndpoint, _logger))
                 {
-                    _logger.Debug($"Sending {{code:l}} message with id={{id}} to Remote Radius Server {clientConfig.NpsServerEndpoint}", request.RequestPacket.Code.ToString(), request.RequestPacket.Identifier);
+                    _logger.Debug($"Sending {{code:l}} message with id={{id}} to Remote Radius Server {clientConfig.NpsServerEndpoint}", request.RequestPacket.Id.Code.ToString(), request.RequestPacket.Id.Identifier);
 
                     var requestBytes = _packetParser.GetBytes(request.RequestPacket);
-                    var response = await client.SendPacketAsync(request.RequestPacket.Identifier, requestBytes, clientConfig.NpsServerEndpoint, TimeSpan.FromSeconds(5));
+                    var response = await client.SendPacketAsync(request.RequestPacket.Id.Identifier, requestBytes, clientConfig.NpsServerEndpoint, TimeSpan.FromSeconds(5));
 
                     if (response == null)
                     {
-                        _logger.Warning("Remote Radius Server did not respond on message with id={id}", request.RequestPacket.Identifier);
+                        _logger.Warning("Remote Radius Server did not respond on message with id={id}", request.RequestPacket.Id.Identifier);
                         return PacketCode.DisconnectNak;
                     }
                                   
-                    var responsePacket = _packetParser.Parse(response, request.RequestPacket.SharedSecret, request.RequestPacket.Authenticator);
-                    _logger.Debug("Received {code:l} message with id={id} from Remote Radius Server", responsePacket.Code.ToString(), responsePacket.Identifier);
+                    var responsePacket = _packetParser.Parse(response, request.RequestPacket.Id.SharedSecret, request.RequestPacket.Id.Authenticator);
+                    _logger.Debug("Received {code:l} message with id={id} from Remote Radius Server", responsePacket.Id.Code.ToString(), responsePacket.Id.Identifier);
 
-                    if (responsePacket.Code == PacketCode.AccessAccept)
+                    if (responsePacket.Id.Code == PacketCode.AccessAccept)
                     {
                         var userName = request.UserName;
                         _logger.Information($"User '{{user:l}}' credential and status verified successfully at {clientConfig.NpsServerEndpoint}", userName);
                     }
 
                     request.ResponsePacket = responsePacket;
-                    return responsePacket.Code; //Code received from NPS                 
+                    return responsePacket.Id.Code; //Code received from NPS                 
                 }
             }
             catch (Exception ex)
@@ -116,7 +116,7 @@ namespace MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing
             var userName = request.UserName;
             if (string.IsNullOrEmpty(userName))
             {
-                throw new Exception($"Can't find User-Name in message id={request.RequestPacket.Identifier} from {request.RemoteEndpoint.Address}:{request.RemoteEndpoint.Port}");
+                throw new Exception($"Can't find User-Name in message id={request.RequestPacket.Id.Identifier} from {request.RemoteEndpoint.Address}:{request.RemoteEndpoint.Port}");
             }
 
             var attributes = new Dictionary<string, string[]>();

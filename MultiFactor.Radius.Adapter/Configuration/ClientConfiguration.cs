@@ -2,6 +2,7 @@
 //Please see licence at 
 //https://github.com/MultifactorLab/MultiFactor.Radius.Adapter/blob/master/LICENSE.md
 
+using MultiFactor.Radius.Adapter.Configuration.Features.PreAuthnModeFeature;
 using MultiFactor.Radius.Adapter.Configuration.Features.PrivacyModeFeature;
 using MultiFactor.Radius.Adapter.Server;
 using System;
@@ -54,6 +55,7 @@ namespace MultiFactor.Radius.Adapter.Configuration
 
         public PrivacyModeDescriptor PrivacyMode { get; set; }
 
+        public PreAuthnModeDescriptor PreAuthnMode { get; set; }
 
         #region ActiveDirectory Authentication settings
 

@@ -3,6 +3,7 @@
 //https://github.com/MultifactorLab/MultiFactor.Radius.Adapter/blob/master/LICENSE.md
 
 using MultiFactor.Radius.Adapter.Configuration;
+using MultiFactor.Radius.Adapter.Configuration.Features.PreAuthnModeFeature;
 using MultiFactor.Radius.Adapter.Core;
 using MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing;
 using MultiFactor.Radius.Adapter.Services.MultiFactorApi;
@@ -41,11 +42,11 @@ namespace MultiFactor.Radius.Adapter.Server
             _firstAuthFactorProcessorProvider = firstAuthFactorProcessorProvider ?? throw new ArgumentNullException(nameof(firstAuthFactorProcessorProvider));
         }
 
-        public async Task HandleRequest(PendingRequest request, ClientConfiguration clientConfig)
+        public async Task HandleRequest(PendingRequest request)
         {
             try
             {
-                if (request.RequestPacket.Code == PacketCode.StatusServer)
+                if (request.RequestPacket.Id.Code == PacketCode.StatusServer)
                 {
                     //status
                     var uptime = (DateTime.Now - _startedAt);
@@ -55,15 +56,15 @@ namespace MultiFactor.Radius.Adapter.Server
                     return;
                 }
 
-                if (request.RequestPacket.Code != PacketCode.AccessRequest)
+                if (request.RequestPacket.Id.Code != PacketCode.AccessRequest)
                 {
-                    _logger.Warning("Unprocessable packet type: {code}", request.RequestPacket.Code);
+                    _logger.Warning("Unprocessable packet type: {code}", request.RequestPacket.Id.Code);
                     return;
                 }
 
-                ProcessUserNameTransformRules(request, clientConfig);
+                ProcessUserNameTransformRules(request);
 
-                var passwordChangeStatusCode = _passwordChangeHandler.HandleRequest(request, clientConfig);
+                var passwordChangeStatusCode = _passwordChangeHandler.HandleRequest(request);
                 if (passwordChangeStatusCode != PacketCode.AccessAccept)
                 {
                     request.ResponseCode = passwordChangeStatusCode;
@@ -78,7 +79,7 @@ namespace MultiFactor.Radius.Adapter.Server
                     if (_stateChallengePendingRequests.ContainsKey(receivedState))
                     {
                         //second request with Multifactor challenge
-                        request.ResponseCode = await ProcessChallenge(request, clientConfig, receivedState);
+                        request.ResponseCode = await ProcessChallenge(request, receivedState);
                         request.State = receivedState;  //state for Access-Challenge message if otp is wrong (3 times allowed)
 
                         RequestProcessed?.Invoke(this, request);
@@ -86,8 +87,37 @@ namespace MultiFactor.Radius.Adapter.Server
                     }
                 }
 
-                var firstAuthFactorProcessor = _firstAuthFactorProcessorProvider.GetProcessor(clientConfig.FirstFactorAuthenticationSource);
-                var firstFactorAuthenticationResultCode = await firstAuthFactorProcessor.ProcessFirstAuthFactorAsync(request, clientConfig);
+                if (request.Configuration.PreAuthnMode.Mode != PreAuthnMode.None)
+                {
+
+                }
+                
+                // спросить bypass 2fa сперва
+                switch (request.Configuration.PreAuthnMode.Mode)
+                {
+                    case PreAuthnMode.Otp:
+                        if (request.Passphrase.Otp == null)
+                        {
+                            request.ResponseCode = PacketCode.AccessReject;
+                            RequestProcessed?.Invoke(this, request);
+                            return;
+                        }
+
+                        request.ResponseCode = await ProcessSecondAuthenticationFactor(request);
+                        if (request.ResponseCode != PacketCode.AccessAccept)
+                        {
+                            request.ResponseCode = PacketCode.AccessReject;
+
+                            _logger.Error("The second factor was rejected");
+                            RequestProcessed?.Invoke(this, request);
+                            return;
+                        }
+
+                        break;
+                }
+                
+                var firstAuthFactorProcessor = _firstAuthFactorProcessorProvider.GetProcessor(request.Configuration.FirstFactorAuthenticationSource);
+                var firstFactorAuthenticationResultCode = await firstAuthFactorProcessor.ProcessFirstAuthFactorAsync(request);
                 if (firstFactorAuthenticationResultCode == PacketCode.DisconnectNak)
                 {
                     RequestWillNotBeProcessed?.Invoke(this, request);
@@ -100,7 +130,7 @@ namespace MultiFactor.Radius.Adapter.Server
                     if (request.MustChangePassword)
                     {
                         request.MustChangePassword = true;
-                        request.ResponseCode = _passwordChangeHandler.HandleRequest(request, clientConfig);
+                        request.ResponseCode = _passwordChangeHandler.HandleRequest(request);
                         _logger.Information($"CreatePasswordChallengeState: {request.State}");
                         RequestProcessed?.Invoke(this, request);
                         return;
@@ -128,13 +158,18 @@ namespace MultiFactor.Radius.Adapter.Server
                     return;
                 }
 
-                request.ResponseCode = await ProcessSecondAuthenticationFactor(request, clientConfig);
-                if (request.ResponseCode == PacketCode.AccessChallenge)
+
+                if (request.Configuration.PreAuthnMode.Mode == PreAuthnMode.None)
                 {
-                    AddStateChallengePendingRequest(request.State, request);
+                    request.ResponseCode = await ProcessSecondAuthenticationFactor(request);
+                    if (request.ResponseCode == PacketCode.AccessChallenge)
+                    {
+                        AddStateChallengePendingRequest(request.State, request);
+                    }
+
+                    RequestProcessed?.Invoke(this, request);
                 }
 
-                RequestProcessed?.Invoke(this, request);
             }
             catch(Exception ex)
             {
@@ -142,12 +177,12 @@ namespace MultiFactor.Radius.Adapter.Server
             }
         }
 
-        private void ProcessUserNameTransformRules(PendingRequest request, ClientConfiguration clientConfig)
+        private void ProcessUserNameTransformRules(PendingRequest request)
         {
             var userName = request.UserName;
             if (string.IsNullOrEmpty(userName)) return;
 
-            foreach (var rule in clientConfig.UserNameTransformRules)
+            foreach (var rule in request.Configuration.UserNameTransformRules)
             {
                 var regex = new Regex(rule.Match, RegexOptions.IgnoreCase);
                 if (rule.Count != null)
@@ -166,27 +201,27 @@ namespace MultiFactor.Radius.Adapter.Server
         /// <summary>
         /// Authenticate request at MultiFactor with user-name only
         /// </summary>
-        private async Task<PacketCode> ProcessSecondAuthenticationFactor(PendingRequest request, ClientConfiguration clientConfig)
+        private async Task<PacketCode> ProcessSecondAuthenticationFactor(PendingRequest request)
         {
             var userName = request.UserName;
 
             if (string.IsNullOrEmpty(userName))
             {
-                _logger.Warning("Can't find User-Name in message id={id} from {host:l}:{port}", request.RequestPacket.Identifier, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
+                _logger.Warning("Can't find User-Name in message id={id} from {host:l}:{port}", request.RequestPacket.Id.Identifier, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
                 return PacketCode.AccessReject;
             }
 
             if (request.RequestPacket.IsVendorAclRequest == true)
             {
                 //security check
-                if (clientConfig.FirstFactorAuthenticationSource == AuthenticationSource.Radius)
+                if (request.Configuration.FirstFactorAuthenticationSource == AuthenticationSource.Radius)
                 {
                     _logger.Information("Bypass second factor for user '{user:l}' from {host:l}:{port}", userName, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
                     return PacketCode.AccessAccept;
                 }
             }
 
-            var response = await _multifactorApiClient.CreateSecondFactorRequest(request, clientConfig);
+            var response = await _multifactorApiClient.CreateSecondFactorRequest(request);
 
             return response;
         }
@@ -194,13 +229,13 @@ namespace MultiFactor.Radius.Adapter.Server
         /// <summary>
         /// Verify one time password from user input
         /// </summary>
-        private async Task<PacketCode> ProcessChallenge(PendingRequest request, ClientConfiguration clientConfig, string state)
+        private async Task<PacketCode> ProcessChallenge(PendingRequest request, string state)
         {
             var userName = request.UserName;
 
             if (string.IsNullOrEmpty(userName))
             {
-                _logger.Warning("Can't find User-Name in message id={id} from {host:l}:{port}", request.RequestPacket.Identifier, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
+                _logger.Warning("Can't find User-Name in message id={id} from {host:l}:{port}", request.RequestPacket.Id.Identifier, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
                 return PacketCode.AccessReject;
             }
 
@@ -215,7 +250,7 @@ namespace MultiFactor.Radius.Adapter.Server
 
                     if (string.IsNullOrEmpty(userAnswer))
                     {
-                        _logger.Warning("Can't find User-Password with user response in message id={id} from {host:l}:{port}", request.RequestPacket.Identifier, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
+                        _logger.Warning("Can't find User-Password with user response in message id={id} from {host:l}:{port}", request.RequestPacket.Id.Identifier, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
                         return PacketCode.AccessReject;
                     }
                     
@@ -225,7 +260,7 @@ namespace MultiFactor.Radius.Adapter.Server
 
                     if (msChapResponse == null)
                     {
-                        _logger.Warning("Can't find MS-CHAP2-Response in message id={id} from {host:l}:{port}", request.RequestPacket.Identifier, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
+                        _logger.Warning("Can't find MS-CHAP2-Response in message id={id} from {host:l}:{port}", request.RequestPacket.Id.Identifier, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
                         return PacketCode.AccessReject;
                     }
 
@@ -235,11 +270,12 @@ namespace MultiFactor.Radius.Adapter.Server
 
                     break;
                 default:
-                    _logger.Warning("Unable to process {auth} challange in message id={id} from {host:l}:{port}", request.RequestPacket.AuthenticationType, request.RequestPacket.Identifier, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
+                    _logger.Warning("Unable to process {auth} challange in message id={id} from {host:l}:{port}", 
+                        request.RequestPacket.AuthenticationType, request.RequestPacket.Id.Identifier, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
                     return PacketCode.AccessReject;
             }
 
-            response = await _multifactorApiClient.Challenge(request, clientConfig, userName, userAnswer, state);
+            response = await _multifactorApiClient.Challenge(request, userName, userAnswer, state);
 
             switch (response)
             {
@@ -267,7 +303,7 @@ namespace MultiFactor.Radius.Adapter.Server
         {
             if (!_stateChallengePendingRequests.TryAdd(state, request))
             {
-                _logger.Error("Unable to cache request id={id}", request.RequestPacket.Identifier);
+                _logger.Error("Unable to cache request id={id}", request.RequestPacket.Id.Identifier);
             }
         }
 

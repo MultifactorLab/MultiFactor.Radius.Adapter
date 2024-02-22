@@ -199,6 +199,9 @@
     <Compile Include="Configuration\AuthenticatedClientCacheConfig.cs" />
     <Compile Include="Configuration\AuthenticationSource.cs" />
     <Compile Include="Configuration\ClientConfiguration.cs" />
+    <Compile Include="Configuration\Features\PreAuthnModeFeature\PreAuthnMode.cs" />
+    <Compile Include="Configuration\Features\PreAuthnModeFeature\PreAuthnModeDescriptor.cs" />
+    <Compile Include="Configuration\Features\PreAuthnModeFeature\PreAuthnModeSettings.cs" />
     <Compile Include="Configuration\Features\PrivacyModeFeature\PrivacyMode.cs" />
     <Compile Include="Configuration\Features\PrivacyModeFeature\PrivacyModeDescriptor.cs" />
     <Compile Include="Configuration\RadiusReplyAttributeElement.cs" />
@@ -213,7 +216,11 @@
     <Compile Include="Configuration\ValueElementCollection.cs" />
     <Compile Include="Core\Constants.cs" />
     <Compile Include="Core\Http\WebProxyFactory.cs" />
+    <Compile Include="Core\RadiusField.cs" />
+    <Compile Include="Core\RadiusPacketId.cs" />
+    <Compile Include="Core\RadiusPacketMetadata.cs" />
     <Compile Include="Core\RadiusPacketOptions.cs" />
+    <Compile Include="Core\SharedSecret.cs" />
     <Compile Include="Extensions\LoggerConfigurationExtensions.cs" />
     <Compile Include="Extensions\LoggingLevelSwitchExtensions.cs" />
     <Compile Include="Extensions\SearchResponseExtensions.cs" />
@@ -225,6 +232,7 @@
     <Compile Include="Core\RadiusPacketNasIdentifierParser.cs" />
     <Compile Include="Logging\Enrichers\RadiusPacketLogEventEnricher.cs" />
     <Compile Include="Logging\LoggerScope.cs" />
+    <Compile Include="Server\UserPassphrase.cs" />
     <Compile Include="Services\MultiFactorApi\MfTraceIdHeaderSetter.cs" />
     <Compile Include="Services\NetbiosService.cs" />
     <Compile Include="Server\RequestScope.cs" />
@@ -337,6 +345,7 @@
   <ItemGroup>
     <EmbeddedResource Include="ServiceInstaller.resx">
       <DependentUpon>ServiceInstaller.cs</DependentUpon>
+      <SubType>Designer</SubType>
     </EmbeddedResource>
   </ItemGroup>
   <ItemGroup />

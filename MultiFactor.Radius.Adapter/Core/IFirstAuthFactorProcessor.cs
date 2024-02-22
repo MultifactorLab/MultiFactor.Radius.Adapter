@@ -14,6 +14,6 @@ namespace MultiFactor.Radius.Adapter.Core
         /// Returns auth sources supported by the current processor implementation.
         /// </summary>
         AuthenticationSource AuthenticationSource { get; }
-        Task<PacketCode> ProcessFirstAuthFactorAsync(PendingRequest request, ClientConfiguration clientConfig);
+        Task<PacketCode> ProcessFirstAuthFactorAsync(PendingRequest request);
     }
 }
