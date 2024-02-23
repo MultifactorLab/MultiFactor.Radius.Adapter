@@ -233,6 +233,8 @@
     <Compile Include="Logging\Enrichers\RadiusPacketLogEventEnricher.cs" />
     <Compile Include="Logging\LoggerScope.cs" />
     <Compile Include="Server\UserPassphrase.cs" />
+    <Compile Include="Services\Ldap\ILdapAttributes.cs" />
+    <Compile Include="Services\Ldap\LdapAttributes.cs" />
     <Compile Include="Services\MultiFactorApi\MfTraceIdHeaderSetter.cs" />
     <Compile Include="Services\NetbiosService.cs" />
     <Compile Include="Server\RequestScope.cs" />

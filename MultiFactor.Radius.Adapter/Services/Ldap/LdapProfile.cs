@@ -1,24 +1,67 @@
-﻿using System.Collections.Generic;
+﻿using MultiFactor.Radius.Adapter.Configuration;
+using System;
+using System.Collections.ObjectModel;
+using System.Linq;
 
 namespace MultiFactor.Radius.Adapter.Services.Ldap
 {
     public class LdapProfile
     {
-        public LdapProfile()
+        private readonly ClientConfiguration _configuration;
+
+        public LdapIdentity BaseDn { get; }
+        public string DistinguishedName => LdapAttrs.GetValue("distinguishedname");
+        public string Upn => LdapAttrs.GetValue("userprincipalname");
+        public string DisplayName => LdapAttrs.GetValue("displayname");
+        public string Email => LdapAttrs.GetValue("mail");
+
+        private string _phone = string.Empty;
+        public string Phone
         {
-            LdapAttrs = new Dictionary<string, object>();
+            get
+            {
+                if (_phone != string.Empty)
+                {
+                    return _phone;
+                }
+
+                if (_configuration.PhoneAttributes.Count == 0)
+                {
+                    _phone = LdapAttrs.GetValue("phone");
+                    return _phone;
+                }
+
+                _phone = _configuration.PhoneAttributes
+                    .Select(x => LdapAttrs.GetValue(x))
+                    .FirstOrDefault(x => x != null) ?? LdapAttrs.GetValue("phone");
+
+                return _phone;
+            }
         }
 
-        public string DistinguishedName { get; set; }
-        public string Upn { get; set; }
-        public string DisplayName { get; set; }
-        public string Email { get; set; }
-        public string Phone { get; set; }
-        public string SecondFactorIdentity { get; set; }
-        public IList<string> MemberOf { get; set; }
+        public ReadOnlyCollection<string> MemberOf => LdapAttrs.GetValues("memberOf");
 
-        public LdapIdentity BaseDn { get; set; }
+        public ILdapAttributes LdapAttrs { get; private set; }
 
-        public IDictionary<string, object> LdapAttrs { get; set; }
+        private LdapProfile(ClientConfiguration configuration)
+        {
+            BaseDn = null;
+            LdapAttrs = new LdapAttributes();
+            _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
+        }
+
+        public LdapProfile(LdapIdentity baseDn, ILdapAttributes attributes, ClientConfiguration configuration)
+        {
+            BaseDn = baseDn ?? throw new ArgumentNullException(nameof(baseDn));
+            LdapAttrs = attributes ?? throw new ArgumentNullException(nameof(attributes));
+            _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
+        }
+
+        public static LdapProfile Empty(ClientConfiguration configuration) => new LdapProfile(configuration);   
+        
+        public void UpdateAttributes(ILdapAttributes attributes)
+        {
+            LdapAttrs = attributes ?? throw new ArgumentNullException(nameof(attributes));
+        }
     }
 }

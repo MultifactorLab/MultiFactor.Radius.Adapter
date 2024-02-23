@@ -197,7 +197,7 @@ namespace MultiFactor.Radius.Adapter.Server
                 }
             }
 
-            request.UserName = userName;
+            request.UpdateUserName(userName);
         }
 
         /// <summary>
@@ -278,7 +278,7 @@ namespace MultiFactor.Radius.Adapter.Server
             }
 
             var stateChallengePendingRequest = GetStateChallengeRequest(state);
-            request.TwoFAIdentityAttribyte = stateChallengePendingRequest.GetSecondFactorIdentity(request.Configuration);
+            request.TwoFAIdentityAttribyte = stateChallengePendingRequest.SecondFactorIdentity;
             response = await _multifactorApiClient.Challenge(request, userAnswer, state);
 
             switch (response)
@@ -288,7 +288,7 @@ namespace MultiFactor.Radius.Adapter.Server
                     {
                         request.UserGroups = stateChallengePendingRequest.UserGroups;
                         request.ResponsePacket = stateChallengePendingRequest.ResponsePacket;
-                        request.LdapAttrs = stateChallengePendingRequest.LdapAttrs;
+                        request.Profile.UpdateAttributes(stateChallengePendingRequest.Profile.LdapAttrs);
                     }
                     break;
                 case PacketCode.AccessReject:

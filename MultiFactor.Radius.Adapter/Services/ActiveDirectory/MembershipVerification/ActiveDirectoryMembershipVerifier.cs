@@ -35,8 +35,7 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory.MembershipVerifica
 
             var result = new ComplexMembershipVerificationResult();
 
-            var userName = request.UserName;
-            if (string.IsNullOrEmpty(userName))
+            if (string.IsNullOrEmpty(request.UserName))
             {
                 _logger.Warning("Can't find User-Name in message id={id} from {host:l}:{port}", 
                     request.RequestPacket.Id.Identifier, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
@@ -52,7 +51,7 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory.MembershipVerifica
                 var domainIdentity = LdapIdentity.FqdnToDn(userDomain);
                 try
                 {
-                    var user = LdapIdentityFactory.CreateUserIdentity(request.Configuration, userName);
+                    var user = LdapIdentityFactory.CreateUserIdentity(request.Configuration, request.UserName);
                     _logger.Debug($"Verifying user '{{user:l}}' membership at {domainIdentity}", user.Name);
 
                     if (user.HasNetbiosName())
@@ -109,7 +108,7 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory.MembershipVerifica
                 }
                 catch (Exception ex)
                 {
-                    _logger.Error(ex, $"Verification user '{{user:l}}' membership at {domainIdentity} failed", userName);
+                    _logger.Error(ex, $"Verification user '{{user:l}}' membership at {domainIdentity} failed", request.UserName);
                     _logger.Information("Run MultiFactor.Raduis.Adapter as user with domain read permissions (basically any domain user)");
                     result.AddDomainResult(MembershipVerificationResult.Create(domainIdentity)
                         .SetSuccess(false)

@@ -42,10 +42,10 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
 
         public async Task<PacketCode> CreateSecondFactorRequest(PendingRequest request)
         {
-            var userName = request.GetSecondFactorIdentity(request.Configuration);
-            var displayName = request.DisplayName;
-            var email = request.EmailAddress;
-            var userPhone = request.UserPhone;
+            var userName = request.SecondFactorIdentity;
+            var displayName = request.Profile.DisplayName;
+            var email = request.Profile.Email;
+            var userPhone = request.Profile.Phone;
             var callingStationId = request.RequestPacket.CallingStationId;
 
             string calledStationId = null;
@@ -105,7 +105,7 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
                 return PacketCode.AccessAccept;
             }
 
-            var url = _serviceConfiguration.ApiUrl + "/access/requests/ra";
+            var url = $"{_serviceConfiguration.ApiUrl}/access/requests/ra";
             var payload = new
             {
                 Identity = userName,
@@ -155,8 +155,8 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
 
         public async Task<PacketCode> Challenge(PendingRequest request, string answer, string state)
         {
-            var url = _serviceConfiguration.ApiUrl + "/access/requests/ra/challenge";
-            var userName = request.GetSecondFactorIdentity(request.Configuration);
+            var url = $"{_serviceConfiguration.ApiUrl}/access/requests/ra/challenge";
+            var userName = request.SecondFactorIdentity;
             var payload = new
             {
                 Identity = userName,

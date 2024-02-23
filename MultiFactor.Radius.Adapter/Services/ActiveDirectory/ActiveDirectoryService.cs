@@ -156,7 +156,6 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory
                 }
 
                 _logger.Debug($"Changing password for user '{{user:l}}' in {userProfile.BaseDn.DnToFqdn()}", identity.Name);
-
                 using (var ctx = new PrincipalContext(ContextType.Domain, userProfile.BaseDn.DnToFqdn(), null, ContextOptions.Negotiate))
                 {
                     using (var user = UserPrincipal.FindByIdentity(ctx, IdentityType.DistinguishedName, userProfile.DistinguishedName))
@@ -239,14 +238,9 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory
                 }
             }
 
-            request.Upn = profile.Upn;
-            request.DisplayName = profile.DisplayName;
-            request.EmailAddress = profile.Email;
-            request.UserPhone = profile.Phone;
-            request.LdapAttrs = profile.LdapAttrs;
-            request.TwoFAIdentityAttribyte = profile.SecondFactorIdentity;
+            request.UpdateProfile(profile);
 
-            if (profile.MemberOf != null)
+            if (profile.MemberOf.Count != 0)
             {
                 request.UserGroups = profile.MemberOf;
             }
