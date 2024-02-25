@@ -8,9 +8,34 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
 {
     internal class LdapAttributes : ILdapAttributes
     {
-        private readonly Dictionary<string, List<string>> _attrs = new Dictionary<string, List<string>>();
+        private readonly Dictionary<string, List<string>> _attrs;
 
         public ReadOnlyCollection<string> Keys => new ReadOnlyCollection<string>(_attrs.Keys.ToList());
+
+        public LdapAttributes() 
+        { 
+            _attrs = new Dictionary<string, List<string>>();
+        }
+
+        public LdapAttributes(ILdapAttributes source) 
+        {
+            if (source is null)
+            {
+                throw new ArgumentNullException(nameof(source));
+            }
+
+            if (source is LdapAttributes ldapAttributes) 
+            {
+                _attrs = ldapAttributes._attrs;
+                return;
+            }
+
+            _attrs = new Dictionary<string, List<string>>();
+            foreach (var attr in source.Keys)
+            {
+                _attrs[attr] = new List<string>(source.GetValues(attr));
+            }
+        }
 
         public bool Has(string attribute)
         {
@@ -35,7 +60,7 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
                 return default;
             }
 
-            return _attrs[attr].SingleOrDefault();
+            return _attrs[attr].FirstOrDefault();
         }
 
         public ReadOnlyCollection<string> GetValues(string attribute)
@@ -90,6 +115,19 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
                 _attrs[attr].Remove(attribute);
             }
 
+            return this;
+        }
+        
+        public LdapAttributes Replace(string attribute, IEnumerable<string> value)
+        {
+            if (attribute is null)
+            {
+                throw new ArgumentNullException(nameof(attribute));
+            }
+
+            var attr = attribute.ToLower(CultureInfo.InvariantCulture);
+            _attrs[attr] = new List<string>(value);
+            
             return this;
         }
     }

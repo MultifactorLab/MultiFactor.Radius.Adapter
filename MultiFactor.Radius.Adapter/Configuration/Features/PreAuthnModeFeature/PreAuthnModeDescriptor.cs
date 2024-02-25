@@ -34,5 +34,7 @@ namespace MultiFactor.Radius.Adapter.Configuration.Features.PreAuthnModeFeature
             Enum.TryParse<PreAuthnMode>(value, true, out var parsed);
             return parsed;
         }
+
+        public override string ToString() => Mode.ToString();
     }
 }

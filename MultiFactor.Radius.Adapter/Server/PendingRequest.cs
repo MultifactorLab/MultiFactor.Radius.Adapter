@@ -39,11 +39,11 @@ namespace MultiFactor.Radius.Adapter.Server
         public string ReplyMessage { get; set; }
 
         public string UserName { get; private set; }
-        public string TwoFAIdentityAttribyte { private get; set; }
         public bool Bypass2Fa { get; set; }
         public IList<string> UserGroups { get; set; }
-        public bool MustChangePassword { get; set; }
-        public string MustChangePasswordDomain { get; set; }
+
+        public bool MustChangePassword { get; private set; }
+        public string MustChangePasswordDomain { get; private set; }
 
         public LdapProfile Profile { get; private set; }
 
@@ -57,7 +57,6 @@ namespace MultiFactor.Radius.Adapter.Server
         private PendingRequest(ClientConfiguration clientConfiguration)
         {
             ResponseCode = PacketCode.AccessReject;
-            UserGroups = new List<string>();
             Configuration = clientConfiguration;
             Profile = LdapProfile.Empty(clientConfiguration);
         }
@@ -92,6 +91,17 @@ namespace MultiFactor.Radius.Adapter.Server
             }
 
             UserName = username;
+        }
+
+        public void SetMustChangePassword(string domain)
+        {
+            if (string.IsNullOrWhiteSpace(domain))
+            {
+                throw new ArgumentException($"'{nameof(domain)}' cannot be null or whitespace.", nameof(domain));
+            }
+
+            MustChangePassword = true;
+            MustChangePasswordDomain = domain;
         }
     }
 }

@@ -66,7 +66,9 @@ namespace MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing
                     return PacketCode.AccessReject;
                 }
 
-                request.TwoFAIdentityAttribyte = attrs[request.Configuration.TwoFAIdentityAttribyte].FirstOrDefault();
+                var existedAttributes = new LdapAttributes(request.Profile.LdapAttrs);
+                existedAttributes.Replace(request.Configuration.TwoFAIdentityAttribyte, new[] { attrs[request.Configuration.TwoFAIdentityAttribyte].FirstOrDefault() });
+                request.Profile.UpdateAttributes(existedAttributes);
             }
 
             return PacketCode.AccessAccept;

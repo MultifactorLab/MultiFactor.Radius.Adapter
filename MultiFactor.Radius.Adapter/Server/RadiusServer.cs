@@ -344,6 +344,7 @@ namespace MultiFactor.Radius.Adapter.Server
                         responsePacket.AddAttribute("Reply-Message", request.ReplyMessage);
                     }
 
+                    // TODO maybe request.Configuration instead of .GetClient()?
                     var clientConfiguration = _serviceConfiguration.GetClient(request);
 
                     if (request.ResponseCode == PacketCode.AccessAccept)

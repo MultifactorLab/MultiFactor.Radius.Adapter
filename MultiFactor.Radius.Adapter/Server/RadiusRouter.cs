@@ -6,6 +6,7 @@ using MultiFactor.Radius.Adapter.Configuration;
 using MultiFactor.Radius.Adapter.Configuration.Features.PreAuthnModeFeature;
 using MultiFactor.Radius.Adapter.Core;
 using MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing;
+using MultiFactor.Radius.Adapter.Services.Ldap;
 using MultiFactor.Radius.Adapter.Services.MultiFactorApi;
 using Serilog;
 using System;
@@ -91,37 +92,64 @@ namespace MultiFactor.Radius.Adapter.Server
                     }
                 }
 
+                IFirstAuthFactorProcessor firstAuthFactorProcessor = null;
+                var firstFactorAuthenticationResultCode = PacketCode.AccessReject;
+
                 if (request.Configuration.PreAuthnMode.Mode != PreAuthnMode.None)
                 {
+                    firstAuthFactorProcessor = _firstAuthFactorProcessorProvider.GetProcessor(AuthenticationSource.None);
+                    firstFactorAuthenticationResultCode = await firstAuthFactorProcessor.ProcessFirstAuthFactorAsync(request);
+                    if (firstFactorAuthenticationResultCode != PacketCode.AccessAccept)
+                    {
+                        _logger.Error("Failed to validate user profile. Unable to ask the user for a second factor");
+                        CreateAndSendRadiusResponse(request);
+                        return;
+                    }
 
+                    if (request.Bypass2Fa)
+                    {
+                        _logger.Information("Bypass second factor for user '{user:l}' from {host:l}:{port}",
+                            request.UserName, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
+                    }
+                    else
+                    {
+                        switch (request.Configuration.PreAuthnMode.Mode)
+                        {
+                            case PreAuthnMode.Otp:
+                                if (request.Passphrase.Otp == null)
+                                {
+                                    request.ResponseCode = PacketCode.AccessReject;
+                                    RequestProcessed?.Invoke(this, request);
+                                    return;
+                                }
+
+                                request.ResponseCode = await ProcessSecondAuthenticationFactor(request);
+                                if (request.ResponseCode != PacketCode.AccessAccept)
+                                {
+                                    request.ResponseCode = PacketCode.AccessReject;
+                                    _logger.Error("The second factor was rejected");
+                                    CreateAndSendRadiusResponse(request);
+                                    return;
+                                }
+
+                                break;
+
+                            case PreAuthnMode.None:
+                                break;
+
+                            default:
+                                throw new NotImplementedException($"Unknown pre auth mode: {request.Configuration.PreAuthnMode}");
+                        }
+                    }  
                 }
                 
-                // спросить bypass 2fa сперва
-                switch (request.Configuration.PreAuthnMode.Mode)
+                var processor = _firstAuthFactorProcessorProvider.GetProcessor(request.Configuration.FirstFactorAuthenticationSource);
+                // check that already was processed
+                if (processor != firstAuthFactorProcessor)
                 {
-                    case PreAuthnMode.Otp:
-                        if (request.Passphrase.Otp == null)
-                        {
-                            request.ResponseCode = PacketCode.AccessReject;
-                            RequestProcessed?.Invoke(this, request);
-                            return;
-                        }
-
-                        request.ResponseCode = await ProcessSecondAuthenticationFactor(request);
-                        if (request.ResponseCode != PacketCode.AccessAccept)
-                        {
-                            request.ResponseCode = PacketCode.AccessReject;
-
-                            _logger.Error("The second factor was rejected");
-                            RequestProcessed?.Invoke(this, request);
-                            return;
-                        }
-
-                        break;
+                    firstFactorAuthenticationResultCode = await processor.ProcessFirstAuthFactorAsync(request);
                 }
-                
-                var firstAuthFactorProcessor = _firstAuthFactorProcessorProvider.GetProcessor(request.Configuration.FirstFactorAuthenticationSource);
-                var firstFactorAuthenticationResultCode = await firstAuthFactorProcessor.ProcessFirstAuthFactorAsync(request);
+
                 if (firstFactorAuthenticationResultCode == PacketCode.DisconnectNak)
                 {
                     RequestWillNotBeProcessed?.Invoke(this, request);
@@ -147,12 +175,11 @@ namespace MultiFactor.Radius.Adapter.Server
                     return;
                 }
 
-                if (request.Bypass2Fa)
+                if (request.Configuration.PreAuthnMode.Mode == PreAuthnMode.None && request.Bypass2Fa)
                 {
                     //second factor not required
-                    var userName = request.UserName;
                     _logger.Information("Bypass second factor for user '{user:l}' from {host:l}:{port}",
-                        userName, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
+                        request.UserName, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
 
                     request.ResponseCode = PacketCode.AccessAccept;
                     CreateAndSendRadiusResponse(request);
@@ -160,7 +187,6 @@ namespace MultiFactor.Radius.Adapter.Server
                     //stop authencation process
                     return;
                 }
-
 
                 if (request.Configuration.PreAuthnMode.Mode == PreAuthnMode.None)
                 {
@@ -278,7 +304,11 @@ namespace MultiFactor.Radius.Adapter.Server
             }
 
             var stateChallengePendingRequest = GetStateChallengeRequest(state);
-            request.TwoFAIdentityAttribyte = stateChallengePendingRequest.SecondFactorIdentity;
+
+            var existedAttributes = new LdapAttributes(request.Profile.LdapAttrs);
+            existedAttributes.Replace(request.Configuration.TwoFAIdentityAttribyte, new[] { stateChallengePendingRequest.SecondFactorIdentity });
+            request.Profile.UpdateAttributes(existedAttributes);
+
             response = await _multifactorApiClient.Challenge(request, userAnswer, state);
 
             switch (response)
@@ -300,7 +330,6 @@ namespace MultiFactor.Radius.Adapter.Server
         }
 
         private void CreateAndSendRadiusResponse(PendingRequest request) => RequestProcessed?.Invoke(this, request);
-
 
         /// <summary>
         /// Add authenticated request to local cache for otp/challenge

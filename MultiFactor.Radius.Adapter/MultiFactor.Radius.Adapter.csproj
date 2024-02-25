@@ -232,6 +232,7 @@
     <Compile Include="Core\RadiusPacketNasIdentifierParser.cs" />
     <Compile Include="Logging\Enrichers\RadiusPacketLogEventEnricher.cs" />
     <Compile Include="Logging\LoggerScope.cs" />
+    <Compile Include="Server\MustChangeDirectoryPassword.cs" />
     <Compile Include="Server\UserPassphrase.cs" />
     <Compile Include="Services\Ldap\ILdapAttributes.cs" />
     <Compile Include="Services\Ldap\LdapAttributes.cs" />

@@ -52,15 +52,16 @@ namespace MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing
                     return Task.FromResult(PacketCode.AccessReject);
                 }
 
-                request.TwoFAIdentityAttribyte = attrs[request.Configuration.TwoFAIdentityAttribyte].FirstOrDefault();
+                var existedAttributes = new LdapAttributes(request.Profile.LdapAttrs);
+                existedAttributes.Replace(request.Configuration.TwoFAIdentityAttribyte, new[] { attrs[request.Configuration.TwoFAIdentityAttribyte].FirstOrDefault() });
+                request.Profile.UpdateAttributes(existedAttributes);
             }
             return Task.FromResult(PacketCode.AccessAccept);
         }
 
         private Dictionary<string, string[]> LoadRequiredAttributes(PendingRequest request, params string[] attrs)
         {
-            var userName = request.UserName;
-            if (string.IsNullOrEmpty(userName))
+            if (string.IsNullOrEmpty(request.UserName))
             {
                 throw new Exception($"Can't find User-Name in message id={request.RequestPacket.Id.Identifier} from {request.RemoteEndpoint.Address}:{request.RemoteEndpoint.Port}");
             }
@@ -74,7 +75,7 @@ namespace MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing
 
                 try
                 {
-                    var user = LdapIdentityFactory.CreateUserIdentity(request.Configuration, userName);
+                    var user = LdapIdentityFactory.CreateUserIdentity(request.Configuration, request.UserName);
 
                     _logger.Debug($"Loading attributes for user '{{user:l}}' at {domainIdentity}", user.Name);
                     using (var connection = CreateConnection(domain))
@@ -99,7 +100,7 @@ namespace MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing
                 }
                 catch (Exception ex)
                 {
-                    _logger.Error(ex, $"Loading attributes of user '{{user:l}}' at {domainIdentity} failed", userName);
+                    _logger.Error(ex, $"Loading attributes of user '{{user:l}}' at {domainIdentity} failed", request.UserName);
                     _logger.Information("Run MultiFactor.Raduis.Adapter as user with domain read permissions (basically any domain user)");
                     continue;
                 }

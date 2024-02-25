@@ -95,7 +95,10 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory
                 if (lex.ServerErrorMessage != null)
                 {
                     var reason = LdapErrorReasonInfo.Create(lex.ServerErrorMessage);
-                    request.MustChangePassword = reason.Flags.HasFlag(LdapErrorFlag.MustChangePassword);
+                    if (reason.Flags.HasFlag(LdapErrorFlag.MustChangePassword))
+                    {
+                        request.SetMustChangePassword(_domain);
+                    }
 
                     if (reason.Reason != LdapErrorReason.UnknownError)
                     {

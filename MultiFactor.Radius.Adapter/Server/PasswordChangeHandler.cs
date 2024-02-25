@@ -86,7 +86,7 @@ namespace MultiFactor.Radius.Adapter.Server
         {
             if (request == null) throw new ArgumentNullException(nameof(request));
 
-            if (!request.MustChangePassword)
+            if (request.MustChangePassword)
             {
                 return PacketCode.AccessAccept; //not a password change request, continue authentication
             }

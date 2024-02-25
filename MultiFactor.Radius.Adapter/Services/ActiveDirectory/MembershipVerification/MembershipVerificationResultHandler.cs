@@ -41,7 +41,7 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory.MembershipVerifica
             request.Bypass2Fa = IsBypassed();
             request.UpdateProfile(profile);
 
-            if (profile.MemberOf != null)
+            if (profile.MemberOf.Count != 0)
             {
                 request.UserGroups = profile.MemberOf;
             }

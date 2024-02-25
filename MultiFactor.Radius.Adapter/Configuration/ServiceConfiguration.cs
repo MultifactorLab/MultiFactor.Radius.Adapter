@@ -6,7 +6,6 @@ using MultiFactor.Radius.Adapter.Configuration.Features.PreAuthnModeFeature;
 using MultiFactor.Radius.Adapter.Configuration.Features.PrivacyModeFeature;
 using MultiFactor.Radius.Adapter.Core;
 using MultiFactor.Radius.Adapter.Server;
-using MultiFactor.Radius.Adapter.Services.MultiFactorApi;
 using NetTools;
 using Serilog;
 using System;
@@ -388,20 +387,20 @@ namespace MultiFactor.Radius.Adapter.Configuration
             {
                 case AuthenticationSource.ActiveDirectory:
                     //active directory authentication and membership settings
-                    LoadActiveDirectoryAuthenticationSourceSettings(configuration, appSettings, activeDirectorySection, true, logger);
+                    LoadActiveDirectoryAuthenticationSourceSettings(configuration, appSettings, activeDirectorySection, logger);
                     break;
                 case AuthenticationSource.Radius:
                     //radius authentication settings
                     LoadRadiusAuthenticationSourceSettings(configuration, appSettings);
                     //active directory membership only settings
-                    LoadActiveDirectoryAuthenticationSourceSettings(configuration, appSettings, activeDirectorySection, false, logger);
+                    LoadActiveDirectoryAuthenticationSourceSettings(configuration, appSettings, activeDirectorySection, logger);
                     break;
                 case AuthenticationSource.AdLds:
                     LoadAdLdsAuthenticationSourceSettings(configuration, appSettings);
                     break;
                 case AuthenticationSource.None:
                     //active directory membership only settings
-                    LoadActiveDirectoryAuthenticationSourceSettings(configuration, appSettings, activeDirectorySection, false, logger);
+                    LoadActiveDirectoryAuthenticationSourceSettings(configuration, appSettings, activeDirectorySection, logger);
                     break;
             }
 
@@ -464,28 +463,18 @@ namespace MultiFactor.Radius.Adapter.Configuration
                 else
                 {
                     throw new Exception($"Configuration error: Can't parse '{Constants.Configuration.BypassSecondFactorPeriod}' value");
-
                 }
             }
         }
 
-        private static void LoadActiveDirectoryAuthenticationSourceSettings(ClientConfiguration configuration, AppSettingsSection appSettings, ActiveDirectorySection activeDirectorySection, bool mandatory, ILogger logger)
+        private static void LoadActiveDirectoryAuthenticationSourceSettings(ClientConfiguration configuration, AppSettingsSection appSettings, ActiveDirectorySection activeDirectorySection, ILogger logger)
         {
-            var activeDirectoryDomainSetting = appSettings.Settings["active-directory-domain"]?.Value;
-            var activeDirectoryGroupSetting = appSettings.Settings["active-directory-group"]?.Value;
-            var activeDirectory2FaGroupSetting = appSettings.Settings["active-directory-2fa-group"]?.Value;
-            var activeDirectory2FaBypassGroupSetting = appSettings.Settings["active-directory-2fa-bypass-group"]?.Value;
             var useActiveDirectoryUserPhoneSetting = appSettings.Settings["use-active-directory-user-phone"]?.Value;
             var useActiveDirectoryMobileUserPhoneSetting = appSettings.Settings["use-active-directory-mobile-user-phone"]?.Value;
             var phoneAttributes = appSettings.Settings["phone-attribute"]?.Value;
             var loadActiveDirectoryNestedGroupsSettings = appSettings.Settings["load-active-directory-nested-groups"]?.Value;
             var useUpnAsIdentitySetting = appSettings.Settings["use-upn-as-identity"]?.Value;
             var twoFAIdentityAttribyteSetting = appSettings.Settings["use-attribute-as-identity"]?.Value;
-
-            if (mandatory && string.IsNullOrEmpty(activeDirectoryDomainSetting))
-            {
-                throw new Exception("Configuration error: 'active-directory-domain' element not found");
-            }
 
             //legacy settings for general phone attribute usage
             if (bool.TryParse(useActiveDirectoryUserPhoneSetting, out var useActiveDirectoryUserPhone))
@@ -521,22 +510,7 @@ namespace MultiFactor.Radius.Adapter.Configuration
                 configuration.LoadActiveDirectoryNestedGroups = loadActiveDirectoryNestedGroups;
             }
 
-            configuration.ActiveDirectoryDomain = activeDirectoryDomainSetting;
-
-            if (!string.IsNullOrEmpty(activeDirectoryGroupSetting))
-            {
-                configuration.ActiveDirectoryGroup = activeDirectoryGroupSetting.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
-            }
-
-            if (!string.IsNullOrEmpty(activeDirectory2FaGroupSetting))
-            {
-                configuration.ActiveDirectory2FaGroup = activeDirectory2FaGroupSetting.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
-            }
-
-            if (!string.IsNullOrEmpty(activeDirectory2FaBypassGroupSetting))
-            {
-                configuration.ActiveDirectory2FaBypassGroup = activeDirectory2FaBypassGroupSetting.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
-            }
+            SetActiveDirectorySettings(appSettings, configuration);
 
             // MUST be before 'use-upn-as-identity' check
             if (!string.IsNullOrEmpty(twoFAIdentityAttribyteSetting))
@@ -554,7 +528,6 @@ namespace MultiFactor.Radius.Adapter.Configuration
                 configuration.TwoFAIdentityAttribyte = "userPrincipalName";
             }
 
-            
             if (activeDirectorySection != null)
             {
                 var includedDomains = (from object value in activeDirectorySection.IncludedDomains
@@ -570,6 +543,50 @@ namespace MultiFactor.Radius.Adapter.Configuration
                 configuration.IncludedDomains = includedDomains;
                 configuration.ExcludedDomains = excludeddDomains;
                 configuration.RequiresUpn = activeDirectorySection.RequiresUpn;
+            }
+        }
+
+        private static void SetActiveDirectorySettings(AppSettingsSection appSettings, ClientConfiguration configuration)
+        {
+            var activeDirectoryDomainSetting = appSettings.Settings["active-directory-domain"]?.Value;
+
+            var activeDirectoryGroupSetting = appSettings.Settings["active-directory-group"]?.Value;
+            var activeDirectory2FaGroupSetting = appSettings.Settings["active-directory-2fa-group"]?.Value;
+            var activeDirectory2FaBypassGroupSetting = appSettings.Settings["active-directory-2fa-bypass-group"]?.Value;
+
+            if (configuration.FirstFactorAuthenticationSource == AuthenticationSource.ActiveDirectory)
+            {
+                ValidateDomainSettings(activeDirectoryDomainSetting);
+            }
+
+            configuration.ActiveDirectoryDomain = activeDirectoryDomainSetting;
+
+            if (!string.IsNullOrEmpty(activeDirectoryGroupSetting))
+            {
+                configuration.ActiveDirectoryGroup = activeDirectoryGroupSetting.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries).Distinct().ToArray();
+            }
+
+            if (!string.IsNullOrEmpty(activeDirectory2FaGroupSetting))
+            {
+                configuration.ActiveDirectory2FaGroup = activeDirectory2FaGroupSetting.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries).Distinct().ToArray();
+            }
+
+            if (!string.IsNullOrEmpty(activeDirectory2FaBypassGroupSetting))
+            {
+                configuration.ActiveDirectory2FaBypassGroup = activeDirectory2FaBypassGroupSetting.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries).Distinct().ToArray();
+            }
+
+            if (configuration.ActiveDirectoryGroup.Length != 0 || configuration.ActiveDirectory2FaGroup.Length != 0 || configuration.ActiveDirectory2FaBypassGroup.Length != 0)
+            {
+                ValidateDomainSettings(activeDirectoryDomainSetting);
+            }
+        }
+
+        private static void ValidateDomainSettings(string activeDirectoryDomainSetting)
+        {
+            if (string.IsNullOrEmpty(activeDirectoryDomainSetting))
+            {
+                throw new Exception("Configuration error: 'active-directory-domain' element not found");
             }
         }
 

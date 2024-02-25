@@ -58,7 +58,6 @@ namespace MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing
 
                 if (request.MustChangePassword)
                 {
-                    request.MustChangePasswordDomain = domain;
                     return Task.FromResult(PacketCode.AccessReject);
                 }
             }
