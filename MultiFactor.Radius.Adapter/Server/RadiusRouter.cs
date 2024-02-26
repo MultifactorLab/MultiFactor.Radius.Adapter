@@ -305,9 +305,12 @@ namespace MultiFactor.Radius.Adapter.Server
 
             var stateChallengePendingRequest = GetStateChallengeRequest(state);
 
-            var existedAttributes = new LdapAttributes(request.Profile.LdapAttrs);
-            existedAttributes.Replace(request.Configuration.TwoFAIdentityAttribyte, new[] { stateChallengePendingRequest.SecondFactorIdentity });
-            request.Profile.UpdateAttributes(existedAttributes);
+            if (request.Configuration.UseIdentityAttribute)
+            {
+                var existedAttributes = new LdapAttributes(request.Profile.LdapAttrs);
+                existedAttributes.Replace(request.Configuration.TwoFAIdentityAttribyte, new[] { stateChallengePendingRequest.SecondFactorIdentity });
+                request.Profile.UpdateAttributes(existedAttributes);
+            }
 
             response = await _multifactorApiClient.Challenge(request, userAnswer, state);
 
