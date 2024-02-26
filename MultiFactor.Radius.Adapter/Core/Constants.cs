@@ -21,7 +21,7 @@ namespace MultiFactor.Radius.Adapter.Core
             public const string AuthenticationCacheLifetime = "authentication-cache-lifetime";
             public const string CallingStationIdAttribute = "calling-station-id-attribute";
             public const string PrivacyMode = "privacy-mode";
-            public const string PreAuthnMode = "second-pre-authentication-method";
+            public const string PreAuthnMode = "pre-authentication-method";
 
             [Obsolete("Use AuthenticationCacheLifetime instead")]
             public const string BypassSecondFactorPeriod = "bypass-second-factor-period";

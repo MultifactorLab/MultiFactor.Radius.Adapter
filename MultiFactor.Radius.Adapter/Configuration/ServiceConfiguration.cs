@@ -246,7 +246,7 @@ namespace MultiFactor.Radius.Adapter.Configuration
                 var activeDirectorySection = ConfigurationManager.GetSection("ActiveDirectory") as ActiveDirectorySection;
                 var userNameTransformRulesSection = ConfigurationManager.GetSection("UserNameTransformRules") as UserNameTransformRulesSection;
 
-                var client = LoadClientSettings("General", dictionary, appSettings, radiusReplyAttributesSection, activeDirectorySection, userNameTransformRulesSection, logger);
+                var client = LoadClientSettings("General", dictionary, appSettings, radiusReplyAttributesSection, activeDirectorySection, userNameTransformRulesSection, configuration, logger);
                 configuration.AddClient(IPAddress.Any, client);
                 configuration.SingleClientMode = true;
             }
@@ -267,7 +267,9 @@ namespace MultiFactor.Radius.Adapter.Configuration
                     var activeDirectorySection = config.GetSection("ActiveDirectory") as ActiveDirectorySection;
                     var userNameTransformRulesSection = config.GetSection("UserNameTransformRules") as UserNameTransformRulesSection;
 
-                    var client = LoadClientSettings(Path.GetFileNameWithoutExtension(clientConfigFile), dictionary, clientSettings, radiusReplyAttributesSection, activeDirectorySection, userNameTransformRulesSection, logger);
+                    var client = LoadClientSettings(Path.GetFileNameWithoutExtension(clientConfigFile), dictionary, clientSettings, radiusReplyAttributesSection, activeDirectorySection, userNameTransformRulesSection,
+                        configuration,
+                        logger);
 
                     var radiusClientNasIdentifierSetting = clientSettings.Settings["radius-client-nas-identifier"]?.Value;
                     var radiusClientIpSetting = clientSettings.Settings["radius-client-ip"]?.Value;
@@ -311,7 +313,14 @@ namespace MultiFactor.Radius.Adapter.Configuration
                     : httpRequestTimeout; // timeout from config
         }
 
-        public static ClientConfiguration LoadClientSettings(string name, IRadiusDictionary dictionary, AppSettingsSection appSettings, RadiusReplyAttributesSection radiusReplyAttributesSection, ActiveDirectorySection activeDirectorySection, UserNameTransformRulesSection userNameTransformRulesSection, ILogger logger)
+        public static ClientConfiguration LoadClientSettings(string name, 
+            IRadiusDictionary dictionary, 
+            AppSettingsSection appSettings, 
+            RadiusReplyAttributesSection radiusReplyAttributesSection, 
+            ActiveDirectorySection activeDirectorySection, 
+            UserNameTransformRulesSection userNameTransformRulesSection, 
+            ServiceConfiguration serviceConfiguration,
+            ILogger logger)
         {
             var radiusSharedSecretSetting = appSettings.Settings["radius-shared-secret"]?.Value;
             var radiusPapEncodingSetting = appSettings.Settings["radius-pap-encoding"]?.Value;
@@ -381,6 +390,24 @@ namespace MultiFactor.Radius.Adapter.Configuration
             catch
             {
                 throw new Exception($"Configuration error: Can't parse '{Constants.Configuration.PrivacyMode}' value. Must be one of: Full, None, Partial:Field1,Field2");
+            }
+
+            var credDelay = appSettings.Settings[Constants.Configuration.PciDss.InvalidCredentialDelay]?.Value;
+            if (string.IsNullOrWhiteSpace(credDelay))
+            {
+                configuration.InvalidCredentialDelay = serviceConfiguration.InvalidCredentialDelay;
+            }
+            else
+            {
+
+                try
+                {
+                    configuration.InvalidCredentialDelay = RandomWaiterConfig.Create(appSettings.Settings[Constants.Configuration.PciDss.InvalidCredentialDelay]?.Value);
+                }
+                catch
+                {
+                    throw new Exception($"Configuration error: Can't parse '{Constants.Configuration.PciDss.InvalidCredentialDelay}' value");
+                }
             }
 
             switch (configuration.FirstFactorAuthenticationSource)

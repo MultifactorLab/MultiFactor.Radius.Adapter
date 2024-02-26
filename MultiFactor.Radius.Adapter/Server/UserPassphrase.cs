@@ -14,6 +14,8 @@ namespace MultiFactor.Radius.Adapter.Server
     {
         private static readonly string[] _providerCodes = { "t", "m", "s", "c" };
 
+        public string Raw { get; }
+
         /// <summary>
         /// User password.
         /// </summary>
@@ -46,8 +48,9 @@ namespace MultiFactor.Radius.Adapter.Server
         /// </summary>
         public bool IsEmpty => Password == null && Otp == null && ProviderCode == null;
 
-        private UserPassphrase(string password, string otp, string providerCode)
+        private UserPassphrase(string raw, string password, string otp, string providerCode)
         {
+            Raw = raw;
             Password = password;
             Otp = otp;
             ProviderCode = providerCode;
@@ -77,7 +80,7 @@ namespace MultiFactor.Radius.Adapter.Server
             }
 
             var provCode = _providerCodes.FirstOrDefault(x => x == pwd?.ToLower());
-            return new UserPassphrase(pwd, otp, provCode);
+            return new UserPassphrase(packet.TryGetUserPassword(), pwd, otp, provCode);
         }
 
         private static string GetPassword(IRadiusPacket packet, PreAuthnModeDescriptor preAuthnMode)
@@ -92,7 +95,13 @@ namespace MultiFactor.Radius.Adapter.Server
                         return passwordAndOtp;
                     }
 
-                    return passwordAndOtp.Substring(0, passwordAndOtp.Length - length);
+                    var sub = passwordAndOtp.Substring(0, passwordAndOtp.Length - length);
+                    if (!Regex.IsMatch(sub, preAuthnMode.Settings.OtpCodeRegex))
+                    {
+                        return passwordAndOtp;
+                    }
+
+                    return sub;
 
                 case PreAuthnMode.None:
                 default:
@@ -117,7 +126,7 @@ namespace MultiFactor.Radius.Adapter.Server
             }
 
             code = passwordAndOtp.Substring(passwordAndOtp.Length - length);
-            if (!Regex.IsMatch(code, $"^[0-9]{{{length}}}$"))
+            if (!Regex.IsMatch(code, preAuthnMode.Settings.OtpCodeRegex))
             {
                 code = null;
                 return false;

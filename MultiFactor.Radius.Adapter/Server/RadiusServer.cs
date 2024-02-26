@@ -50,7 +50,6 @@ namespace MultiFactor.Radius.Adapter.Server
         private readonly ServiceConfiguration _serviceConfiguration;
         private readonly CacheService _cacheService;
         private readonly RadiusRouter _radiusRouter;
-        private readonly RandomWaiter _waiter;
 
         public bool Running
         {
@@ -66,7 +65,6 @@ namespace MultiFactor.Radius.Adapter.Server
             IRadiusPacketParser radiusPacketParser,
             CacheService cacheService,
             RadiusRouter radiusRouter,
-            RandomWaiter waiter,
             ILogger logger)
         {
             _serviceConfiguration = serviceConfiguration ?? throw new ArgumentNullException(nameof(serviceConfiguration));
@@ -74,7 +72,6 @@ namespace MultiFactor.Radius.Adapter.Server
             _radiusPacketParser = radiusPacketParser ?? throw new ArgumentNullException(nameof(radiusPacketParser));
             _cacheService = cacheService ?? throw new ArgumentNullException(nameof(cacheService));
             _radiusRouter = radiusRouter ?? throw new ArgumentNullException(nameof(radiusRouter));
-            _waiter = waiter ?? throw new ArgumentNullException(nameof(waiter));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
             _localEndpoint = serviceConfiguration.ServiceServerEndpoint;
@@ -366,7 +363,7 @@ namespace MultiFactor.Radius.Adapter.Server
                             request.ResponsePacket.CopyTo(responsePacket);
                         }
                     }
-                    await _waiter.WaitSomeTimeAsync();
+                    await new RandomWaiter(request.Configuration.InvalidCredentialDelay).WaitSomeTimeAsync();
                     break;
                 default:
                     throw new NotImplementedException(request.ResponseCode.ToString());
