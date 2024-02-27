@@ -39,14 +39,9 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory.MembershipVerifica
             if (profile == null) return;
 
             request.Bypass2Fa = IsBypassed();
-            request.Upn = profile.Upn;
-            request.DisplayName = profile.DisplayName;
-            request.EmailAddress = profile.Email;
-            request.UserPhone = profile.Phone;
-            request.LdapAttrs = profile.LdapAttrs;
-            request.TwoFAIdentityAttribyte = profile.SecondFactorIdentity;
+            request.UpdateProfile(profile);
 
-            if (profile.MemberOf != null)
+            if (profile.MemberOf.Count != 0)
             {
                 request.UserGroups = profile.MemberOf;
             }

@@ -92,7 +92,7 @@ namespace MultiFactor.Radius.Adapter.Server
                 }
 
                 //just attribute
-                return request.LdapAttrs?[LdapAttributeName] != null;
+                return request.Profile.LdapAttrs.Has(LdapAttributeName);
             }
 
             //if matched user name condition
@@ -132,10 +132,10 @@ namespace MultiFactor.Radius.Adapter.Server
 
             if (FromLdap)
             {
-                return new object[] { request.LdapAttrs[LdapAttributeName] };
+                return request.Profile.LdapAttrs.GetValues(LdapAttributeName).ToArray();
             }
 
-            return new object[] { Value };
+            return new []{ Value };
         }
 
         private void ParseConditionClause(string clause)

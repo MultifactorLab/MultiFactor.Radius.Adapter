@@ -43,5 +43,10 @@ namespace MultiFactor.Radius.Adapter.Server
             ProxyEndpoint = proxyEndpoint;
             Packet = packet ?? throw new ArgumentNullException(nameof(packet));
         }
+
+        public PendingRequest CreatePendingRequest()
+        {
+            return PendingRequest.Create(ClientConfiguration, RemoteEndpoint, ProxyEndpoint, Packet);
+        }
     }
 }

@@ -28,9 +28,32 @@ using System;
 
 namespace MultiFactor.Radius.Adapter.Core
 {
-    public interface IRadiusPacketParser
+    internal class RadiusField
     {
-        byte[] GetBytes(IRadiusPacket packet);
-        IRadiusPacket Parse(byte[] packetBytes, SharedSecret sharedSecret, byte[] requestAuthenticator = null, string encodingName = null, Action<RadiusPacketOptions> configure = null);
+        /// <summary>
+        /// Field position (index).
+        /// </summary>
+        public int Position { get; }
+
+        /// <summary>
+        /// Field value length (number of bytes).
+        /// </summary>
+        public int Length { get; }
+
+        public RadiusField(int pos, int len)
+        {
+            if (pos < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(pos));
+            }
+
+            if (len < 1)
+            {
+                throw new ArgumentOutOfRangeException(nameof(len));
+            }
+
+            Position = pos;
+            Length = len;
+        }
     }
 }

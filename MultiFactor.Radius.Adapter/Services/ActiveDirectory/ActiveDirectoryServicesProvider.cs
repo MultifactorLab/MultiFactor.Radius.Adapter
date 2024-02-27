@@ -4,6 +4,7 @@
 
 using Microsoft.Extensions.DependencyInjection;
 using MultiFactor.Radius.Adapter.Configuration;
+using MultiFactor.Radius.Adapter.Services.Ldap;
 using MultiFactor.Radius.Adapter.Services.Ldap.LdapMetadata;
 using Serilog;
 using System;
@@ -33,6 +34,7 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory
                     domain,
                     _provider.GetRequiredService<ForestMetadataCache>(),
                     _provider.GetRequiredService<NetbiosService>(),
+                    _provider.GetRequiredService<LdapConnectionFactory>(),
                     _provider.GetRequiredService<ILogger>())
                     );
             }
