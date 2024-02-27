@@ -28,7 +28,7 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap.LdapMetadata
         public ForestSchema Load(LdapIdentity root)
         {
             if (root is null) throw new ArgumentNullException(nameof(root));
-            _logger.Debug($"Loading forest schema from {root.Name}");
+            _logger.Debug("Loading forest schema from {Root:l}", root);
 
 
             var domainNameSuffixes = new Dictionary<string, LdapIdentity>();
@@ -45,8 +45,12 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap.LdapMetadata
                 var trustedDomains = trustedDomainsResult.GetAttributeValuesByName(CommonNameAttribute)
                     .Where(domain => _clientConfig.IsPermittedDomain(domain))
                     .Select(domain => LdapIdentity.FqdnToDn(domain));
-                _logger.Debug($"Found trusted domains:\r\n{string.Join(";", trustedDomains)}");
-                schema.AddRange(trustedDomains);
+
+                foreach (var domain in trustedDomains)
+                {
+                    _logger.Debug("Found trusted domain: {Domain:l}", domain);
+                    schema.Add(domain);
+                }
 
                 foreach (var domain in schema)
                 {
@@ -62,7 +66,7 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap.LdapMetadata
                         try
                         {
                             var uPNSuffixesResult = _connectionAdapter.Query(
-                                "CN=Partitions,CN=Configuration," + domain.Name,
+                                $"CN=Partitions,CN=Configuration,{domain.Name}",
                                 "objectClass=*",
                                 SearchScope.Base,
                                 true,
@@ -72,12 +76,12 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap.LdapMetadata
                             foreach (var suffix in uPNSuffixes.Where(upn => !domainNameSuffixes.ContainsKey(upn)))
                             {
                                 domainNameSuffixes.Add(suffix, domain);
-                                _logger.Debug($"Found alternative UPN suffix {suffix} for domain {domain.Name}");
+                                _logger.Debug("Found alternative UPN suffix {Suffix:l} for domain {Domain}", suffix, domain);
                             }
                         }
                         catch (Exception ex)
                         {
-                            _logger.Warning($"Unable to query {domain.Name}: {ex.Message}");
+                            _logger.Warning(ex, "Unable to query {Domain:l}", domain);
                         }
                     }
                 }
@@ -89,28 +93,6 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap.LdapMetadata
             }
 
             return new ForestSchema(domainNameSuffixes);
-        }
-
-        private void InitializeNetbiosNames(List<LdapIdentity> schema)
-        {
-            foreach (var domain in schema)
-            {
-                var netbiosNameResponse = _connectionAdapter.Query(
-                    "CN=Partitions,CN=Configuration," + domain.Name,
-                    "(&(objectcategory=crossref)(netbiosname=*))",
-                    SearchScope.OneLevel,
-                    true, // TODO
-                    NetbiosNameAttribute);
-                List<string> netbiosNames = netbiosNameResponse.GetAttributeValuesByName(NetbiosNameAttribute);
-
-                if (netbiosNames.Count == 1)
-                {
-                    _logger.Information($"Find netbiosname {netbiosNames[0]} for domain {domain}");
-                    domain.SetNetBiosName(netbiosNames[0]);
-                    continue;
-                }
-                _logger.Warning($"Unexpected netbiosname(s) for domain {domain}:{string.Join(";", netbiosNames)}");
-            }
         }
     }
 }

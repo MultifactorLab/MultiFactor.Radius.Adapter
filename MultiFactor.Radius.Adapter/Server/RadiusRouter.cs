@@ -110,6 +110,7 @@ namespace MultiFactor.Radius.Adapter.Server
                     {
                         _logger.Information("Bypass pre-auth second factor for user '{user:l}' from {host:l}:{port}",
                             request.UserName, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
+                        request.ResponseCode = PacketCode.AccessAccept;
                     }
                     else
                     {

@@ -56,7 +56,7 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory.MembershipVerifica
                 try
                 {
                     var user = LdapIdentityFactory.CreateUserIdentity(request.Configuration, request.UserName);
-                    _logger.Debug($"Verifying user '{{user:l}}' membership at {domainIdentity}", user.Name);
+                    _logger.Debug("Verifying user '{User:l}' membership at {Domain:l}", user, domainIdentity);
 
                     if (user.HasNetbiosName())
                     {
@@ -112,7 +112,7 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory.MembershipVerifica
                 }
                 catch (Exception ex)
                 {
-                    _logger.Error(ex, $"Verification user '{{user:l}}' membership at {domainIdentity} failed", request.UserName);
+                    _logger.Error(ex, "Verification user '{User:l}' membership at {Domain:l} failed", request.UserName, domainIdentity);
                     _logger.Information("Run MultiFactor.Raduis.Adapter as user with domain read permissions (basically any domain user)");
                     result.AddDomainResult(MembershipVerificationResult.Create(domainIdentity)
                         .SetSuccess(false)
@@ -135,11 +135,13 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory.MembershipVerifica
                 var accessGroup = clientConfig.ActiveDirectoryGroup.FirstOrDefault(group => IsMemberOf(profile, group));
                 if (accessGroup != null)
                 {
-                    _logger.Debug($"User '{{user:l}}' is member of '{accessGroup.Trim()}' access group in {profile.BaseDn.Name}", user.Name);
+                    _logger.Debug("User '{User:l}' is member of '{AccessGroup:l}' access group in {BaseDn:l}", 
+                        user, accessGroup.Trim(), profile.BaseDn);
                 }
                 else
                 {
-                    _logger.Warning($"User '{{user:l}}' is not member of '{string.Join(";", clientConfig.ActiveDirectoryGroup)}' access group in {profile.BaseDn.Name}", user.Name);
+                    _logger.Warning("User '{User:l}' is not member of '{ActiveDirectoryGroup:l}' access group in {BaseDn:l}", 
+                        user, string.Join(";", clientConfig.ActiveDirectoryGroup), profile.BaseDn);
                     return MembershipVerificationResult.Create(domain)
                         .SetSuccess(false)
                         .SetProfile(profile)
@@ -157,12 +159,13 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory.MembershipVerifica
                 var mfaGroup = clientConfig.ActiveDirectory2FaGroup.FirstOrDefault(group => IsMemberOf(profile, group));
                 if (mfaGroup != null)
                 {
-                    _logger.Debug($"User '{{user:l}}' is member of '{mfaGroup.Trim()}' 2FA group in {profile.BaseDn.Name}", user.Name);
+                    _logger.Debug("User '{User:l}' is member of '{MfaGroup:l}' 2FA group in {BaseDn:l}", user, mfaGroup.Trim(), profile.BaseDn);
                     resBuilder.SetIsMemberOf2FaGroups(true);
                 }
                 else
                 {
-                    _logger.Information($"User '{{user:l}}' is not member of '{string.Join(";", clientConfig.ActiveDirectory2FaGroup)}' 2FA group in {profile.BaseDn.Name}", user.Name);
+                    _logger.Information("User '{User:l}' is not member of '{2FAGroup:l}' 2FA group in {BaseDn:l}", 
+                        user, string.Join(";", clientConfig.ActiveDirectory2FaGroup), profile.BaseDn);
                 }
             }
 
@@ -172,12 +175,14 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory.MembershipVerifica
                 var bypassGroup = clientConfig.ActiveDirectory2FaBypassGroup.FirstOrDefault(group => IsMemberOf(profile, group));
                 if (bypassGroup != null)
                 {
-                    _logger.Information($"User '{{user:l}}' is member of '{bypassGroup.Trim()}' 2FA bypass group in {profile.BaseDn.Name}", user.Name);
+                    _logger.Information("User '{User:l}' is member of '{BypassGroup:l}' 2FA bypass group in {BaseDn:l}", 
+                        user, bypassGroup.Trim(), profile.BaseDn);
                     resBuilder.SetIsMemberOf2FaBypassGroup(true);
                 }
                 else
                 {
-                    _logger.Debug($"User '{{user:l}}' is not member of '{string.Join(";", clientConfig.ActiveDirectory2FaBypassGroup)}' 2FA bypass group in {profile.BaseDn.Name}", user.Name);
+                    _logger.Debug("User '{User:l}' is not member of '{ActiveDirectory2FaBypassGroup:l}' 2FA bypass group in {BaseDn:l}", 
+                        user, string.Join(";", clientConfig.ActiveDirectory2FaBypassGroup), profile.BaseDn);
                 }
             }
 
