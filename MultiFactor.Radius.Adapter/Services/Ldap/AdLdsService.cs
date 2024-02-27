@@ -2,12 +2,11 @@
 //Please see licence at 
 //https://github.com/MultifactorLab/MultiFactor.Radius.Adapter/blob/master/LICENSE.md
 
-using MultiFactor.Radius.Adapter.Configuration;
+using MultiFactor.Radius.Adapter.Server;
 using Serilog;
 using System;
 using System.DirectoryServices.AccountManagement;
 using System.DirectoryServices.Protocols;
-using System.Net;
 using System.Text.RegularExpressions;
 namespace MultiFactor.Radius.Adapter.Services.Ldap
 {
@@ -16,49 +15,47 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
     /// </summary>
     public class AdLdsService
     {
+        private readonly LdapConnectionFactory _connectionFactory;
         private ILogger _logger;
 
-        public AdLdsService(ILogger logger)
+        public AdLdsService(LdapConnectionFactory connectionFactory, ILogger logger)
         {
+            _connectionFactory = connectionFactory;
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
         /// <summary>
         /// Verify User Name, Password and User Status against AD LDS
         /// </summary>
-        public bool VerifyCredentialAndMembership(string userName, string password, ClientConfiguration clientConfig)
+        public bool VerifyCredentialAndMembership(PendingRequest request)
         {
-            if (string.IsNullOrEmpty(userName))
+            if (request is null)
             {
-                throw new ArgumentNullException(nameof(userName));
+                throw new ArgumentNullException(nameof(request));
             }
-            if (string.IsNullOrEmpty(password))
+
+            if (string.IsNullOrEmpty(request.UserName))
             {
-                _logger.Error($"Empty password provided for user '{userName}'");
+                _logger.Error($"Empty username provided for user");
+                return false;
+            }
+            
+            if (string.IsNullOrEmpty(request.Passphrase.Password))
+            {
+                _logger.Error("Empty password provided for user '{User}'", request.UserName);
                 return false;
             }
 
-            var ldapUrl = clientConfig.LdapUrl;
-            var user = LdapIdentity.ParseUser(userName);
+            var ldapUrl = request.Configuration.LdapUrl;
+            var user = LdapIdentity.ParseUser(request.UserName);
             var logonName = FormatBindDn(user, ldapUrl);
 
             try
             {
                 _logger.Debug($"Verifying user '{logonName}' credential and status at {ldapUrl}");
 
-                using (var connection = new LdapConnection(ldapUrl.Authority))
+                using (var connection = _connectionFactory.CreateForAdlds(ldapUrl, logonName, request.Passphrase.Password))
                 {
-                    connection.Credential = new NetworkCredential(logonName, password);
-                    connection.SessionOptions.RootDseCache = true;
-                    connection.AuthType = AuthType.Basic;
-
-                    if (ldapUrl.Scheme.ToLower() == "ldaps")
-                    {
-                        connection.SessionOptions.SecureSocketLayer = true;
-                    }
-
-                    connection.Bind();
-
                     _logger.Information($"User '{user.Name}' credential and status verified successfully at {ldapUrl}");
 
                     return true;

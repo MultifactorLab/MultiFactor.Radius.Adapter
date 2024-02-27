@@ -8,7 +8,6 @@ using MultiFactor.Radius.Adapter.Services.Ldap;
 using MultiFactor.Radius.Adapter.Services.Ldap.LdapMetadata;
 using Serilog;
 using System;
-using System.DirectoryServices.Protocols;
 using System.Linq;
 
 namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory.MembershipVerification
@@ -18,12 +17,17 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory.MembershipVerifica
         private readonly ILogger _logger;
         private readonly ForestMetadataCache _metadataCache;
         private readonly NetbiosService _netbiosService;
+        private readonly LdapConnectionFactory _connectionFactory;
 
-        public ActiveDirectoryMembershipVerifier(ILogger logger, ForestMetadataCache metadataCache, NetbiosService netbiosService)
+        public ActiveDirectoryMembershipVerifier(ILogger logger, 
+            ForestMetadataCache metadataCache, 
+            NetbiosService netbiosService,
+            LdapConnectionFactory connectionFactory)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _metadataCache = metadataCache ?? throw new ArgumentNullException(nameof(metadataCache));
             _netbiosService = netbiosService;
+            _connectionFactory = connectionFactory;
         }
 
         /// <summary>
@@ -64,7 +68,7 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory.MembershipVerifica
                         }
                     }
 
-                    using (var connection = CreateConnection(domain))
+                    using (var connection = _connectionFactory.CreateAsCurrentProcessUser(domain))
                     {
                         var schema = _metadataCache.Get(
                             request.Configuration.Name,
@@ -118,17 +122,6 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory.MembershipVerifica
             }
 
             return result;
-        }
-
-        private LdapConnection CreateConnection(string currentDomain)
-        {
-            _logger.Debug($"Start connection to {currentDomain}");
-            var connection = new LdapConnection(currentDomain);
-            connection.SessionOptions.ProtocolVersion = 3;
-            connection.SessionOptions.RootDseCache = true;
-            connection.Bind();
-            _logger.Debug($"Start bind to {currentDomain}");
-            return connection;
         }
 
         private MembershipVerificationResult VerifyMembership(ClientConfiguration clientConfig,

@@ -34,7 +34,7 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
             var result = FindUser(user, baseDnList, connAdapter, queryAttributes);
             if (result == null)
             {
-                _logger.Error($"Unable to find user '{{user:l}}' in {string.Join(", ", baseDnList.Select(x => $"({x})"))}", user.Name);
+                _logger.Error("Unable to find user '{User:l}' in {BaseDnList:l}", user, string.Join(", ", baseDnList.Select(x => $"({x})")));
                 return null;
             }
 
@@ -55,7 +55,7 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
 
             profileAttributes.Add("memberOf", groups.Cast<string>().Select(LdapIdentity.DnToCn).ToArray());
 
-            _logger.Debug("User '{User}' profile loaded: {DistinguishedName} (upn={Upn})", user.Name, profile.DistinguishedName, profile.Upn);
+            _logger.Debug("User '{User:l}' profile loaded: {DistinguishedName:l} (upn={Upn:l})", user, profile.DistinguishedName, profile.Upn);
             
             //nested groups if configured
             if (clientConfig.LoadActiveDirectoryNestedGroups && clientConfig.ShouldLoadUserGroups())
@@ -88,7 +88,7 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
             var result = FindUser(user, baseDnList, connAdapter, attrs.ToArray());
             if (result == null)
             {
-                _logger.Error($"Unable to find user '{{user:l}}' in {string.Join(", ", baseDnList.Select(x => $"({x})"))}", user.Name);
+                _logger.Error("Unable to find user '{User:l}' in {BaseDnList:l}", user, string.Join(", ", baseDnList.Select(x => $"({x})")));
                 return new Dictionary<string, string[]>();
             }
 

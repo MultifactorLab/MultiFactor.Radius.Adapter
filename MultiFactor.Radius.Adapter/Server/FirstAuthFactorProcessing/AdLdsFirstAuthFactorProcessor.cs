@@ -6,7 +6,6 @@ using MultiFactor.Radius.Adapter.Configuration;
 using MultiFactor.Radius.Adapter.Core;
 using MultiFactor.Radius.Adapter.Services.Ldap;
 using Serilog;
-using System;
 using System.Threading.Tasks;
 
 namespace MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing
@@ -16,34 +15,32 @@ namespace MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing
     /// </summary>
     public class AdLdsFirstAuthFactorProcessor : IFirstAuthFactorProcessor
     {
+        private readonly AdLdsService _adlds;
         private readonly ILogger _logger;
 
-        public AdLdsFirstAuthFactorProcessor(ILogger logger)
+        public AdLdsFirstAuthFactorProcessor(AdLdsService adlds, ILogger logger)
         {
-            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _adlds = adlds;
+            _logger = logger;
         }
 
         public AuthenticationSource AuthenticationSource => AuthenticationSource.AdLds;
 
         public Task<PacketCode> ProcessFirstAuthFactorAsync(PendingRequest request)
         {
-            var userName = request.UserName;
-            var password = request.RequestPacket.TryGetUserPassword();
-
-            if (string.IsNullOrEmpty(userName))
+            if (string.IsNullOrEmpty(request.UserName))
             {
                 _logger.Warning("Can't find User-Name in message id={id} from {host:l}:{port}", request.RequestPacket.Id.Identifier, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
                 return Task.FromResult(PacketCode.AccessReject);
             }
 
-            if (string.IsNullOrEmpty(password))
+            if (string.IsNullOrEmpty(request.Passphrase.Password))
             {
                 _logger.Warning("Can't find User-Password in message id={id} from {host:l}:{port}", request.RequestPacket.Id.Identifier, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
                 return Task.FromResult(PacketCode.AccessReject);
             }
 
-            var ldapService = new AdLdsService(_logger);
-            var isValid = ldapService.VerifyCredentialAndMembership(userName, password, request.Configuration);
+            var isValid = _adlds.VerifyCredentialAndMembership(request);
             return Task.FromResult(isValid ? PacketCode.AccessAccept : PacketCode.AccessReject);
         }
     }

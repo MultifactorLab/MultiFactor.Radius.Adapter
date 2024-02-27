@@ -7,6 +7,7 @@ using MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing;
 using MultiFactor.Radius.Adapter.Services;
 using MultiFactor.Radius.Adapter.Services.ActiveDirectory;
 using MultiFactor.Radius.Adapter.Services.ActiveDirectory.MembershipVerification;
+using MultiFactor.Radius.Adapter.Services.Ldap;
 using MultiFactor.Radius.Adapter.Services.Ldap.LdapMetadata;
 using MultiFactor.Radius.Adapter.Services.MultiFactorApi;
 using Serilog;
@@ -62,6 +63,9 @@ namespace MultiFactor.Radius.Adapter.Extensions
             services.AddSingleton<FirstAuthFactorProcessorProvider>();
 
             services.AddSingleton<AuthenticatedClientCache>();
+
+            services.AddSingleton<AdLdsService>();
+            services.AddSingleton<LdapConnectionFactory>();
         }
 
         /// <summary>
@@ -72,21 +76,23 @@ namespace MultiFactor.Radius.Adapter.Extensions
         public static void AddHttpClientWithProxy(this IServiceCollection services)
         {
             services.AddTransient<MfTraceIdHeaderSetter>();
-
-            var serviceProvider = services.BuildServiceProvider();
-            var logger = serviceProvider.GetRequiredService<ILogger>();
-            var conf = serviceProvider.GetService<ServiceConfiguration>();
-
-            services.AddHttpClient(nameof(MultiFactorApiClient), client =>
+            services.AddHttpClient(nameof(MultiFactorApiClient), (prov, client) =>
             {
+                var conf = prov.GetService<ServiceConfiguration>();
                 client.Timeout = conf.ApiTimeout;
             })
             .ConfigurePrimaryHttpMessageHandler(prov =>
             {
+                var conf = prov.GetService<ServiceConfiguration>();
                 var handler = new HttpClientHandler();
+                if (string.IsNullOrWhiteSpace(conf.ApiProxy))
+                {
+                    return handler;
+                }
 
-                if (string.IsNullOrWhiteSpace(conf.ApiProxy)) return handler;
-                logger.Debug("Using proxy " + conf.ApiProxy);
+                var logger = prov.GetRequiredService<ILogger>();
+                logger.Debug($"Using proxy {conf.ApiProxy}");
+
                 if (!WebProxyFactory.TryCreateWebProxy(conf.ApiProxy, out var webProxy))
                 {
                     throw new Exception("Unable to initialize WebProxy. Please, check whether multifactor-api-proxy URI is valid.");

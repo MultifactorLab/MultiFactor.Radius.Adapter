@@ -31,16 +31,13 @@ namespace MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing
 
         public Task<PacketCode> ProcessFirstAuthFactorAsync(PendingRequest request)
         {
-            var userName = request.UserName;
-            var password = request.RequestPacket.TryGetUserPassword();
-
-            if (string.IsNullOrEmpty(userName))
+            if (string.IsNullOrEmpty(request.UserName))
             {
                 _logger.Warning("Can't find User-Name in message id={id} from {host:l}:{port}", request.RequestPacket.Id.Identifier, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
                 return Task.FromResult(PacketCode.AccessReject);
             }
 
-            if (string.IsNullOrEmpty(password))
+            if (string.IsNullOrEmpty(request.Passphrase.Password))
             {
                 _logger.Warning("Can't find User-Password in message id={id} from {host:l}:{port}", request.RequestPacket.Id.Identifier, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
                 return Task.FromResult(PacketCode.AccessReject);
@@ -50,7 +47,7 @@ namespace MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing
             foreach (var domain in request.Configuration.SplittedActiveDirectoryDomains)
             {
                 var activeDirectoryService = _activeDirectoryServices[domain.Trim()];
-                var isValid = activeDirectoryService.VerifyCredentialAndMembership(request.Configuration, userName, password, request);
+                var isValid = activeDirectoryService.VerifyCredentialAndMembership(request);
                 if (isValid)
                 {
                     return Task.FromResult(PacketCode.AccessAccept);

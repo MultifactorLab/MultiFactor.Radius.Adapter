@@ -10,7 +10,6 @@ using MultiFactor.Radius.Adapter.Services.Ldap.LdapMetadata;
 using Serilog;
 using System;
 using System.Collections.Generic;
-using System.DirectoryServices.Protocols;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -24,16 +23,19 @@ namespace MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing
         private readonly IRadiusPacketParser _packetParser;
         private readonly ActiveDirectoryMembershipVerifier _membershipVerifier;
         private readonly ForestMetadataCache _metadataCache;
+        private readonly LdapConnectionFactory _connectionFactory;
         private readonly ILogger _logger;
 
         public RadiusFirstAuthFactorProcessor(IRadiusPacketParser packetParser,
             ActiveDirectoryMembershipVerifier membershipVerifier,
             ForestMetadataCache metadataCache,
+            LdapConnectionFactory connectionFactory,
             ILogger logger)
         {
             _packetParser = packetParser ?? throw new ArgumentNullException(nameof(packetParser));
             _membershipVerifier = membershipVerifier ?? throw new ArgumentNullException(nameof(membershipVerifier));
             _metadataCache = metadataCache ?? throw new ArgumentNullException(nameof(metadataCache));
+            _connectionFactory = connectionFactory;
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
@@ -133,7 +135,7 @@ namespace MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing
                     var user = LdapIdentityFactory.CreateUserIdentity(request.Configuration, userName);
 
                     _logger.Debug($"Loading attributes for user '{{user:l}}' at {domainIdentity}", user.Name);
-                    using (var connection = CreateConnection(domain))
+                    using (var connection = _connectionFactory.CreateAsCurrentProcessUser(domain))
                     {
                         var schema = _metadataCache.Get(
                             request.Configuration.Name,
@@ -162,16 +164,6 @@ namespace MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing
             }
 
             return attributes;
-        }
-
-        private LdapConnection CreateConnection(string currentDomain)
-        {   
-            var connection = new LdapConnection(currentDomain);
-            connection.SessionOptions.ProtocolVersion = 3;
-            connection.SessionOptions.RootDseCache = true;
-            connection.Bind();
-
-            return connection;
         }
     }
 }

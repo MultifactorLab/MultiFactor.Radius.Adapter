@@ -101,14 +101,14 @@ namespace MultiFactor.Radius.Adapter.Server
                     firstFactorAuthenticationResultCode = await firstAuthFactorProcessor.ProcessFirstAuthFactorAsync(request);
                     if (firstFactorAuthenticationResultCode != PacketCode.AccessAccept)
                     {
-                        _logger.Error("Failed to validate user profile. Unable to ask the user for a second factor");
+                        _logger.Error("Failed to validate user profile. Unable to ask pre-auth second factor");
                         CreateAndSendRadiusResponse(request);
                         return;
                     }
 
                     if (request.Bypass2Fa)
                     {
-                        _logger.Information("Bypass second factor for user '{user:l}' from {host:l}:{port}",
+                        _logger.Information("Bypass pre-auth second factor for user '{user:l}' from {host:l}:{port}",
                             request.UserName, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
                     }
                     else
@@ -231,9 +231,7 @@ namespace MultiFactor.Radius.Adapter.Server
         /// </summary>
         private async Task<PacketCode> ProcessSecondAuthenticationFactor(PendingRequest request)
         {
-            var userName = request.UserName;
-
-            if (string.IsNullOrEmpty(userName))
+            if (string.IsNullOrEmpty(request.UserName))
             {
                 _logger.Warning("Can't find User-Name in message id={id} from {host:l}:{port}", request.RequestPacket.Id.Identifier, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
                 return PacketCode.AccessReject;
@@ -244,7 +242,7 @@ namespace MultiFactor.Radius.Adapter.Server
                 //security check
                 if (request.Configuration.FirstFactorAuthenticationSource == AuthenticationSource.Radius)
                 {
-                    _logger.Information("Bypass second factor for user '{user:l}' from {host:l}:{port}", userName, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
+                    _logger.Information("Bypass second factor for user '{user:l}' from {host:l}:{port}", request.UserName, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
                     return PacketCode.AccessAccept;
                 }
             }
@@ -274,7 +272,7 @@ namespace MultiFactor.Radius.Adapter.Server
             {
                 case AuthenticationType.PAP:
                     //user-password attribute holds second request challenge from user
-                    userAnswer = request.RequestPacket.TryGetUserPassword();
+                    userAnswer = request.Passphrase.Raw;
 
                     if (string.IsNullOrEmpty(userAnswer))
                     {

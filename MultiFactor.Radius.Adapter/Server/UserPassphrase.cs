@@ -14,6 +14,9 @@ namespace MultiFactor.Radius.Adapter.Server
     {
         private static readonly string[] _providerCodes = { "t", "m", "s", "c" };
 
+        /// <summary>
+        /// User-Password attribute raw value.
+        /// </summary>
         public string Raw { get; }
 
         /// <summary>
@@ -68,12 +71,13 @@ namespace MultiFactor.Radius.Adapter.Server
                 throw new ArgumentNullException(nameof(preAuthnMode));
             }
 
-            if (!TryGetOtpCode(packet, preAuthnMode, out var otp))
+            var hasOtp = TryGetOtpCode(packet, preAuthnMode, out var otp);
+            if (!hasOtp)
             {
                 otp = null;
             }
 
-            var pwd = GetPassword(packet, preAuthnMode);
+            var pwd = GetPassword(packet, preAuthnMode, hasOtp);
             if (string.IsNullOrEmpty(pwd))
             {
                 pwd = null;
@@ -83,7 +87,7 @@ namespace MultiFactor.Radius.Adapter.Server
             return new UserPassphrase(packet.TryGetUserPassword(), pwd, otp, provCode);
         }
 
-        private static string GetPassword(IRadiusPacket packet, PreAuthnModeDescriptor preAuthnMode)
+        private static string GetPassword(IRadiusPacket packet, PreAuthnModeDescriptor preAuthnMode, bool hasOtp)
         {
             var passwordAndOtp = packet.TryGetUserPassword()?.Trim() ?? string.Empty;
             switch (preAuthnMode.Mode)
@@ -96,7 +100,7 @@ namespace MultiFactor.Radius.Adapter.Server
                     }
 
                     var sub = passwordAndOtp.Substring(0, passwordAndOtp.Length - length);
-                    if (!Regex.IsMatch(sub, preAuthnMode.Settings.OtpCodeRegex))
+                    if (!hasOtp)
                     {
                         return passwordAndOtp;
                     }
