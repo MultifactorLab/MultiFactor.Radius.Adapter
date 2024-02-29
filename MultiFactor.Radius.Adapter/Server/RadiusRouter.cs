@@ -253,6 +253,7 @@ namespace MultiFactor.Radius.Adapter.Server
                         request.ResponsePacket = stateChallengePendingRequest.ResponsePacket;
                         request.LdapAttrs = stateChallengePendingRequest.LdapAttrs;
                     }
+                    RemoveStateChallengeRequest(state);
                     break;
                 case PacketCode.AccessReject:
                     RemoveStateChallengeRequest(state);
@@ -281,7 +282,7 @@ namespace MultiFactor.Radius.Adapter.Server
         /// </summary>
         private PendingRequest GetStateChallengeRequest(string state)
         {
-            if (_stateChallengePendingRequests.TryRemove(state, out PendingRequest request))
+            if (_stateChallengePendingRequests.TryGetValue(state, out PendingRequest request))
             {
                 return request;
             }
