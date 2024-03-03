@@ -236,17 +236,17 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory
                 {
                     _logger.Information("User '{User:l}' is not member of '{ActiveDirectory2FaGroup:l}' 2FA group in {BaseDn:l}", 
                         user, string.Join(";", clientConfig.ActiveDirectory2FaGroup), profile.BaseDn.Name);
-                    request.Bypass2Fa = true;
+                    request.AuthenticationState.SetSecondFactor(AuthenticationCode.Bypass);
                 }
             }
 
-            if (!request.Bypass2Fa && clientConfig.ActiveDirectory2FaBypassGroup.Any())
+            if (request.AuthenticationState.SecondFactor != AuthenticationCode.Bypass && clientConfig.ActiveDirectory2FaBypassGroup.Any())
             {
                 var bypassGroup = clientConfig.ActiveDirectory2FaBypassGroup.FirstOrDefault(group => IsMemberOf(profile, group));
                 if (bypassGroup != null)
                 {
                     _logger.Information("User '{{user:l}}' is member of '{BypassGroup:l}' 2FA bypass group in {BaseDn:l}", user, bypassGroup.Trim(), profile.BaseDn.Name);
-                    request.Bypass2Fa = true;
+                    request.AuthenticationState.SetSecondFactor(AuthenticationCode.Bypass);
                 }
                 else
                 {

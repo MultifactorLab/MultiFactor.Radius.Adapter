@@ -115,12 +115,6 @@ namespace MultiFactor.Radius.Adapter.Server
 
         private static bool TryGetOtpCode(IRadiusPacket packet, PreAuthnModeDescriptor preAuthnMode, out string code)
         {
-            if (preAuthnMode.Mode != PreAuthnMode.Otp)
-            {
-                code = null;
-                return false;
-            }
-
             var passwordAndOtp = packet.TryGetUserPassword()?.Trim() ?? string.Empty;
             var length = preAuthnMode.Settings.OtpCodeLength;
             if (passwordAndOtp.Length < length)

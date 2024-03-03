@@ -17,6 +17,7 @@ using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
+using Config = System.Configuration.Configuration;
 
 namespace MultiFactor.Radius.Adapter.Configuration
 {
@@ -176,16 +177,19 @@ namespace MultiFactor.Radius.Adapter.Configuration
         /// <summary>
         /// Read and load settings from appSettings configuration section
         /// </summary>
-        public static ServiceConfiguration Load(IRadiusDictionary dictionary, ILogger logger)
+        public static ServiceConfiguration Load(Config rootConfig, IRadiusDictionary dictionary, ILogger logger)
         {
+            if (rootConfig is null)
+            {
+                throw new ArgumentNullException(nameof(rootConfig));
+            }
+
             if (dictionary == null)
             {
                 throw new ArgumentNullException(nameof(dictionary));
             }
 
-            var serviceConfig = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
-
-            var appSettingsSection = serviceConfig.GetSection("appSettings");
+            var appSettingsSection = rootConfig.GetSection("appSettings");
             var appSettings = appSettingsSection as AppSettingsSection;
 
             var serviceServerEndpointSetting = appSettings.Settings["adapter-server-endpoint"]?.Value;
@@ -399,7 +403,6 @@ namespace MultiFactor.Radius.Adapter.Configuration
             }
             else
             {
-
                 try
                 {
                     configuration.InvalidCredentialDelay = RandomWaiterConfig.Create(appSettings.Settings[Constants.Configuration.PciDss.InvalidCredentialDelay]?.Value);
@@ -459,7 +462,12 @@ namespace MultiFactor.Radius.Adapter.Configuration
             }
             catch
             {
-                throw new Exception($"Configuration error: Can't parse '{Constants.Configuration.PreAuthnMode}' value. Must be one of: otp, none");
+                throw new Exception($"Configuration error: Can't parse '{Constants.Configuration.PreAuthnMode}' value. Must be one of: {PreAuthnModeDescriptor.DisplayAvailableModes()}");
+            }
+
+            if (configuration.PreAuthnMode.Mode != PreAuthnMode.None && configuration.InvalidCredentialDelay.Min < 2)
+            {
+                throw new Exception($"Configuration error: to enable pre-auth second factor for this client please set 'invalid-credential-delay' min value to 2 or more ");
             }
 
             return configuration;

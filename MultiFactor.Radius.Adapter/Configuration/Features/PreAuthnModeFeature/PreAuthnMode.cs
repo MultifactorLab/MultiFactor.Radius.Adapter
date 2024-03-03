@@ -8,6 +8,16 @@
         Otp,
 
         /// <summary>
+        /// Mobile app push.
+        /// </summary>
+        Push,
+        
+        /// <summary>
+        /// Telegram bot.
+        /// </summary>
+        Telegram,
+
+        /// <summary>
         /// No mode specified
         /// </summary>
         None

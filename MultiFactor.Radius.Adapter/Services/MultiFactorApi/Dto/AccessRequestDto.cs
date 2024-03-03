@@ -2,9 +2,9 @@
 //Please see licence at 
 //https://github.com/MultifactorLab/MultiFactor.Radius.Adapter/blob/master/LICENSE.md
 
-namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
+namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi.Dto
 {
-    public class MultiFactorAccessRequest
+    public class AccessRequestDto
     {
         public string Id { get; set; }
         public string Identity { get; set; }
@@ -19,11 +19,11 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
         public string Region { get; set; }
         public string City { get; set; }
 
-        public static MultiFactorAccessRequest Bypass
+        public static AccessRequestDto Bypass
         {
             get
             {
-                return new MultiFactorAccessRequest { Status = Literals.RadiusCode.Granted, Bypassed = true };
+                return new AccessRequestDto { Status = Literals.RadiusCode.Granted, Bypassed = true };
             }
         }
     }

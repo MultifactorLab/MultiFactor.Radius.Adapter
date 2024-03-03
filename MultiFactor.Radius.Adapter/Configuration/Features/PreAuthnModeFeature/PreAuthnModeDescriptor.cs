@@ -36,5 +36,7 @@ namespace MultiFactor.Radius.Adapter.Configuration.Features.PreAuthnModeFeature
         }
 
         public override string ToString() => Mode.ToString();
+
+        public static string DisplayAvailableModes() => string.Join(", ", Enum.GetNames(typeof(PreAuthnMode)));
     }
 }

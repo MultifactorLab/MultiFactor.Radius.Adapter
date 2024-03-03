@@ -39,7 +39,6 @@ namespace MultiFactor.Radius.Adapter.Server
         public string ReplyMessage { get; set; }
 
         public string UserName { get; private set; }
-        public bool Bypass2Fa { get; set; }
         public IList<string> UserGroups { get; set; }
 
         public bool MustChangePassword { get; private set; }
@@ -52,12 +51,14 @@ namespace MultiFactor.Radius.Adapter.Server
         /// </summary>
         public string SecondFactorIdentity => Configuration.UseIdentityAttribute ? Profile.LdapAttrs.GetValue(Configuration.TwoFAIdentityAttribyte) : UserName;
 
+        public AuthenticationState AuthenticationState { get; private set; }
         public UserPassphrase Passphrase { get; private set; }
 
-        private PendingRequest(ClientConfiguration clientConfiguration)
+        private PendingRequest(ClientConfiguration clientConfiguration, AuthenticationState authenticationState)
         {
             ResponseCode = PacketCode.AccessReject;
             Configuration = clientConfiguration;
+            AuthenticationState = authenticationState;
             Profile = LdapProfile.Empty(clientConfiguration);
         }
 
@@ -68,7 +69,8 @@ namespace MultiFactor.Radius.Adapter.Server
                 throw new ArgumentNullException(nameof(clientConfiguration));
             }
 
-            return new PendingRequest(clientConfiguration)
+            var authState = new AuthenticationState();
+            return new PendingRequest(clientConfiguration, authState)
             {
                 RemoteEndpoint = remoteEndpoint ?? throw new ArgumentNullException(nameof(remoteEndpoint)),
                 ProxyEndpoint = proxyEndpoint,
@@ -80,7 +82,7 @@ namespace MultiFactor.Radius.Adapter.Server
 
         public void UpdateProfile(LdapProfile profile)
         {
-            Profile = profile;
+            Profile = profile ?? throw new ArgumentNullException(nameof(profile));
         }
 
         public void UpdateUserName(string username)
@@ -102,6 +104,20 @@ namespace MultiFactor.Radius.Adapter.Server
 
             MustChangePassword = true;
             MustChangePasswordDomain = domain;
+        }
+
+        public void UpdateFromChallengeRequest(PendingRequest request)
+        {
+            if (request is null)
+            {
+                throw new ArgumentNullException(nameof(request));
+            }
+
+            UserGroups = request.UserGroups;
+            ResponsePacket = request.ResponsePacket;
+            Profile.UpdateAttributes(request.Profile.LdapAttrs);
+            AuthenticationState = request.AuthenticationState;
+            Passphrase = request.Passphrase;
         }
     }
 }

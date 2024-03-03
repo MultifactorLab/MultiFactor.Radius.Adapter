@@ -38,7 +38,10 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory.MembershipVerifica
             var profile = _verificationResult.Succeeded.Select(x => x.Profile).FirstOrDefault(x => x != null);
             if (profile == null) return;
 
-            request.Bypass2Fa = IsBypassed();
+            if (IsBypassed())
+            {
+                request.AuthenticationState.SetSecondFactor(AuthenticationCode.Bypass);
+            }
             request.UpdateProfile(profile);
 
             if (profile.MemberOf.Count != 0)

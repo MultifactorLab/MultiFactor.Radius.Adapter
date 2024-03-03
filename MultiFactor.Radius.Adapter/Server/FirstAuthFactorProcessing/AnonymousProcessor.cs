@@ -15,14 +15,14 @@ using System.Threading.Tasks;
 
 namespace MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing
 {
-    public class DefaultFirstAuthFactorProcessor : IFirstAuthFactorProcessor
+    public class AnonymousProcessor : IFirstAuthFactorProcessor
     {
         private readonly ActiveDirectoryMembershipVerifier _membershipVerifier;
         private readonly ForestMetadataCache _metadataCache;
         private readonly LdapConnectionFactory _connectionFactory;
         private readonly ILogger _logger;
 
-        public DefaultFirstAuthFactorProcessor(ActiveDirectoryMembershipVerifier membershipVerifier, 
+        public AnonymousProcessor(ActiveDirectoryMembershipVerifier membershipVerifier, 
             ForestMetadataCache metadataCache,
             LdapConnectionFactory connectionFactory,
             ILogger logger)

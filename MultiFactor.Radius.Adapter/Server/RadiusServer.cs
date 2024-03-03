@@ -30,7 +30,6 @@ using System.Net;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Net.Sockets;
 using MultiFactor.Radius.Adapter.Services;
 using System.Globalization;
 using System.Collections.Generic;
@@ -41,7 +40,9 @@ namespace MultiFactor.Radius.Adapter.Server
 {
     public sealed class RadiusServer : IDisposable
     {
-        private UdpClient _server;
+        private IUdpClient _server;
+        private IRadiusResponseSender _responseSender;
+
         private readonly IPEndPoint _localEndpoint;
         private readonly IRadiusPacketParser _radiusPacketParser;
         private readonly IRadiusDictionary _dictionary;
@@ -50,6 +51,8 @@ namespace MultiFactor.Radius.Adapter.Server
         private readonly ServiceConfiguration _serviceConfiguration;
         private readonly CacheService _cacheService;
         private readonly RadiusRouter _radiusRouter;
+
+        private readonly Func<IPEndPoint, IUdpClient> _createUdpClient;
 
         public bool Running
         {
@@ -65,6 +68,9 @@ namespace MultiFactor.Radius.Adapter.Server
             IRadiusPacketParser radiusPacketParser,
             CacheService cacheService,
             RadiusRouter radiusRouter,
+            // need for tests only
+            Func<IPEndPoint, IUdpClient> createUdpClient,
+            IRadiusResponseSender responseSender,
             ILogger logger)
         {
             _serviceConfiguration = serviceConfiguration ?? throw new ArgumentNullException(nameof(serviceConfiguration));
@@ -72,6 +78,8 @@ namespace MultiFactor.Radius.Adapter.Server
             _radiusPacketParser = radiusPacketParser ?? throw new ArgumentNullException(nameof(radiusPacketParser));
             _cacheService = cacheService ?? throw new ArgumentNullException(nameof(cacheService));
             _radiusRouter = radiusRouter ?? throw new ArgumentNullException(nameof(radiusRouter));
+            _createUdpClient = createUdpClient;
+            _responseSender = responseSender;
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
             _localEndpoint = serviceConfiguration.ServiceServerEndpoint;
@@ -86,7 +94,8 @@ namespace MultiFactor.Radius.Adapter.Server
             {
                 _logger.Information("Starting Radius server on {host:l}:{port}", _localEndpoint.Address, _localEndpoint.Port);
                
-                _server = new UdpClient(_localEndpoint);
+                _server = _createUdpClient(_localEndpoint);
+
                 Running = true;
                 var receiveTask = Receive();
 
@@ -279,8 +288,7 @@ namespace MultiFactor.Radius.Adapter.Server
         /// </summary>
         private void Send(IRadiusPacket responsePacket, string user, IPEndPoint remoteEndpoint, IPEndPoint proxyEndpoint, bool debugLog)
         {
-            var responseBytes = _radiusPacketParser.GetBytes(responsePacket);
-            _server.Send(responseBytes, responseBytes.Length, proxyEndpoint ?? remoteEndpoint);
+            _responseSender.Send(_server, responsePacket, proxyEndpoint ?? remoteEndpoint);
 
             if (proxyEndpoint != null)
             {
@@ -292,18 +300,17 @@ namespace MultiFactor.Radius.Adapter.Server
                 {
                     _logger.Information("{code:l} sent to {host:l}:{port} via {proxyhost:l}:{proxyport} id={id} user='{user:l}'", responsePacket.Id.Code.ToString(), remoteEndpoint.Address, remoteEndpoint.Port, proxyEndpoint.Address, proxyEndpoint.Port, responsePacket.Id.Identifier, user);
                 }
+
+                return;
             }
-            else
+               
+            if (debugLog)
             {
-                if (debugLog)
-                {
-                    _logger.Debug("{code:l} sent to {host:l}:{port} id={id}", responsePacket.Id.Code.ToString(), remoteEndpoint.Address, remoteEndpoint.Port, responsePacket.Id.Identifier);
-                }
-                else
-                {
-                    _logger.Information("{code:l} sent to {host:l}:{port} id={id} user='{user:l}'", responsePacket.Id.Code.ToString(), remoteEndpoint.Address, remoteEndpoint.Port, responsePacket.Id.Identifier, user);
-                }
+                _logger.Debug("{code:l} sent to {host:l}:{port} id={id}", responsePacket.Id.Code.ToString(), remoteEndpoint.Address, remoteEndpoint.Port, responsePacket.Id.Identifier);
+                return;
             }
+                  
+            _logger.Information("{code:l} sent to {host:l}:{port} id={id} user='{user:l}'", responsePacket.Id.Code.ToString(), remoteEndpoint.Address, remoteEndpoint.Port, responsePacket.Id.Identifier, user); 
         }
 
         private async void RouterRequestProcessed(object sender, PendingRequest request)

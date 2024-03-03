@@ -4,11 +4,13 @@
 
 using Microsoft.Extensions.DependencyInjection;
 using MultiFactor.Radius.Adapter.Configuration;
+using MultiFactor.Radius.Adapter.Core;
 using MultiFactor.Radius.Adapter.Extensions;
 using Serilog;
 using Serilog.Core;
 using Serilog.Events;
 using System;
+using System.Collections.Generic;
 using System.Reflection;
 using System.ServiceProcess;
 using System.Text;
@@ -33,26 +35,77 @@ namespace MultiFactor.Radius.Adapter
 
             Log.Logger = loggerConfiguration.CreateLogger();
 
-            if (args.Length > 0)
+            var arguments = new Dictionary<KnownLineArg, string>();
+
+            var install = false;
+            var uninstall = false;
+
+            if (args.Length != 0)
             {
-                switch (args[0])
+                for (int i = 0; i < args.Length; i++)
                 {
-                    case "/i":
-                        InstallService();
+                    if (args[i].StartsWith("/"))
+                    {
+                        switch (args[i])
+                        {
+                            case "/i":
+                                install = true;
+                                continue;
+
+                            case "/u":
+                                uninstall = false;
+                                continue;
+
+                            default:
+                                Log.Logger.Warning($"Unknown command line argument on {i} position: {args[0]}");
+                                return;
+                        }
+                    }
+
+                    var username = args[i];
+                    arguments.Add(KnownLineArg.ACT_AS_USER, username);
+                    if (string.IsNullOrWhiteSpace(username)) 
+                    {
+                        Log.Logger.Warning($"Invalid command line argument on {i} position: {args[0]}");
                         return;
-                    case "/u":
-                        UnInstallService();
+                    }
+
+                    if (args.Length <= i + 1)
+                    {
+                        Log.Logger.Warning($"Empty command line argument near '{username}'");
                         return;
-                    default:
-                        Log.Logger.Warning($"Unknown command line argument: {args[0]}");
+                    }
+                    
+                    var pwd = args[i + 1];
+                    arguments.Add(KnownLineArg.ACT_AS_USER_PWD, pwd);
+                    if (string.IsNullOrWhiteSpace(pwd)) 
+                    {
+                        Log.Logger.Warning($"Invalid or empty command line argument '{username}'");
                         return;
+                    }
+
+                    i++;
+
+                }
+
+                if (install)
+                {
+                    InstallService();
+                    return;
+                }
+                
+                if (uninstall)
+                {
+                    UnInstallService();
+                    return;
                 }
             }
+
             ServiceProvider provider = null; 
             try
             {
                 var services = new ServiceCollection();
-                services.ConfigureApplicationServices(levelSwitch, syslogInfoMessage);
+                services.ConfigureApplicationServices(levelSwitch, arguments, syslogInfoMessage);
                 provider = services.BuildServiceProvider();
 
                 var adapterService = provider.GetRequiredService<AdapterService>();
