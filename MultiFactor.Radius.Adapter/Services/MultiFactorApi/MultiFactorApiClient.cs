@@ -113,7 +113,7 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
             }
             catch (TaskCanceledException tce)
             {
-                throw new MultifactorApiUnreachableException($"Multifactor API host unreachable: {url}. Reason: Timeout", tce);
+                throw new MultifactorApiUnreachableException($"Multifactor API host unreachable: {url}. Reason: Http request timeout", tce);
             }
             catch (Exception ex)
             {

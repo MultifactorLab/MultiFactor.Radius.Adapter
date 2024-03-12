@@ -52,7 +52,8 @@ namespace MultiFactor.Radius.Adapter.Server
                     //status
                     var uptime = (DateTime.Now - _startedAt);
                     request.ReplyMessage = $"Server up {uptime.Days} days {uptime:hh\\:mm\\:ss}";
-                    request.ResponseCode = PacketCode.AccessAccept;
+                    request.AuthenticationState.Accept();
+                    request.ResponseCode = request.AuthenticationState.GetResultPacketCode();
                     CreateAndSendRadiusResponse(request);
                     return;
                 }
@@ -104,8 +105,7 @@ namespace MultiFactor.Radius.Adapter.Server
                     {
                         _logger.Error("Failed to validate user profile. Unable to ask pre-auth second factor");
                         // TODO
-                        request.AuthenticationState.SetFirstFactor(AuthenticationCode.Reject);
-                        request.AuthenticationState.SetSecondFactor(AuthenticationCode.Reject);
+                        request.AuthenticationState.Reject();
                         request.ResponseCode = request.AuthenticationState.GetResultPacketCode();
                         CreateAndSendRadiusResponse(request);
                         return;

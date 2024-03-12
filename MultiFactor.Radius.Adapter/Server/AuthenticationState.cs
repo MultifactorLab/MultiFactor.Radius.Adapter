@@ -35,5 +35,17 @@ namespace MultiFactor.Radius.Adapter.Server
 
             return PacketCode.AccessChallenge;
         }
+
+        public void Accept()
+        {
+            FirstFactor = AuthenticationCode.Accept;
+            SecondFactor = AuthenticationCode.Accept;
+        }
+        
+        public void Reject()
+        {
+            FirstFactor = AuthenticationCode.Reject;
+            SecondFactor = AuthenticationCode.Reject;
+        }
     }
 }

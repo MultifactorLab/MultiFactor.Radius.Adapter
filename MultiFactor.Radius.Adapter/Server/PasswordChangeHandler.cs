@@ -81,14 +81,10 @@ namespace MultiFactor.Radius.Adapter.Server
         /// </summary>
         /// <returns>AccessChallenge packet code if user must change password; AccessAccept otherwise</returns>
         /// <exception cref="ArgumentNullException"></exception>
-        public PacketCode TryCreatePasswordChallenge(PendingRequest request)
+        public void CreatePasswordChallenge(PendingRequest request)
         {
             if (request == null) throw new ArgumentNullException(nameof(request));
 
-            if (!request.MustChangePassword)
-            {
-                return PacketCode.AccessAccept; //not a password change request, continue authentication
-            }
             var passwordChangeRequest = new PasswordChangeRequest
             {
                 Domain = request.MustChangePasswordDomain,
@@ -98,7 +94,6 @@ namespace MultiFactor.Radius.Adapter.Server
 
             request.State = passwordChangeRequest.Id;
             request.ReplyMessage = "Please change password to continue. Enter new password: ";
-            return PacketCode.AccessChallenge;
         }
 
         private PacketCode PasswordsNotMatchChallenge(PendingRequest request, PasswordChangeRequest passwordChangeRequest)

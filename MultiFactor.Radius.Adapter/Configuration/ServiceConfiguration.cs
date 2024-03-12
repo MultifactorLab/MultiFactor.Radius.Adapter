@@ -467,7 +467,7 @@ namespace MultiFactor.Radius.Adapter.Configuration
 
             if (configuration.PreAuthnMode.Mode != PreAuthnMode.None && configuration.InvalidCredentialDelay.Min < 2)
             {
-                throw new Exception($"Configuration error: to enable pre-auth second factor for this client please set 'invalid-credential-delay' min value to 2 or more ");
+                throw new Exception($"Configuration error: to enable pre-auth second factor for this client please set 'invalid-credential-delay' min value to 2 or more");
             }
 
             return configuration;
@@ -617,7 +617,7 @@ namespace MultiFactor.Radius.Adapter.Configuration
             }
         }
 
-        private static void ValidateDomainSettings(string activeDirectoryDomainSetting)
+        private static void ValidateDomainSettingsё(string activeDirectoryDomainSetting)
         {
             if (string.IsNullOrEmpty(activeDirectoryDomainSetting))
             {
