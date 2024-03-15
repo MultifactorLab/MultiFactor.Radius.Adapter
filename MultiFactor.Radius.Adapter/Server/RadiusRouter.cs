@@ -182,7 +182,7 @@ namespace MultiFactor.Radius.Adapter.Server
                         //User password expired ot must be changed
                         if (request.MustChangePassword)
                         {
-                            request.ResponseCode = _passwordChangeHandler.TryCreatePasswordChallenge(request);
+                            _passwordChangeHandler.CreatePasswordChallenge(request);
                             _logger.Information("CreatePasswordChallengeState: {State:l}", request.State);
                             CreateAndSendRadiusResponse(request);
                             return;

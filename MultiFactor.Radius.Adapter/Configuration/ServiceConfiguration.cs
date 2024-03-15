@@ -617,7 +617,7 @@ namespace MultiFactor.Radius.Adapter.Configuration
             }
         }
 
-        private static void ValidateDomainSettingsё(string activeDirectoryDomainSetting)
+        private static void ValidateDomainSettings(string activeDirectoryDomainSetting)
         {
             if (string.IsNullOrEmpty(activeDirectoryDomainSetting))
             {
