@@ -27,7 +27,6 @@
 using Serilog;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
@@ -54,7 +53,12 @@ namespace MultiFactor.Radius.Adapter.Core
         /// </summary>
         public IRadiusPacket Parse(byte[] packetBytes, SharedSecret sharedSecret, byte[] requestAuthenticator = null, string encodingName = null, Action<RadiusPacketOptions> configure = null)
         {
-            var packetLength = BitConverter.ToUInt16(packetBytes.Skip(RadiusPacketMetadata.LengthFieldPosition).Take(RadiusPacketMetadata.LengthFieldLength).Reverse().ToArray(), 0);
+            if (packetBytes.Length < RadiusPacketMetadata.LengthFieldPosition + RadiusPacketMetadata.LengthFieldLength)
+            {
+                throw new InvalidOperationException($"Packet too short: {packetBytes.Length}");
+            }
+            ushort packetLength = GetPacketLength(packetBytes);
+
             if (packetBytes.Length != packetLength)
             {
                 throw new InvalidOperationException($"Packet length does not match, expected: {packetLength}, actual: {packetBytes.Length}");
@@ -67,7 +71,7 @@ namespace MultiFactor.Radius.Adapter.Core
 
             if (packet.Id.Code == PacketCode.AccountingRequest || packet.Id.Code == PacketCode.DisconnectRequest)
             {
-                if (!packet.Id.Authenticator.SequenceEqual(CalculateRequestAuthenticator(packet.Id.SharedSecret, packetBytes)))
+                if (!ArraysAreEqual(packet.Id.Authenticator, CalculateRequestAuthenticator(packet.Id.SharedSecret, packetBytes)))
                 {
                     throw new InvalidOperationException("Invalid request authenticator in packet {packet.Identifier}, check secret?");
                 }
@@ -86,7 +90,7 @@ namespace MultiFactor.Radius.Adapter.Core
                     throw new ArgumentOutOfRangeException("Go home roamserver, youre drunk");
                 }
 
-                var contentBytes = new Byte[length - 2];
+                var contentBytes = new byte[length - 2];
                 Buffer.BlockCopy(packetBytes, position + 2, contentBytes, 0, length - 2);
 
                 try
@@ -145,14 +149,14 @@ namespace MultiFactor.Radius.Adapter.Core
 
             if (messageAuthenticatorPosition != 0)
             {
-                var messageAuthenticator = packet.GetAttribute<Byte[]>("Message-Authenticator");
-                var temp = new Byte[16];
-                var tempPacket = new Byte[packetBytes.Length];
+                var messageAuthenticator = packet.GetAttribute<byte[]>("Message-Authenticator");
+                var temp = new byte[16];
+                var tempPacket = new byte[packetBytes.Length];
                 packetBytes.CopyTo(tempPacket, 0);
                 Buffer.BlockCopy(temp, 0, tempPacket, messageAuthenticatorPosition + 2, 16);
 
                 var calculatedMessageAuthenticator = CalculateMessageAuthenticator(tempPacket, sharedSecret, requestAuthenticator);
-                if (!calculatedMessageAuthenticator.SequenceEqual(messageAuthenticator))
+                if (!ArraysAreEqual(calculatedMessageAuthenticator, messageAuthenticator))
                 {
                     throw new InvalidOperationException($"Invalid Message-Authenticator in packet {packet.Id.Identifier}");
                 }
@@ -172,14 +176,14 @@ namespace MultiFactor.Radius.Adapter.Core
         /// <param name="authenticator"></param>
         /// <param name="sharedSecret"></param>
         /// <returns></returns>
-        private Object ParseContentBytes(Byte[] contentBytes, String type, UInt32 code, RadiusPacketId packetId, string encodingName)
+        private object ParseContentBytes(byte[] contentBytes, string type, uint code, RadiusPacketId packetId, string encodingName)
         {
             switch (type)
             {
                 case DictionaryAttribute.TYPE_STRING:
                 case DictionaryAttribute.TYPE_TAGGED_STRING:
                     //couse some NAS (like NPS) send binary within string attributes, check content before unpack to prevent data loss
-                    if (contentBytes.All(b => b >= 32 && b <= 127)) //only if ascii
+                    if (ArrayIsAsciiString(contentBytes)) //only if ascii
                     {
                         return Encoding.UTF8.GetString(contentBytes);
                     }
@@ -200,7 +204,12 @@ namespace MultiFactor.Radius.Adapter.Core
 
                 case DictionaryAttribute.TYPE_INTEGER:
                 case DictionaryAttribute.TYPE_TAGGED_INTEGER:
-                    return BitConverter.ToUInt32(contentBytes.Reverse().ToArray(), 0);
+                    var array = new byte[contentBytes.Length];
+                    for (int i = 0; i < contentBytes.Length; i++)
+                    {
+                        array[i] = contentBytes[contentBytes.Length - i];
+                    }
+                    return BitConverter.ToUInt32(array, 0);
 
                 case DictionaryAttribute.TYPE_IPADDR:
                     return new IPAddress(contentBytes);
@@ -220,15 +229,12 @@ namespace MultiFactor.Radius.Adapter.Core
         /// https://www.ietf.org/rfc/rfc2869.txt
         /// </summary>
         /// <returns></returns>
-        private Byte[] CalculateMessageAuthenticator(Byte[] packetBytes, SharedSecret sharedSecret, Byte[] requestAuthenticator = null)
+        private byte[] CalculateMessageAuthenticator(byte[] packetBytes, SharedSecret sharedSecret, byte[] requestAuthenticator = null)
         {
-            var temp = new Byte[packetBytes.Count()];
+            var temp = new byte[packetBytes.Length];
             packetBytes.CopyTo(temp, 0);
 
-            if (requestAuthenticator != null)
-            {
-                requestAuthenticator.CopyTo(temp, 4);
-            }
+            requestAuthenticator?.CopyTo(temp, 4);
 
             using (var md5 = new HMACMD5(sharedSecret.Bytes))
             {
@@ -246,9 +252,12 @@ namespace MultiFactor.Radius.Adapter.Core
         /// <param name="requestAuthenticator"></param>
         /// <param name="packetBytes"></param>
         /// <returns>Response authenticator for the packet</returns>
-        private Byte[] CalculateResponseAuthenticator(SharedSecret sharedSecret, Byte[] requestAuthenticator, Byte[] packetBytes)
+        private byte[] CalculateResponseAuthenticator(SharedSecret sharedSecret, byte[] requestAuthenticator, byte[] packetBytes)
         {
-            var responseAuthenticator = packetBytes.Concat(sharedSecret.Bytes).ToArray();
+            var responseAuthenticator = new byte[packetBytes.Length + sharedSecret.Bytes.Length];
+            Buffer.BlockCopy(packetBytes, 0, responseAuthenticator, 0, packetBytes.Length);
+            Buffer.BlockCopy(sharedSecret.Bytes, 0, responseAuthenticator, packetBytes.Length, sharedSecret.Bytes.Length);
+
             Buffer.BlockCopy(requestAuthenticator, 0, responseAuthenticator, 4, 16);
 
             using (var md5 = MD5.Create())
@@ -264,23 +273,23 @@ namespace MultiFactor.Radius.Adapter.Core
         /// <param name="sharedSecret"></param>
         /// <param name="packetBytes"></param>
         /// <returns></returns>
-        internal Byte[] CalculateRequestAuthenticator(SharedSecret sharedSecret, Byte[] packetBytes)
+        internal byte[] CalculateRequestAuthenticator(SharedSecret sharedSecret, byte[] packetBytes)
         {
-            return CalculateResponseAuthenticator(sharedSecret, new Byte[16], packetBytes);
+            return CalculateResponseAuthenticator(sharedSecret, new byte[16], packetBytes);
         }
 
         /// <summary>
         /// Get the raw packet bytes
         /// </summary>
         /// <returns></returns>
-        public Byte[] GetBytes(IRadiusPacket packet)
+        public byte[] GetBytes(IRadiusPacket packet)
         {
-            var packetBytes = new List<Byte>
+            var packetBytes = new List<byte>
             {
-                (Byte)packet.Id.Code,
+                (byte)packet.Id.Code,
                 packet.Id.Identifier
             };
-            packetBytes.AddRange(new Byte[18]); // Placeholder for length and authenticator
+            packetBytes.AddRange(new byte[18]); // Placeholder for length and authenticator
 
             var messageAuthenticatorPosition = 0;
             foreach (var attribute in packet.Attributes)
@@ -289,20 +298,20 @@ namespace MultiFactor.Radius.Adapter.Core
                 foreach (var value in attribute.Value)
                 {
                     var contentBytes = GetAttributeValueBytes(value);
-                    var headerBytes = new Byte[2];
+                    var headerBytes = new byte[2];
 
                     var attributeType = _radiusDictionary.GetAttribute(attribute.Key);
                     switch (attributeType)
                     {
                         case DictionaryVendorAttribute _attributeType:
-                            headerBytes = new Byte[8];
+                            headerBytes = new byte[8];
                             headerBytes[0] = RadiusAttributeCode.VendorSpecific; // VSA type
 
                             var vendorId = BitConverter.GetBytes(_attributeType.VendorId);
                             Array.Reverse(vendorId);
                             Buffer.BlockCopy(vendorId, 0, headerBytes, 2, 4);
-                            headerBytes[6] = (Byte)_attributeType.VendorCode;
-                            headerBytes[7] = (Byte)(2 + contentBytes.Length);  // length of the vsa part
+                            headerBytes[6] = (byte)_attributeType.VendorCode;
+                            headerBytes[7] = (byte)(2 + contentBytes.Length);  // length of the vsa part
                             break;
 
                         case DictionaryAttribute _attributeType:
@@ -323,7 +332,7 @@ namespace MultiFactor.Radius.Adapter.Core
                             throw new InvalidOperationException("Unknown attribute {attribute.Key}, check spelling or dictionary");
                     }
 
-                    headerBytes[1] = (Byte)(headerBytes.Length + contentBytes.Length);
+                    headerBytes[1] = (byte)(headerBytes.Length + contentBytes.Length);
                     packetBytes.AddRange(headerBytes);
                     packetBytes.AddRange(contentBytes);
                 }
@@ -340,29 +349,29 @@ namespace MultiFactor.Radius.Adapter.Core
             {
                 if (messageAuthenticatorPosition != 0)
                 {
-                    var temp = new Byte[16];
+                    var temp = new byte[16];
                     Buffer.BlockCopy(temp, 0, packetBytesArray, messageAuthenticatorPosition + 2, 16);
                     var messageAuthenticatorBytes = CalculateMessageAuthenticator(packetBytesArray, packet.Id.SharedSecret, null);
                     Buffer.BlockCopy(messageAuthenticatorBytes, 0, packetBytesArray, messageAuthenticatorPosition + 2, 16);
                 }
 
                 var authenticator = CalculateRequestAuthenticator(packet.Id.SharedSecret, packetBytesArray);
-                Buffer.BlockCopy(authenticator, 0, packetBytesArray, 4, 16);               
+                Buffer.BlockCopy(authenticator, 0, packetBytesArray, 4, 16);
             }
             else if (packet.Id.Code == PacketCode.StatusServer)
             {
-                var authenticator = packet.RequestAuthenticator != null 
-                    ? CalculateResponseAuthenticator(packet.Id.SharedSecret, packet.RequestAuthenticator, packetBytesArray) 
+                var authenticator = packet.RequestAuthenticator != null
+                    ? CalculateResponseAuthenticator(packet.Id.SharedSecret, packet.RequestAuthenticator, packetBytesArray)
                     : packet.Id.Authenticator;
                 Buffer.BlockCopy(authenticator, 0, packetBytesArray, 4, 16);
 
                 if (messageAuthenticatorPosition != 0)
                 {
-                    var temp = new Byte[16];
+                    var temp = new byte[16];
                     Buffer.BlockCopy(temp, 0, packetBytesArray, messageAuthenticatorPosition + 2, 16);
                     var messageAuthenticatorBytes = CalculateMessageAuthenticator(packetBytesArray, packet.Id.SharedSecret, packet.RequestAuthenticator);
                     Buffer.BlockCopy(messageAuthenticatorBytes, 0, packetBytesArray, messageAuthenticatorPosition + 2, 16);
-                }              
+                }
             }
             else
             {
@@ -373,7 +382,7 @@ namespace MultiFactor.Radius.Adapter.Core
 
                 if (messageAuthenticatorPosition != 0)
                 {
-                    var temp = new Byte[16];
+                    var temp = new byte[16];
                     Buffer.BlockCopy(temp, 0, packetBytesArray, messageAuthenticatorPosition + 2, 16);
                     var messageAuthenticatorBytes = CalculateMessageAuthenticator(packetBytesArray, packet.Id.SharedSecret, packet.RequestAuthenticator);
                     Buffer.BlockCopy(messageAuthenticatorBytes, 0, packetBytesArray, messageAuthenticatorPosition + 2, 16);
@@ -395,19 +404,19 @@ namespace MultiFactor.Radius.Adapter.Core
         /// </summary>
         /// <param name="value"></param>
         /// <returns></returns>
-        private Byte[] GetAttributeValueBytes(Object value)
+        private byte[] GetAttributeValueBytes(object value)
         {
             switch (value)
             {
-                case String _value:
+                case string _value:
                     return Encoding.UTF8.GetBytes(_value);
 
-                case UInt32 _value:
+                case uint _value:
                     var contentBytes = BitConverter.GetBytes(_value);
                     Array.Reverse(contentBytes);
                     return contentBytes;
 
-                case Byte[] _value:
+                case byte[] _value:
                     return _value;
 
                 case IPAddress _value:
@@ -416,6 +425,45 @@ namespace MultiFactor.Radius.Adapter.Core
                 default:
                     throw new NotImplementedException();
             }
+        }
+
+        private static ushort GetPacketLength(byte[] packetBytes)
+        {
+            var packetLengthbytes = new byte[RadiusPacketMetadata.LengthFieldLength];
+            // Length field always third and fourth bytes in packet (rfc2865)
+            packetLengthbytes[0] = packetBytes[RadiusPacketMetadata.LengthFieldPosition + 1];
+            packetLengthbytes[1] = packetBytes[RadiusPacketMetadata.LengthFieldPosition];
+            var packetLength = BitConverter.ToUInt16(packetLengthbytes, 0);
+            return packetLength;
+        }
+
+        private bool ArraysAreEqual(byte[] firstArray, byte[] secondArray)
+        {
+            if (firstArray.Length != secondArray.Length)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < firstArray.Length; i++)
+            {
+                if (firstArray[i] != secondArray[i])
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        private bool ArrayIsAsciiString(byte[] array)
+        {
+            for (int i = 0; i < array.Length; i++)
+            {
+                if (array[i] > 127 || array[i] < 32)
+                {
+                    return false;
+                }
+            }
+            return true;
         }
     }
 }

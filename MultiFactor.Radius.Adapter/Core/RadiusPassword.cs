@@ -25,7 +25,6 @@
 //SOFTWARE.
 
 using System;
-using System.Collections.Generic;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -39,12 +38,12 @@ namespace MultiFactor.Radius.Adapter.Core
         /// <param name="input"></param>
         /// <param name="key"></param>
         /// <returns></returns>
-        private static Byte[] EncryptDecrypt(Byte[] input, Byte[] key)
+        private static byte[] EncryptDecrypt(byte[] input, byte[] key)
         {
-            var output = new Byte[input.Length];
+            var output = new byte[input.Length];
             for (int i = 0; i < input.Length; i++)
             {
-                output[i] = (Byte)(input[i] ^ key[i]);
+                output[i] = (byte)(input[i] ^ key[i]);
             }
             return output;
         }
@@ -56,9 +55,9 @@ namespace MultiFactor.Radius.Adapter.Core
         /// <param name="sharedSecret"></param>
         /// <param name="Stuff"></param>
         /// <returns></returns>
-        private static Byte[] CreateKey(Byte[] sharedSecret, Byte[] authenticator)
+        private static byte[] CreateKey(byte[] sharedSecret, byte[] authenticator)
         {
-            var key = new Byte[16 + sharedSecret.Length];
+            var key = new byte[16 + sharedSecret.Length];
             Buffer.BlockCopy(sharedSecret, 0, key, 0, sharedSecret.Length);
             Buffer.BlockCopy(authenticator, 0, key, sharedSecret.Length, authenticator.Length);
 
@@ -75,7 +74,7 @@ namespace MultiFactor.Radius.Adapter.Core
         /// <param name="authenticator"></param>
         /// <param name="passwordBytes"></param>
         /// <returns></returns>
-        public static String Decrypt(RadiusPacketId packetId, Byte[] passwordBytes)
+        public static string Decrypt(RadiusPacketId packetId, byte[] passwordBytes)
         {
             return Decrypt(packetId, passwordBytes, Encoding.UTF8);
         }
@@ -83,23 +82,23 @@ namespace MultiFactor.Radius.Adapter.Core
         /// <summary>
         /// Decrypt user password
         /// </summary>
-        public static String Decrypt(RadiusPacketId packetId, Byte[] passwordBytes, Encoding encoding)
+        public static string Decrypt(RadiusPacketId packetId, byte[] passwordBytes, Encoding encoding)
         {
             var key = CreateKey(packetId.SharedSecret.Bytes, packetId.Authenticator);
-            var bytes = new List<Byte>();
+            var bytes = new byte[passwordBytes.Length];
 
+            var temp = new byte[16];
             for (var n = 1; n <= passwordBytes.Length / 16; n++)
             {
-                var temp = new Byte[16];
                 Buffer.BlockCopy(passwordBytes, (n - 1) * 16, temp, 0, 16);
 
                 var block = EncryptDecrypt(temp, key);
-                bytes.AddRange(block);
+                Buffer.BlockCopy(block, 0, bytes, (n - 1) * 16, 16);
 
                 key = CreateKey(packetId.SharedSecret.Bytes, temp);
             }
 
-            var ret = encoding.GetString(bytes.ToArray());
+            var ret = encoding.GetString(bytes);
             return ret.Replace("\0", "");
         }
 
@@ -110,22 +109,23 @@ namespace MultiFactor.Radius.Adapter.Core
         /// <param name="authenticator"></param>
         /// <param name="passwordBytes"></param>
         /// <returns></returns>
-        public static Byte[] Encrypt(RadiusPacketId packetId, Byte[] passwordBytes)
+        public static byte[] Encrypt(RadiusPacketId packetId, byte[] passwordBytes)
         {
             Array.Resize(ref passwordBytes, passwordBytes.Length + (16 - (passwordBytes.Length % 16)));
 
             var key = CreateKey(packetId.SharedSecret.Bytes, packetId.Authenticator);
-            var bytes = new List<Byte>();
+            var bytes = new byte[passwordBytes.Length];
+            var temp = new byte[16];
             for (var n = 1; n <= passwordBytes.Length / 16; n++)
             {
-                var temp = new Byte[16];
                 Buffer.BlockCopy(passwordBytes, (n - 1) * 16, temp, 0, 16);
                 var xor = EncryptDecrypt(temp, key);
-                bytes.AddRange(xor);
+                Buffer.BlockCopy(xor, 0, bytes, (n - 1) * 16, 16);
+
                 key = CreateKey(packetId.SharedSecret.Bytes, xor);
             }
 
-            return bytes.ToArray();
+            return bytes;
         }
     }
 }
