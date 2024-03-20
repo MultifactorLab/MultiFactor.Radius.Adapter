@@ -40,7 +40,7 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
 
             //base profile
             var profileAttributes = new LdapAttributes();
-            var profile = new LdapProfile(LdapIdentity.BaseDn(result.Entry.DistinguishedName), profileAttributes, clientConfig);
+            var profile = new LdapProfile(LdapIdentity.BaseDn(result.Entry.DistinguishedName), profileAttributes, clientConfig.PhoneAttributes);
 
             foreach (var attr in queryAttributes.Where(x => !x.Equals("memberof", StringComparison.OrdinalIgnoreCase)))
             {

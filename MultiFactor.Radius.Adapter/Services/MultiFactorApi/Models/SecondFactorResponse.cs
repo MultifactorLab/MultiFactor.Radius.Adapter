@@ -13,13 +13,13 @@ using MultiFactor.Radius.Adapter.Core;
 
 namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi.Dto
 {
-    public class SecondFactorResponseDto
+    public class SecondFactorResponse
     {
         public PacketCode Code { get; }
         public string ChallengeState { get; }
         public string ReplyMessage { get; }
 
-        public SecondFactorResponseDto(PacketCode code, string state = null, string replyMessage = null)
+        public SecondFactorResponse(PacketCode code, string state = null, string replyMessage = null)
         {
             Code = code;
             ChallengeState = state;

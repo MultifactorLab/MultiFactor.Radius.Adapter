@@ -67,7 +67,7 @@ namespace MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing
         {
             if (string.IsNullOrEmpty(request.UserName))
             {
-                throw new Exception($"Can't find User-Name in message id={request.RequestPacket.Id.Identifier} from {request.RemoteEndpoint.Address}:{request.RemoteEndpoint.Port}");
+                throw new Exception($"Can't find User-Name in message id={request.RequestPacket.Header.Identifier} from {request.RemoteEndpoint.Address}:{request.RemoteEndpoint.Port}");
             }
 
             var attributes = new Dictionary<string, string[]>();

@@ -2,8 +2,6 @@
 //Please see licence at 
 //https://github.com/MultifactorLab/MultiFactor.Radius.Adapter/blob/master/LICENSE.md
 
-
-using MultiFactor.Radius.Adapter.Configuration;
 using MultiFactor.Radius.Adapter.Services.MultiFactorApi.Dto;
 using Serilog;
 using System;
@@ -20,60 +18,63 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
     /// </summary>
     public class MultifactorApiClient
     {
-        private readonly ServiceConfiguration _serviceConfiguration;
-        private readonly AuthenticatedClientCache _authenticatedClientCache;
         private readonly IHttpClientFactory _httpClientFactory;
         readonly JsonSerializerOptions _serialazerOptions;
         private readonly ILogger _logger;
 
-        public MultifactorApiClient(ServiceConfiguration serviceConfiguration, 
-            AuthenticatedClientCache authenticatedClientCache, 
-            IHttpClientFactory httpClientFactory, 
-            ILogger logger)
+        public MultifactorApiClient(IHttpClientFactory httpClientFactory, ILogger logger)
         {
-            _serviceConfiguration = serviceConfiguration ?? throw new ArgumentNullException(nameof(serviceConfiguration));
-            _authenticatedClientCache = authenticatedClientCache ?? throw new ArgumentNullException(nameof(authenticatedClientCache));
             _httpClientFactory = httpClientFactory;
-            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _logger = logger;
             _serialazerOptions = new JsonSerializerOptions
             {
                 PropertyNamingPolicy = JsonNamingPolicy.CamelCase
             };
         }
 
-        public Task<AccessRequestDto> CreateRequestAsync(CreateRequestDto dto, ClientConfiguration configuration)
+        public Task<AccessRequestDto> CreateRequestAsync(string apiUrl, CreateRequestDto dto, ApiAuthHeaderValue authHeaderValue)
         {
+            if (string.IsNullOrWhiteSpace(apiUrl))
+            {
+                throw new ArgumentException($"'{nameof(apiUrl)}' cannot be null or whitespace.", nameof(apiUrl));
+            }
+
             if (dto is null)
             {
                 throw new ArgumentNullException(nameof(dto));
             }
 
-            if (configuration is null)
+            if (authHeaderValue is null)
             {
-                throw new ArgumentNullException(nameof(configuration));
+                throw new ArgumentNullException(nameof(authHeaderValue));
             }
 
-            var url = $"{_serviceConfiguration.ApiUrl}/access/requests/ra";
-            return SendRequest(url, dto, configuration);
+            var url = $"{apiUrl}/access/requests/ra";
+            return SendRequest(url, dto, authHeaderValue);
         }
 
-        public Task<AccessRequestDto> ChallengeAsync(ChallengeDto dto, ClientConfiguration configuration)
+        public Task<AccessRequestDto> ChallengeAsync(string apiUrl, ChallengeDto dto, ApiAuthHeaderValue authHeaderValue)
         {
+            if (string.IsNullOrWhiteSpace(apiUrl))
+            {
+                throw new ArgumentException($"'{nameof(apiUrl)}' cannot be null or whitespace.", nameof(apiUrl));
+            }
+
             if (dto is null)
             {
                 throw new ArgumentNullException(nameof(dto));
             }
 
-            if (configuration is null)
+            if (authHeaderValue is null)
             {
-                throw new ArgumentNullException(nameof(configuration));
+                throw new ArgumentNullException(nameof(authHeaderValue));
             }
 
-            var url = $"{_serviceConfiguration.ApiUrl}/access/requests/ra/challenge";
-            return SendRequest(url, dto, configuration);
+            var url = $"{apiUrl}/access/requests/ra/challenge";
+            return SendRequest(url, dto, authHeaderValue);
         }
 
-        private async Task<AccessRequestDto> SendRequest(string url, object payload, ClientConfiguration clientConfiguration)
+        private async Task<AccessRequestDto> SendRequest(string url, object payload, ApiAuthHeaderValue authHeaderValue)
         {
             try
             {
@@ -91,9 +92,7 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
                     Content = jsonContent
                 };
 
-                //basic authorization
-                var auth = Convert.ToBase64String(Encoding.ASCII.GetBytes($"{clientConfiguration.MultifactorApiKey}:{clientConfiguration.MultiFactorApiSecret}"));
-                message.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", auth);
+                message.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", authHeaderValue.Value);
 
                 var httpClient = _httpClientFactory.CreateClient(nameof(MultifactorApiClient));
                 var res = await httpClient.SendAsync(message);

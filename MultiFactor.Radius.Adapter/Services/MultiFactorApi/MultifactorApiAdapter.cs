@@ -18,17 +18,22 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
     public class MultifactorApiAdapter
     {
         private readonly MultifactorApiClient _api;
+        private readonly ServiceConfiguration _configuration;
         private readonly AuthenticatedClientCache _authenticatedClientCache;
         private readonly ILogger _logger;
 
-        public MultifactorApiAdapter(MultifactorApiClient api, AuthenticatedClientCache authenticatedClientCache, ILogger logger)
+        public MultifactorApiAdapter(MultifactorApiClient api, 
+            ServiceConfiguration configuration,
+            AuthenticatedClientCache authenticatedClientCache, 
+            ILogger logger)
         {
             _api = api;
+            _configuration = configuration;
             _authenticatedClientCache = authenticatedClientCache;
             _logger = logger;
         }
 
-        public async Task<SecondFactorResponseDto> CreateSecondFactorRequestAsync(PendingRequest request)
+        public async Task<SecondFactorResponse> CreateSecondFactorRequestAsync(PendingRequest request)
         {
             if (request is null)
             {
@@ -38,7 +43,7 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
             if (string.IsNullOrEmpty(request.SecondFactorIdentity))
             {
                 _logger.Warning("Empty user name for second factor request. Request rejected.");
-                return new SecondFactorResponseDto(PacketCode.AccessReject);
+                return new SecondFactorResponse(PacketCode.AccessReject);
             }
 
             var userName = request.SecondFactorIdentity;
@@ -94,7 +99,7 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
             if (_authenticatedClientCache.TryHitCache(request.RequestPacket.CallingStationId, userName, request.Configuration))
             {
                 _logger.Information("Bypass second factor for user '{name:l}' with identity attribyte '{user:l}' from {host:l}:{port}", request.UserName, userName, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
-                return new SecondFactorResponseDto(PacketCode.AccessAccept);
+                return new SecondFactorResponse(PacketCode.AccessAccept);
             }
 
             var dto = new CreateRequestDto
@@ -118,7 +123,8 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
 
             try
             {
-                var response = await _api.CreateRequestAsync(dto, request.Configuration);
+                var auth = new ApiAuthHeaderValue(request.Configuration.MultifactorApiKey, request.Configuration.MultiFactorApiSecret);
+                var response = await _api.CreateRequestAsync(_configuration.ApiUrl, dto, auth);
                 var responseCode = ConvertToRadiusCode(response);
 
                 if (responseCode == PacketCode.AccessAccept && !response.Bypassed)
@@ -133,7 +139,7 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
                         request.UserName, userName, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port, response?.ReplyMessage, response?.Phone);
                 }
 
-                return new SecondFactorResponseDto(responseCode, response?.Id, response?.ReplyMessage);
+                return new SecondFactorResponse(responseCode, response?.Id, response?.ReplyMessage);
             }
             catch (MultifactorApiUnreachableException apiEx)
             {
@@ -146,7 +152,7 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
                 if (!request.Configuration.BypassSecondFactorWhenApiUnreachable)
                 {
                     var radCode = ConvertToRadiusCode(null);
-                    return new SecondFactorResponseDto(radCode);
+                    return new SecondFactorResponse(radCode);
                 }
 
                 _logger.Warning("Bypass second factor for user '{user:l}' from {host:l}:{port}",
@@ -155,7 +161,7 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
                         request.RemoteEndpoint.Port);
 
                 var code = ConvertToRadiusCode(AccessRequestDto.Bypass);
-                return new SecondFactorResponseDto(code);
+                return new SecondFactorResponse(code);
             }
             catch (Exception ex)
             {
@@ -166,11 +172,11 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
                     ex.Message);
 
                 var code = ConvertToRadiusCode(null);
-                return new SecondFactorResponseDto(code);
+                return new SecondFactorResponse(code);
             }
         }
 
-        public async Task<ChallengeResponseDto> ChallengeAsync(PendingRequest request, string answer, string state)
+        public async Task<ChallengeResponse> ChallengeAsync(PendingRequest request, string answer, string state)
         {
             var userName = request.SecondFactorIdentity;
             var dto = new ChallengeDto
@@ -182,7 +188,8 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
 
             try
             {
-                var response = await _api.ChallengeAsync(dto, request.Configuration);
+                var auth = new ApiAuthHeaderValue(request.Configuration.MultifactorApiKey, request.Configuration.MultiFactorApiSecret);
+                var response = await _api.ChallengeAsync(_configuration.ApiUrl, dto, auth);
 
                 var responseCode = ConvertToRadiusCode(response);
                 if (responseCode == PacketCode.AccessAccept && !response.Bypassed)
@@ -191,7 +198,7 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
                     _authenticatedClientCache.SetCache(request.RequestPacket.CallingStationId, userName, request.Configuration);
                 }
 
-                return new ChallengeResponseDto(responseCode, response?.ReplyMessage);
+                return new ChallengeResponse(responseCode, response?.ReplyMessage);
             }
             catch (MultifactorApiUnreachableException apiEx)
             {
@@ -204,7 +211,7 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
                 if (!request.Configuration.BypassSecondFactorWhenApiUnreachable)
                 {
                     var radCode = ConvertToRadiusCode(null);
-                    return new ChallengeResponseDto(radCode);
+                    return new ChallengeResponse(radCode);
                 }
 
                 _logger.Warning("Bypass second factor for user '{user:l}' from {host:l}:{port}",
@@ -213,7 +220,7 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
                         request.RemoteEndpoint.Port);
                 var code = ConvertToRadiusCode(AccessRequestDto.Bypass);
 
-                return new ChallengeResponseDto(code);
+                return new ChallengeResponse(code);
             }
             catch (Exception ex)
             {
@@ -224,7 +231,7 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
                     ex.Message);
 
                 var code = ConvertToRadiusCode(null);
-                return new ChallengeResponseDto(code);
+                return new ChallengeResponse(code);
             }
         }
 

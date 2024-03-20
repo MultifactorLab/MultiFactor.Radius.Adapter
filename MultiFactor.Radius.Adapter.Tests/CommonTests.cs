@@ -35,7 +35,7 @@ namespace MultiFactor.Radius.Adapter.Tests
             var sender = server.Service<TestRadiusResponseSender>();
 
             Assert.NotNull(sender.ResponsePacket);
-            Assert.Equal(PacketCode.AccessAccept, sender.ResponsePacket.Id.Code);
+            Assert.Equal(PacketCode.AccessAccept, sender.ResponsePacket.Header.Code);
             Assert.StartsWith("Server up", sender.ResponsePacket.GetAttribute<string>("Reply-Message"));
         }      
     }

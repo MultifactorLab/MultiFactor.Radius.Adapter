@@ -1,5 +1,5 @@
-﻿using MultiFactor.Radius.Adapter.Configuration;
-using System;
+﻿using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 
@@ -7,7 +7,7 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
 {
     public class LdapProfile
     {
-        private readonly ClientConfiguration _configuration;
+        private readonly string[] _phoneAttrs;
 
         public LdapIdentity BaseDn { get; }
         public string DistinguishedName => LdapAttrs.GetValue("distinguishedname");
@@ -25,13 +25,13 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
                     return _phone;
                 }
 
-                if (_configuration.PhoneAttributes.Count == 0)
+                if (_phoneAttrs.Length == 0)
                 {
                     _phone = LdapAttrs.GetValue("phone");
                     return _phone;
                 }
 
-                _phone = _configuration.PhoneAttributes
+                _phone = _phoneAttrs
                     .Select(x => LdapAttrs.GetValue(x))
                     .FirstOrDefault(x => x != null) ?? LdapAttrs.GetValue("phone");
 
@@ -43,21 +43,26 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
 
         public ILdapAttributes LdapAttrs { get; private set; }
 
-        private LdapProfile(ClientConfiguration configuration)
+        private LdapProfile()
         {
             BaseDn = null;
             LdapAttrs = new LdapAttributes();
-            _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
+            _phoneAttrs = Array.Empty<string>();
         }
 
-        public LdapProfile(LdapIdentity baseDn, ILdapAttributes attributes, ClientConfiguration configuration)
+        public LdapProfile(LdapIdentity baseDn, ILdapAttributes attributes, IEnumerable<string> phoneAttrs)
         {
+            if (phoneAttrs is null)
+            {
+                throw new ArgumentNullException(nameof(phoneAttrs));
+            }
+
             BaseDn = baseDn ?? throw new ArgumentNullException(nameof(baseDn));
             LdapAttrs = attributes ?? throw new ArgumentNullException(nameof(attributes));
-            _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
+            _phoneAttrs = phoneAttrs.ToArray();
         }
 
-        public static LdapProfile Empty(ClientConfiguration configuration) => new LdapProfile(configuration);   
+        public static LdapProfile Empty() => new LdapProfile();   
         
         public void UpdateAttributes(ILdapAttributes attributes)
         {

@@ -34,6 +34,7 @@ namespace MultiFactor.Radius.Adapter.Server
         /// Radius resonse packet (for radius remote first factor)
         /// </summary>
         public IRadiusPacket ResponsePacket { get; set; }
+        [Obsolete("Please use 'AuthenticationState' property instead")]
         public PacketCode ResponseCode { get; set; }
         public string State { get; set; }
         public string ReplyMessage { get; set; }
@@ -59,7 +60,7 @@ namespace MultiFactor.Radius.Adapter.Server
             ResponseCode = PacketCode.AccessReject;
             Configuration = clientConfiguration;
             AuthenticationState = authenticationState;
-            Profile = LdapProfile.Empty(clientConfiguration);
+            Profile = LdapProfile.Empty();
         }
 
         public static PendingRequest Create(ClientConfiguration clientConfiguration, IPEndPoint remoteEndpoint, IPEndPoint proxyEndpoint, IRadiusPacket packet)

@@ -26,7 +26,7 @@
 
 namespace MultiFactor.Radius.Adapter.Core
 {
-    internal static class RadiusPacketMetadata
+    internal static class RadiusFieldOffsets
     {
         public const int CodeFieldPosition = 0;
         public const int IdentifierFieldPosition = 1;

@@ -30,13 +30,13 @@ namespace MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing
         {
             if (string.IsNullOrEmpty(request.UserName))
             {
-                _logger.Warning("Can't find User-Name in message id={id} from {host:l}:{port}", request.RequestPacket.Id.Identifier, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
+                _logger.Warning("Can't find User-Name in message id={id} from {host:l}:{port}", request.RequestPacket.Header.Identifier, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
                 return Task.FromResult(PacketCode.AccessReject);
             }
 
             if (string.IsNullOrEmpty(request.Passphrase.Password))
             {
-                _logger.Warning("Can't find User-Password in message id={id} from {host:l}:{port}", request.RequestPacket.Id.Identifier, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
+                _logger.Warning("Can't find User-Password in message id={id} from {host:l}:{port}", request.RequestPacket.Header.Identifier, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
                 return Task.FromResult(PacketCode.AccessReject);
             }
 

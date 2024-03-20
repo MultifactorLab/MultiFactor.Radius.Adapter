@@ -39,7 +39,7 @@ namespace MultiFactor.Radius.Adapter.Core
     {
         private readonly RadiusPacketOptions _options = new RadiusPacketOptions();
 
-        public RadiusPacketId Id { get; }
+        public RadiusPacketHeader Header { get; }
 
         public IDictionary<String, List<Object>> Attributes { get; set; }  = new Dictionary<string, List<object>>();
         public Byte[] RequestAuthenticator
@@ -54,7 +54,7 @@ namespace MultiFactor.Radius.Adapter.Core
         {
             get
             {
-                return Id.Code == PacketCode.AccessChallenge && AuthenticationType == AuthenticationType.EAP;
+                return Header.Code == PacketCode.AccessChallenge && AuthenticationType == AuthenticationType.EAP;
             }
         }
         /// <summary>
@@ -157,9 +157,9 @@ namespace MultiFactor.Radius.Adapter.Core
         }
 
 
-        public RadiusPacket(RadiusPacketId id)
+        public RadiusPacket(RadiusPacketHeader id)
         {
-            Id = id ?? throw new ArgumentNullException(nameof(id));
+            Header = id ?? throw new ArgumentNullException(nameof(id));
         }
 
         /// <summary>
@@ -168,14 +168,14 @@ namespace MultiFactor.Radius.Adapter.Core
         /// <param name="responseCode">New code.</param>
         public IRadiusPacket CreateResponsePacket(PacketCode responseCode)
         {
-            var id = RadiusPacketId.Create(responseCode, Id.Identifier, Id.SharedSecret);
+            var id = RadiusPacketHeader.Create(responseCode, Header.Identifier, Header.SharedSecret);
             var packet = new RadiusPacket(id)
             {
-                RequestAuthenticator = Id.Authenticator
+                RequestAuthenticator = Header.Authenticator
             };
 
             // A Message authenticator is required in status server and access packets, calculated last
-            if (Id.Code == PacketCode.AccessRequest || Id.Code == PacketCode.StatusServer)
+            if (Header.Code == PacketCode.AccessRequest || Header.Code == PacketCode.StatusServer)
             {
                 packet.AddAttribute("Message-Authenticator", new byte[16]);
             }
@@ -266,8 +266,8 @@ namespace MultiFactor.Radius.Adapter.Core
 
         public string CreateUniqueKey(IPEndPoint remoteEndpoint)
         {
-            var base64Authenticator = Id.Authenticator.Base64();
-            return $"{Id.Code.ToString("d")}:{Id.Identifier}:{remoteEndpoint}:{UserName}:{base64Authenticator}";
+            var base64Authenticator = Header.Authenticator.Base64();
+            return $"{Header.Code.ToString("d")}:{Header.Identifier}:{remoteEndpoint}:{UserName}:{base64Authenticator}";
         }
 
         private string GetCallingStationId()
@@ -279,6 +279,17 @@ namespace MultiFactor.Radius.Adapter.Core
                     ?? RemoteHostName;
             }
             return GetString("Calling-Station-Id") ?? RemoteHostName;
+        }
+
+        public object Clone()
+        {
+            var packet = new RadiusPacket(Header)
+            {
+                Attributes = Attributes,
+                RequestAuthenticator = RequestAuthenticator
+            };
+
+            return packet;
         }
     }
 }

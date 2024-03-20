@@ -6,12 +6,12 @@ using MultiFactor.Radius.Adapter.Core;
 
 namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi.Dto
 {
-    public class ChallengeResponseDto
+    public class ChallengeResponse
     {
         public PacketCode Code { get; }
         public string ReplyMessage { get; }
 
-        public ChallengeResponseDto(PacketCode code, string replyMessage = null)
+        public ChallengeResponse(PacketCode code, string replyMessage = null)
         {
             Code = code;
             ReplyMessage = replyMessage;

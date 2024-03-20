@@ -24,14 +24,15 @@
 //OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 //SOFTWARE.
 
+using System;
 using System.Collections.Generic;
 using System.Net;
 
 namespace MultiFactor.Radius.Adapter.Core
 {
-    public interface IRadiusPacket
+    public interface IRadiusPacket : ICloneable
     {
-        RadiusPacketId Id { get; }
+        RadiusPacketHeader Header { get; }
         byte[] RequestAuthenticator { get; }
         bool IsEapMessageChallenge { get; }
         bool IsVendorAclRequest { get; }

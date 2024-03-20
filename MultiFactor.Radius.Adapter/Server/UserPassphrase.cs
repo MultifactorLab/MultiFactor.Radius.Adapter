@@ -30,19 +30,12 @@ namespace MultiFactor.Radius.Adapter.Server
         public string Otp { get; }
 
         /// <summary>
-        /// Maybe one of 't', 'm', 's' or 'c'.
-        /// <para>
-        /// t: Telegram
-        /// </para>
-        /// <para>
-        /// m: MobileApp
-        /// </para>
-        /// <para>
-        ///  s: SMS
-        /// </para>
-        /// <para>
-        ///  c: PhoneCall
-        /// </para>
+        /// Maybe one of 't', 'm', 's' or 'c'.<br/> 
+        /// t: Telegram<br/> 
+        /// m: MobileApp<br/> 
+        /// s: SMS<br/> 
+        /// c: PhoneCall<br/> 
+        /// Can be passed to the User-Password attribute in case of None first-factor-authentication-source or if challenge is executed.
         /// </summary>
         public string ProviderCode { get; }
 
@@ -99,12 +92,12 @@ namespace MultiFactor.Radius.Adapter.Server
                         return passwordAndOtp;
                     }
 
-                    var sub = passwordAndOtp.Substring(0, passwordAndOtp.Length - length);
                     if (!hasOtp)
                     {
                         return passwordAndOtp;
                     }
 
+                    var sub = passwordAndOtp.Substring(0, passwordAndOtp.Length - length);
                     return sub;
 
                 case PreAuthnMode.None:

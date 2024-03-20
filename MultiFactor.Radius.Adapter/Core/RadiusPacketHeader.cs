@@ -30,14 +30,14 @@ using System.Security.Cryptography;
 
 namespace MultiFactor.Radius.Adapter.Core
 {
-    public class RadiusPacketId
+    public class RadiusPacketHeader
     {
         public PacketCode Code { get; }
         public byte Identifier { get; }
         public SharedSecret SharedSecret { get; }
         public byte[] Authenticator { get; }
 
-        private RadiusPacketId(PacketCode code, byte identifier, byte[] authenticator, SharedSecret sharedSecret)
+        private RadiusPacketHeader(PacketCode code, byte identifier, byte[] authenticator, SharedSecret sharedSecret)
         {
             Code = code;
             Identifier = identifier;
@@ -45,7 +45,7 @@ namespace MultiFactor.Radius.Adapter.Core
             SharedSecret = sharedSecret;
         }
 
-        public static RadiusPacketId Parse(byte[] packet, SharedSecret sharedSecret)
+        public static RadiusPacketHeader Parse(byte[] packet, SharedSecret sharedSecret)
         {
             if (packet is null)
             {
@@ -57,23 +57,23 @@ namespace MultiFactor.Radius.Adapter.Core
                 throw new ArgumentNullException(nameof(sharedSecret));
             }
 
-            var code = (PacketCode)packet[RadiusPacketMetadata.CodeFieldPosition];
-            var identifier = packet[RadiusPacketMetadata.IdentifierFieldPosition];
+            var code = (PacketCode)packet[RadiusFieldOffsets.CodeFieldPosition];
+            var identifier = packet[RadiusFieldOffsets.IdentifierFieldPosition];
 
-            var authenticator = new byte[RadiusPacketMetadata.AuthenticatorFieldLength];
-            Buffer.BlockCopy(packet, RadiusPacketMetadata.AuthenticatorFieldPosition, authenticator, 0, RadiusPacketMetadata.AuthenticatorFieldLength);
+            var authenticator = new byte[RadiusFieldOffsets.AuthenticatorFieldLength];
+            Buffer.BlockCopy(packet, RadiusFieldOffsets.AuthenticatorFieldPosition, authenticator, 0, RadiusFieldOffsets.AuthenticatorFieldLength);
 
-            return new RadiusPacketId(code, identifier, authenticator, sharedSecret);
+            return new RadiusPacketHeader(code, identifier, authenticator, sharedSecret);
         }
 
-        public static RadiusPacketId Create(PacketCode code, byte identifier, SharedSecret sharedSecret)
+        public static RadiusPacketHeader Create(PacketCode code, byte identifier, SharedSecret sharedSecret)
         {
             if (sharedSecret is null)
             {
                 throw new ArgumentNullException(nameof(sharedSecret));
             }
 
-            var auth = new byte[RadiusPacketMetadata.AuthenticatorFieldLength];
+            var auth = new byte[RadiusFieldOffsets.AuthenticatorFieldLength];
             // Generate random authenticator for access request packets
             if (code == PacketCode.AccessRequest || code == PacketCode.StatusServer)
             {
@@ -83,7 +83,7 @@ namespace MultiFactor.Radius.Adapter.Core
                 }
             }
 
-            return new RadiusPacketId(code, identifier, auth, sharedSecret);
+            return new RadiusPacketHeader(code, identifier, auth, sharedSecret);
         }
     }
 }

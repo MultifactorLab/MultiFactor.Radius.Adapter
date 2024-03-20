@@ -75,7 +75,7 @@ namespace MultiFactor.Radius.Adapter.Core
         /// <param name="authenticator"></param>
         /// <param name="passwordBytes"></param>
         /// <returns></returns>
-        public static String Decrypt(RadiusPacketId packetId, Byte[] passwordBytes)
+        public static String Decrypt(RadiusPacketHeader packetId, Byte[] passwordBytes)
         {
             return Decrypt(packetId, passwordBytes, Encoding.UTF8);
         }
@@ -83,7 +83,7 @@ namespace MultiFactor.Radius.Adapter.Core
         /// <summary>
         /// Decrypt user password
         /// </summary>
-        public static String Decrypt(RadiusPacketId packetId, Byte[] passwordBytes, Encoding encoding)
+        public static String Decrypt(RadiusPacketHeader packetId, Byte[] passwordBytes, Encoding encoding)
         {
             var key = CreateKey(packetId.SharedSecret.Bytes, packetId.Authenticator);
             var bytes = new List<Byte>();
@@ -110,7 +110,7 @@ namespace MultiFactor.Radius.Adapter.Core
         /// <param name="authenticator"></param>
         /// <param name="passwordBytes"></param>
         /// <returns></returns>
-        public static Byte[] Encrypt(RadiusPacketId packetId, Byte[] passwordBytes)
+        public static Byte[] Encrypt(RadiusPacketHeader packetId, Byte[] passwordBytes)
         {
             Array.Resize(ref passwordBytes, passwordBytes.Length + (16 - (passwordBytes.Length % 16)));
 

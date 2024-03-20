@@ -47,7 +47,7 @@ namespace MultiFactor.Radius.Adapter.Server
         {
             try
             {
-                if (request.RequestPacket.Id.Code == PacketCode.StatusServer)
+                if (request.RequestPacket.Header.Code == PacketCode.StatusServer)
                 {
                     //status
                     var uptime = (DateTime.Now - _startedAt);
@@ -59,9 +59,9 @@ namespace MultiFactor.Radius.Adapter.Server
                 }
 
 
-                if (request.RequestPacket.Id.Code != PacketCode.AccessRequest)
+                if (request.RequestPacket.Header.Code != PacketCode.AccessRequest)
                 {
-                    _logger.Warning("Unprocessable packet type: {code}", request.RequestPacket.Id.Code);
+                    _logger.Warning("Unprocessable packet type: {code}", request.RequestPacket.Header.Code);
                     return;
                 }
 
@@ -130,12 +130,13 @@ namespace MultiFactor.Radius.Adapter.Server
                             case PreAuthnMode.Otp when request.Passphrase.Otp == null:
                                 request.AuthenticationState.SetSecondFactor(AuthenticationCode.Reject);
                                 request.ResponseCode = request.AuthenticationState.GetResultPacketCode();
-                                RequestProcessed?.Invoke(this, request);
+                                _logger.Error("The pre-auth second factor was rejected: otp code is empty");
+                                CreateAndSendRadiusResponse(request);
                                 return;
 
                             case PreAuthnMode.Otp:
                             case PreAuthnMode.Push:
-                            case PreAuthnMode.Telegram:
+                            case PreAuthnMode.Telegram: 
                                 var respCode = await ProcessSecondAuthenticationFactor(request);
                                 if (respCode == PacketCode.AccessChallenge)
                                 {
@@ -269,7 +270,7 @@ namespace MultiFactor.Radius.Adapter.Server
             if (string.IsNullOrEmpty(request.UserName))
             {
                 _logger.Warning("Unable to process 2FA authentication for message id={id} from {host:l}:{port}: Can't find User-Name", 
-                    request.RequestPacket.Id.Identifier, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
+                    request.RequestPacket.Header.Identifier, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
                 return PacketCode.AccessReject;
             }
 
@@ -297,12 +298,12 @@ namespace MultiFactor.Radius.Adapter.Server
         private async Task<PacketCode> ProcessChallenge(PendingRequest request, string state)
         {
             _logger.Information("Processing challenge {State:l} for message id={id} from {host:l}:{port}",
-                state, request.RequestPacket.Id.Identifier, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
+                state, request.RequestPacket.Header.Identifier, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
 
             if (string.IsNullOrEmpty(request.UserName))
             {
                 _logger.Warning("Unable to process challenge {State:l} for message id={id} from {host:l}:{port}: Can't find User-Name", 
-                    state, request.RequestPacket.Id.Identifier, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
+                    state, request.RequestPacket.Header.Identifier, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
                 return PacketCode.AccessReject;
             }
         
@@ -316,7 +317,7 @@ namespace MultiFactor.Radius.Adapter.Server
                     if (string.IsNullOrEmpty(userAnswer))
                     {
                         _logger.Warning("Unable to process challenge {State:l} for message id={id} from {host:l}:{port}: Can't find User-Password with user response",
-                            state, request.RequestPacket.Id.Identifier, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
+                            state, request.RequestPacket.Header.Identifier, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
                         return PacketCode.AccessReject;
                     }
 
@@ -327,7 +328,7 @@ namespace MultiFactor.Radius.Adapter.Server
                     if (msChapResponse == null)
                     {
                         _logger.Warning("Unable to process challenge {State:l} for message id={id} from {host:l}:{port}: Can't find MS-CHAP2-Response",
-                            state, request.RequestPacket.Id.Identifier, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
+                            state, request.RequestPacket.Header.Identifier, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
                         return PacketCode.AccessReject;
                     }
 
@@ -338,7 +339,7 @@ namespace MultiFactor.Radius.Adapter.Server
                     break;
                 default:
                     _logger.Warning("Unable to process challenge {State:l} for message id={id} from {host:l}:{port}: Unsupported authentication type '{Auth}'", 
-                        state, request.RequestPacket.Id.Identifier, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port, request.RequestPacket.AuthenticationType);
+                        state, request.RequestPacket.Header.Identifier, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port, request.RequestPacket.AuthenticationType);
                     return PacketCode.AccessReject;
             }
 
@@ -359,13 +360,13 @@ namespace MultiFactor.Radius.Adapter.Server
                     }
                     RemoveStateChallengeRequest(state);
                     _logger.Debug("Challenge {State:l} was processed for message id={id} from {host:l}:{port} with result '{Result}'",
-                        state, request.RequestPacket.Id.Identifier, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port, response.Code);
+                        state, request.RequestPacket.Header.Identifier, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port, response.Code);
                     break;
 
                 case PacketCode.AccessReject:
                     RemoveStateChallengeRequest(state);
                     _logger.Debug("Challenge {State:l} was processed for message id={id} from {host:l}:{port} with result '{Result}'",
-                        state, request.RequestPacket.Id.Identifier, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port, response.Code);
+                        state, request.RequestPacket.Header.Identifier, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port, response.Code);
                     break;
             }
 
@@ -388,11 +389,11 @@ namespace MultiFactor.Radius.Adapter.Server
         {
             if (!_stateChallengePendingRequests.TryAdd(state, request))
             {
-                _logger.Error("Unable to cache request id={id}", request.RequestPacket.Id.Identifier);
+                _logger.Error("Unable to cache request id={id}", request.RequestPacket.Header.Identifier);
             }
             else
             {
-                _logger.Information("Challenge {State:l} was added for message id={id}", state, request.RequestPacket.Id.Identifier);
+                _logger.Information("Challenge {State:l} was added for message id={id}", state, request.RequestPacket.Header.Identifier);
             }
         }
 
