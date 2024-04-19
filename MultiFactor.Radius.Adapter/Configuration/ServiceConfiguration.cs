@@ -2,10 +2,10 @@
 //Please see licence at 
 //https://github.com/MultifactorLab/MultiFactor.Radius.Adapter/blob/master/LICENSE.md
 
+using MultiFactor.Radius.Adapter.Configuration.Features.PreAuthnModeFeature;
 using MultiFactor.Radius.Adapter.Configuration.Features.PrivacyModeFeature;
 using MultiFactor.Radius.Adapter.Core;
 using MultiFactor.Radius.Adapter.Server;
-using MultiFactor.Radius.Adapter.Services.MultiFactorApi;
 using NetTools;
 using Serilog;
 using System;
@@ -17,6 +17,7 @@ using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
+using Config = System.Configuration.Configuration;
 
 namespace MultiFactor.Radius.Adapter.Configuration
 {
@@ -176,16 +177,19 @@ namespace MultiFactor.Radius.Adapter.Configuration
         /// <summary>
         /// Read and load settings from appSettings configuration section
         /// </summary>
-        public static ServiceConfiguration Load(IRadiusDictionary dictionary, ILogger logger)
+        public static ServiceConfiguration Load(Config rootConfig, IRadiusDictionary dictionary, ILogger logger)
         {
+            if (rootConfig is null)
+            {
+                throw new ArgumentNullException(nameof(rootConfig));
+            }
+
             if (dictionary == null)
             {
                 throw new ArgumentNullException(nameof(dictionary));
             }
 
-            var serviceConfig = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
-
-            var appSettingsSection = serviceConfig.GetSection("appSettings");
+            var appSettingsSection = rootConfig.GetSection("appSettings");
             var appSettings = appSettingsSection as AppSettingsSection;
 
             var serviceServerEndpointSetting = appSettings.Settings["adapter-server-endpoint"]?.Value;
@@ -246,7 +250,7 @@ namespace MultiFactor.Radius.Adapter.Configuration
                 var activeDirectorySection = ConfigurationManager.GetSection("ActiveDirectory") as ActiveDirectorySection;
                 var userNameTransformRulesSection = ConfigurationManager.GetSection("UserNameTransformRules") as UserNameTransformRulesSection;
 
-                var client = LoadClientSettings("General", dictionary, appSettings, radiusReplyAttributesSection, activeDirectorySection, userNameTransformRulesSection, logger);
+                var client = LoadClientSettings("General", dictionary, appSettings, radiusReplyAttributesSection, activeDirectorySection, userNameTransformRulesSection, configuration, logger);
                 configuration.AddClient(IPAddress.Any, client);
                 configuration.SingleClientMode = true;
             }
@@ -267,7 +271,9 @@ namespace MultiFactor.Radius.Adapter.Configuration
                     var activeDirectorySection = config.GetSection("ActiveDirectory") as ActiveDirectorySection;
                     var userNameTransformRulesSection = config.GetSection("UserNameTransformRules") as UserNameTransformRulesSection;
 
-                    var client = LoadClientSettings(Path.GetFileNameWithoutExtension(clientConfigFile), dictionary, clientSettings, radiusReplyAttributesSection, activeDirectorySection, userNameTransformRulesSection, logger);
+                    var client = LoadClientSettings(Path.GetFileNameWithoutExtension(clientConfigFile), dictionary, clientSettings, radiusReplyAttributesSection, activeDirectorySection, userNameTransformRulesSection,
+                        configuration,
+                        logger);
 
                     var radiusClientNasIdentifierSetting = clientSettings.Settings["radius-client-nas-identifier"]?.Value;
                     var radiusClientIpSetting = clientSettings.Settings["radius-client-ip"]?.Value;
@@ -311,7 +317,14 @@ namespace MultiFactor.Radius.Adapter.Configuration
                     : httpRequestTimeout; // timeout from config
         }
 
-        public static ClientConfiguration LoadClientSettings(string name, IRadiusDictionary dictionary, AppSettingsSection appSettings, RadiusReplyAttributesSection radiusReplyAttributesSection, ActiveDirectorySection activeDirectorySection, UserNameTransformRulesSection userNameTransformRulesSection, ILogger logger)
+        public static ClientConfiguration LoadClientSettings(string name, 
+            IRadiusDictionary dictionary, 
+            AppSettingsSection appSettings, 
+            RadiusReplyAttributesSection radiusReplyAttributesSection, 
+            ActiveDirectorySection activeDirectorySection, 
+            UserNameTransformRulesSection userNameTransformRulesSection, 
+            ServiceConfiguration serviceConfiguration,
+            ILogger logger)
         {
             var radiusSharedSecretSetting = appSettings.Settings["radius-shared-secret"]?.Value;
             var radiusPapEncodingSetting = appSettings.Settings["radius-pap-encoding"]?.Value;
@@ -376,31 +389,48 @@ namespace MultiFactor.Radius.Adapter.Configuration
 
             try
             {
-                configuration.PrivacyMode = PrivacyModeDescriptor.Create(appSettings.Settings[Literals.Configuration.PrivacyMode]?.Value);
+                configuration.PrivacyMode = PrivacyModeDescriptor.Create(appSettings.Settings[Constants.Configuration.PrivacyMode]?.Value);
             }
             catch
             {
-                throw new Exception($"Configuration error: Can't parse '{Literals.Configuration.PrivacyMode}' value. Must be one of: Full, None, Partial:Field1,Field2");
+                throw new Exception($"Configuration error: Can't parse '{Constants.Configuration.PrivacyMode}' value. Must be one of: Full, None, Partial:Field1,Field2");
+            }
+
+            var credDelay = appSettings.Settings[Constants.Configuration.PciDss.InvalidCredentialDelay]?.Value;
+            if (string.IsNullOrWhiteSpace(credDelay))
+            {
+                configuration.InvalidCredentialDelay = serviceConfiguration.InvalidCredentialDelay;
+            }
+            else
+            {
+                try
+                {
+                    configuration.InvalidCredentialDelay = RandomWaiterConfig.Create(appSettings.Settings[Constants.Configuration.PciDss.InvalidCredentialDelay]?.Value);
+                }
+                catch
+                {
+                    throw new Exception($"Configuration error: Can't parse '{Constants.Configuration.PciDss.InvalidCredentialDelay}' value");
+                }
             }
 
             switch (configuration.FirstFactorAuthenticationSource)
             {
                 case AuthenticationSource.ActiveDirectory:
                     //active directory authentication and membership settings
-                    LoadActiveDirectoryAuthenticationSourceSettings(configuration, appSettings, activeDirectorySection, true, logger);
+                    LoadActiveDirectoryAuthenticationSourceSettings(configuration, appSettings, activeDirectorySection, logger);
                     break;
                 case AuthenticationSource.Radius:
                     //radius authentication settings
                     LoadRadiusAuthenticationSourceSettings(configuration, appSettings);
                     //active directory membership only settings
-                    LoadActiveDirectoryAuthenticationSourceSettings(configuration, appSettings, activeDirectorySection, false, logger);
+                    LoadActiveDirectoryAuthenticationSourceSettings(configuration, appSettings, activeDirectorySection, logger);
                     break;
                 case AuthenticationSource.AdLds:
                     LoadAdLdsAuthenticationSourceSettings(configuration, appSettings);
                     break;
                 case AuthenticationSource.None:
                     //active directory membership only settings
-                    LoadActiveDirectoryAuthenticationSourceSettings(configuration, appSettings, activeDirectorySection, false, logger);
+                    LoadActiveDirectoryAuthenticationSourceSettings(configuration, appSettings, activeDirectorySection, logger);
                     break;
             }
 
@@ -424,6 +454,20 @@ namespace MultiFactor.Radius.Adapter.Configuration
             if (!string.IsNullOrWhiteSpace(callindStationIdAttr))
             {
                 configuration.CallingStationIdVendorAttribute = callindStationIdAttr;
+            }
+
+            try
+            {
+                configuration.PreAuthnMode = PreAuthnModeDescriptor.Create(appSettings.Settings[Constants.Configuration.PreAuthnMode]?.Value, PreAuthnModeSettings.Default);
+            }
+            catch
+            {
+                throw new Exception($"Configuration error: Can't parse '{Constants.Configuration.PreAuthnMode}' value. Must be one of: {PreAuthnModeDescriptor.DisplayAvailableModes()}");
+            }
+
+            if (configuration.PreAuthnMode.Mode != PreAuthnMode.None && configuration.InvalidCredentialDelay.Min < 2)
+            {
+                throw new Exception($"Configuration error: to enable pre-auth second factor for this client please set 'invalid-credential-delay' min value to 2 or more");
             }
 
             return configuration;
@@ -454,28 +498,18 @@ namespace MultiFactor.Radius.Adapter.Configuration
                 else
                 {
                     throw new Exception($"Configuration error: Can't parse '{Constants.Configuration.BypassSecondFactorPeriod}' value");
-
                 }
             }
         }
 
-        private static void LoadActiveDirectoryAuthenticationSourceSettings(ClientConfiguration configuration, AppSettingsSection appSettings, ActiveDirectorySection activeDirectorySection, bool mandatory, ILogger logger)
+        private static void LoadActiveDirectoryAuthenticationSourceSettings(ClientConfiguration configuration, AppSettingsSection appSettings, ActiveDirectorySection activeDirectorySection, ILogger logger)
         {
-            var activeDirectoryDomainSetting = appSettings.Settings["active-directory-domain"]?.Value;
-            var activeDirectoryGroupSetting = appSettings.Settings["active-directory-group"]?.Value;
-            var activeDirectory2FaGroupSetting = appSettings.Settings["active-directory-2fa-group"]?.Value;
-            var activeDirectory2FaBypassGroupSetting = appSettings.Settings["active-directory-2fa-bypass-group"]?.Value;
             var useActiveDirectoryUserPhoneSetting = appSettings.Settings["use-active-directory-user-phone"]?.Value;
             var useActiveDirectoryMobileUserPhoneSetting = appSettings.Settings["use-active-directory-mobile-user-phone"]?.Value;
             var phoneAttributes = appSettings.Settings["phone-attribute"]?.Value;
             var loadActiveDirectoryNestedGroupsSettings = appSettings.Settings["load-active-directory-nested-groups"]?.Value;
             var useUpnAsIdentitySetting = appSettings.Settings["use-upn-as-identity"]?.Value;
             var twoFAIdentityAttribyteSetting = appSettings.Settings["use-attribute-as-identity"]?.Value;
-
-            if (mandatory && string.IsNullOrEmpty(activeDirectoryDomainSetting))
-            {
-                throw new Exception("Configuration error: 'active-directory-domain' element not found");
-            }
 
             //legacy settings for general phone attribute usage
             if (bool.TryParse(useActiveDirectoryUserPhoneSetting, out var useActiveDirectoryUserPhone))
@@ -511,22 +545,7 @@ namespace MultiFactor.Radius.Adapter.Configuration
                 configuration.LoadActiveDirectoryNestedGroups = loadActiveDirectoryNestedGroups;
             }
 
-            configuration.ActiveDirectoryDomain = activeDirectoryDomainSetting;
-
-            if (!string.IsNullOrEmpty(activeDirectoryGroupSetting))
-            {
-                configuration.ActiveDirectoryGroup = activeDirectoryGroupSetting.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
-            }
-
-            if (!string.IsNullOrEmpty(activeDirectory2FaGroupSetting))
-            {
-                configuration.ActiveDirectory2FaGroup = activeDirectory2FaGroupSetting.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
-            }
-
-            if (!string.IsNullOrEmpty(activeDirectory2FaBypassGroupSetting))
-            {
-                configuration.ActiveDirectory2FaBypassGroup = activeDirectory2FaBypassGroupSetting.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
-            }
+            SetActiveDirectorySettings(appSettings, configuration);
 
             // MUST be before 'use-upn-as-identity' check
             if (!string.IsNullOrEmpty(twoFAIdentityAttribyteSetting))
@@ -544,7 +563,6 @@ namespace MultiFactor.Radius.Adapter.Configuration
                 configuration.TwoFAIdentityAttribyte = "userPrincipalName";
             }
 
-            
             if (activeDirectorySection != null)
             {
                 var includedDomains = (from object value in activeDirectorySection.IncludedDomains
@@ -560,6 +578,50 @@ namespace MultiFactor.Radius.Adapter.Configuration
                 configuration.IncludedDomains = includedDomains;
                 configuration.ExcludedDomains = excludeddDomains;
                 configuration.RequiresUpn = activeDirectorySection.RequiresUpn;
+            }
+        }
+
+        private static void SetActiveDirectorySettings(AppSettingsSection appSettings, ClientConfiguration configuration)
+        {
+            var activeDirectoryDomainSetting = appSettings.Settings["active-directory-domain"]?.Value;
+
+            var activeDirectoryGroupSetting = appSettings.Settings["active-directory-group"]?.Value;
+            var activeDirectory2FaGroupSetting = appSettings.Settings["active-directory-2fa-group"]?.Value;
+            var activeDirectory2FaBypassGroupSetting = appSettings.Settings["active-directory-2fa-bypass-group"]?.Value;
+
+            if (configuration.FirstFactorAuthenticationSource == AuthenticationSource.ActiveDirectory)
+            {
+                ValidateDomainSettings(activeDirectoryDomainSetting);
+            }
+
+            configuration.ActiveDirectoryDomain = activeDirectoryDomainSetting;
+
+            if (!string.IsNullOrEmpty(activeDirectoryGroupSetting))
+            {
+                configuration.ActiveDirectoryGroup = activeDirectoryGroupSetting.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries).Distinct().ToArray();
+            }
+
+            if (!string.IsNullOrEmpty(activeDirectory2FaGroupSetting))
+            {
+                configuration.ActiveDirectory2FaGroup = activeDirectory2FaGroupSetting.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries).Distinct().ToArray();
+            }
+
+            if (!string.IsNullOrEmpty(activeDirectory2FaBypassGroupSetting))
+            {
+                configuration.ActiveDirectory2FaBypassGroup = activeDirectory2FaBypassGroupSetting.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries).Distinct().ToArray();
+            }
+
+            if (configuration.ActiveDirectoryGroup.Length != 0 || configuration.ActiveDirectory2FaGroup.Length != 0 || configuration.ActiveDirectory2FaBypassGroup.Length != 0)
+            {
+                ValidateDomainSettings(activeDirectoryDomainSetting);
+            }
+        }
+
+        private static void ValidateDomainSettings(string activeDirectoryDomainSetting)
+        {
+            if (string.IsNullOrEmpty(activeDirectoryDomainSetting))
+            {
+                throw new Exception("Configuration error: 'active-directory-domain' element not found");
             }
         }
 

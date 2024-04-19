@@ -2,6 +2,7 @@
 //Please see licence at 
 //https://github.com/MultifactorLab/MultiFactor.Radius.Adapter/blob/master/LICENSE.md
 
+using MultiFactor.Radius.Adapter.Configuration.Features.PreAuthnModeFeature;
 using MultiFactor.Radius.Adapter.Configuration.Features.PrivacyModeFeature;
 using MultiFactor.Radius.Adapter.Server;
 using System;
@@ -55,6 +56,8 @@ namespace MultiFactor.Radius.Adapter.Configuration
         public PrivacyModeDescriptor PrivacyMode { get; set; }
 
         public string TwoFAIdentityAttribyte { get; set; }
+
+        public PreAuthnModeDescriptor PreAuthnMode { get; set; }
 
         #region ActiveDirectory Authentication settings
 
@@ -224,5 +227,10 @@ namespace MultiFactor.Radius.Adapter.Configuration
         public AuthenticatedClientCacheConfig AuthenticationCacheLifetime { get; internal set; }
 
         public string CallingStationIdVendorAttribute { get; internal set; }
+
+        /// <summary>
+        /// Overrides the root-level config.
+        /// </summary>
+        public RandomWaiterConfig InvalidCredentialDelay { get; internal set; }
     }
 }

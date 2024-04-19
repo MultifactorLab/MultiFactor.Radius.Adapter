@@ -27,81 +27,58 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
 
         public LdapProfile LoadProfile(ClientConfiguration clientConfig, LdapConnection connection, LdapIdentity domain, LdapIdentity user)
         {
-            var profile = new LdapProfile();
-
-            var queryAttributes = new List<string> { "DistinguishedName", "displayName", "mail", "memberOf", "userPrincipalName" };
-
-            if (clientConfig.UseIdentityAttribute && !queryAttributes.Contains(clientConfig.TwoFAIdentityAttribyte))
-            {
-                queryAttributes.Add(clientConfig.TwoFAIdentityAttribyte);
-            }
-
-            var ldapReplyAttributes = clientConfig.GetLdapReplyAttributes();
-            foreach (var ldapReplyAttribute in ldapReplyAttributes)
-            {
-                if (!profile.LdapAttrs.ContainsKey(ldapReplyAttribute))
-                {
-                    profile.LdapAttrs.Add(ldapReplyAttribute, null);
-                    queryAttributes.Add(ldapReplyAttribute);
-                }
-            }
-            queryAttributes.AddRange(clientConfig.PhoneAttributes);
-
             var baseDnList = GetBaseDnList(user, domain);
             var connAdapter = new LdapConnectionAdapter(connection, _logger);
-            var result = FindUser(user, baseDnList, connAdapter, queryAttributes.ToArray());
+            var queryAttributes = GetQueryAttributes(clientConfig);
+
+            var result = FindUser(user, baseDnList, connAdapter, queryAttributes);
             if (result == null)
             {
-                _logger.Error($"Unable to find user '{{user:l}}' in {string.Join(", ", baseDnList.Select(x => $"({x})"))}", user.Name);
+                _logger.Error("Unable to find user '{User:l}' in {BaseDnList:l}", user, string.Join(", ", baseDnList.Select(x => $"({x})")));
                 return null;
             }
 
             //base profile
-            profile.BaseDn = LdapIdentity.BaseDn(result.Entry.DistinguishedName);
-            profile.DistinguishedName = result.Entry.DistinguishedName;
-            profile.DisplayName = result.Entry.Attributes["displayName"]?[0]?.ToString();
-            profile.Email = result.Entry.Attributes["mail"]?[0]?.ToString();
-            profile.Upn = result.Entry.Attributes["userPrincipalName"]?[0]?.ToString();
-            profile.SecondFactorIdentity = clientConfig.UseIdentityAttribute ? result.Entry.Attributes[clientConfig.TwoFAIdentityAttribyte]?[0]?.ToString() : null;
+            var profileAttributes = new LdapAttributes();
+            var profile = new LdapProfile(LdapIdentity.BaseDn(result.Entry.DistinguishedName), profileAttributes, clientConfig.PhoneAttributes);
 
-            //additional attributes for radius response
-            foreach (var key in profile.LdapAttrs.Keys.ToList()) //to list to avoid collection was modified exception
+            foreach (var attr in queryAttributes.Where(x => !x.Equals("memberof", StringComparison.OrdinalIgnoreCase)))
             {
-                if (result.Entry.Attributes.Contains(key))
-                {
-                    profile.LdapAttrs[key] = result.Entry.Attributes[key][0]?.ToString();
-                }
+                var value = result.Entry.Attributes[attr]?.GetValues(typeof(string)).Cast<string>().ToArray() ?? Array.Empty<string>();
+                profileAttributes.Add(attr, value);
             }
 
             //groups
-            var memberOf = result.Entry.Attributes["memberOf"]?.GetValues(typeof(string));
-            if (memberOf != null)
-            {
-                profile.MemberOf = memberOf.Select(dn => LdapIdentity.DnToCn(dn.ToString())).ToList();
-            }
+            var groups = result.Entry.Attributes.Contains("memberOf")
+                ? result.Entry.Attributes["memberOf"].GetValues(typeof(string))
+                : Array.Empty<object>();
 
-            //phone
-            foreach (var phoneAttr in clientConfig.PhoneAttributes)
-            {
-                if (result.Entry.Attributes.Contains(phoneAttr))
-                {
-                    var phone = result.Entry.Attributes[phoneAttr][0]?.ToString();
-                    if (!string.IsNullOrEmpty(phone))
-                    {
-                        profile.Phone = phone;
-                        break;
-                    }
-                }
-            }
+            profileAttributes.Add("memberOf", groups.Cast<string>().Select(LdapIdentity.DnToCn).ToArray());
 
-            _logger.Debug($"User '{{user:l}}' profile loaded: {profile.DistinguishedName} (upn={{upn:l}})", user.Name, profile.Upn);
-
+            _logger.Debug("User '{User:l}' profile loaded: {DistinguishedName:l} (upn={Upn:l})", user, profile.DistinguishedName, profile.Upn);
+            
             //nested groups if configured
-            if (clientConfig.ShouldLoadUserGroups())
+            if (clientConfig.LoadActiveDirectoryNestedGroups && clientConfig.ShouldLoadUserGroups())
             {
-                LoadAllUserGroups(clientConfig, connAdapter, result.BaseDn, profile);
+                LoadAllUserGroups(connAdapter, result.BaseDn, profile.DistinguishedName, profileAttributes);
             }
+
             return profile;
+        }
+
+        private static string[] GetQueryAttributes(ClientConfiguration clientConfig)
+        {
+            var queryAttributes = new List<string> { "DistinguishedName", "displayName", "mail", "memberOf", "userPrincipalName" };
+            if (clientConfig.UseIdentityAttribute)
+            {
+                queryAttributes.Add(clientConfig.TwoFAIdentityAttribyte);
+            }
+
+            //additional attributes for radius response
+            queryAttributes.AddRange(clientConfig.GetLdapReplyAttributes());
+            queryAttributes.AddRange(clientConfig.PhoneAttributes);
+
+            return queryAttributes.Distinct().ToArray();
         }
 
         public Dictionary<string, string[]> LoadAttributes(LdapConnection connection, LdapIdentity domain, LdapIdentity user, params string[] attrs)
@@ -111,7 +88,7 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
             var result = FindUser(user, baseDnList, connAdapter, attrs.ToArray());
             if (result == null)
             {
-                _logger.Error($"Unable to find user '{{user:l}}' in {string.Join(", ", baseDnList.Select(x => $"({x})"))}", user.Name);
+                _logger.Error("Unable to find user '{User:l}' in {BaseDnList:l}", user, string.Join(", ", baseDnList.Select(x => $"({x})")));
                 return new Dictionary<string, string[]>();
             }
 
@@ -177,21 +154,23 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
             return null;
         }
 
-        private void LoadAllUserGroups(ClientConfiguration clientConfig, LdapConnectionAdapter connectionAdapter, LdapIdentity baseDn, LdapProfile profile)
+        private void LoadAllUserGroups(LdapConnectionAdapter connectionAdapter, LdapIdentity baseDn, string dn, LdapAttributes attributes)
         {
-            if (!clientConfig.LoadActiveDirectoryNestedGroups) return;
-
-            var searchFilter = $"(member:1.2.840.113556.1.4.1941:={profile.DistinguishedName})";
+            var searchFilter = $"(member:1.2.840.113556.1.4.1941:={dn})";
             var response = connectionAdapter.Query(baseDn.Name, searchFilter, SearchScope.Subtree, false, "DistinguishedName");
             if (response.Entries.Count == 0)
             {
                 response = connectionAdapter.Query(baseDn.Name, searchFilter, SearchScope.Subtree, true, "DistinguishedName");
             }
 
-            profile.MemberOf = response.Entries
+            var groups = response.Entries
                 .Cast<SearchResultEntry>()
                 .Select(x => LdapIdentity.DnToCn(x.DistinguishedName))
-                .ToList();
+                .Distinct()
+                .ToArray();
+
+            attributes.Remove("MemberOf");
+            attributes.Add("MemberOf", groups);
         }
     }
 }

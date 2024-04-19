@@ -28,7 +28,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
-using System.Security.Cryptography;
 using System.Text;
 
 namespace MultiFactor.Radius.Adapter.Core
@@ -40,23 +39,9 @@ namespace MultiFactor.Radius.Adapter.Core
     {
         private readonly RadiusPacketOptions _options = new RadiusPacketOptions();
 
-        public PacketCode Code
-        {
-            get;
-            internal set;
-        }
-        public Byte Identifier
-        {
-            get;
-            set;
-        }
-        public Byte[] Authenticator { get; set; } = new Byte[16];
+        public RadiusPacketHeader Header { get; }
+
         public IDictionary<String, List<Object>> Attributes { get; set; }  = new Dictionary<string, List<object>>();
-        public Byte[] SharedSecret
-        {
-            get;
-            internal set;
-        }
         public Byte[] RequestAuthenticator
         {
             get;
@@ -69,7 +54,7 @@ namespace MultiFactor.Radius.Adapter.Core
         {
             get
             {
-                return Code == PacketCode.AccessChallenge && AuthenticationType == AuthenticationType.EAP;
+                return Header.Code == PacketCode.AccessChallenge && AuthenticationType == AuthenticationType.EAP;
             }
         }
         /// <summary>
@@ -172,54 +157,30 @@ namespace MultiFactor.Radius.Adapter.Core
         }
 
 
-        internal RadiusPacket()
+        public RadiusPacket(RadiusPacketHeader id)
         {
+            Header = id ?? throw new ArgumentNullException(nameof(id));
         }
-
-
-        /// <summary>
-        /// Create a new packet with a random authenticator
-        /// </summary>
-        /// <param name="code"></param>
-        /// <param name="identifier"></param>
-        /// <param name="secret"></param>
-        public RadiusPacket(PacketCode code, Byte identifier, String secret)
-        {
-            Code = code;
-            Identifier = identifier;
-            SharedSecret = Encoding.UTF8.GetBytes(secret);
-
-            // Generate random authenticator for access request packets
-            if (Code == PacketCode.AccessRequest || Code == PacketCode.StatusServer)
-            {
-                using (var csp = RandomNumberGenerator.Create())
-                {
-                    csp.GetNonZeroBytes(Authenticator);
-                }
-            }
-
-            // A Message authenticator is required in status server packets, calculated last
-            if (Code == PacketCode.StatusServer)
-            {
-                AddAttribute("Message-Authenticator", new Byte[16]);
-            }
-        }
-
 
         /// <summary>
         /// Creates a response packet with code, authenticator, identifier and secret from the request packet.
         /// </summary>
-        /// <param name="responseCode"></param>
-        /// <returns></returns>
+        /// <param name="responseCode">New code.</param>
         public IRadiusPacket CreateResponsePacket(PacketCode responseCode)
         {
-            return new RadiusPacket
+            var id = RadiusPacketHeader.Create(responseCode, Header.Identifier, Header.SharedSecret);
+            var packet = new RadiusPacket(id)
             {
-                Code = responseCode,
-                SharedSecret = SharedSecret,
-                Identifier = Identifier,
-                RequestAuthenticator = Authenticator
+                RequestAuthenticator = Header.Authenticator
             };
+
+            // A Message authenticator is required in status server and access packets, calculated last
+            if (Header.Code == PacketCode.AccessRequest || Header.Code == PacketCode.StatusServer)
+            {
+                packet.AddAttribute("Message-Authenticator", new byte[16]);
+            }
+
+            return packet;
         }
 
         public void Configure(Action<RadiusPacketOptions> configure)
@@ -247,41 +208,28 @@ namespace MultiFactor.Radius.Adapter.Core
         /// </summary>
         public string GetString(string name)
         {
-            if (Attributes.ContainsKey(name))
+            if (!Attributes.ContainsKey(name))
             {
-                var value = Attributes[name].Single();
-
-                if (value != null)
-                {
-                    switch (value)
-                    {
-                        case byte[] _value:
-                            return Encoding.UTF8.GetString(_value);
-                        case string _value:
-                            return _value;
-                        default:
-                            return value.ToString();
-                    }
-                }
+                return null;
             }
 
-            return null;
-        }
-
-
-        /// <summary>
-        /// Gets multiple attribute values with the same name cast to type
-        /// </summary>
-        /// <typeparam name="T"></typeparam>
-        /// <param name="name"></param>
-        /// <returns></returns>
-        public List<T> GetAttributes<T>(String name)
-        {
-            if (Attributes.ContainsKey(name))
+            var value = Attributes[name].Single();
+            if (value == null)
             {
-                return Attributes[name].Cast<T>().ToList();
+                return null;
             }
-            return new List<T>();
+
+            switch (value)
+            {
+                case byte[] _value:
+                    return Encoding.UTF8.GetString(_value);
+
+                case string _value:
+                    return _value;
+
+                default:
+                    return value.ToString();
+            }
         }
 
         public void CopyTo(IRadiusPacket packet)
@@ -318,8 +266,8 @@ namespace MultiFactor.Radius.Adapter.Core
 
         public string CreateUniqueKey(IPEndPoint remoteEndpoint)
         {
-            var base64Authenticator = Authenticator.Base64();
-            return $"{Code.ToString("d")}:{Identifier}:{remoteEndpoint}:{UserName}:{base64Authenticator}";
+            var base64Authenticator = Header.Authenticator.Base64();
+            return $"{Header.Code.ToString("d")}:{Header.Identifier}:{remoteEndpoint}:{UserName}:{base64Authenticator}";
         }
 
         private string GetCallingStationId()
@@ -331,6 +279,17 @@ namespace MultiFactor.Radius.Adapter.Core
                     ?? RemoteHostName;
             }
             return GetString("Calling-Station-Id") ?? RemoteHostName;
+        }
+
+        public object Clone()
+        {
+            var packet = new RadiusPacket(Header)
+            {
+                Attributes = Attributes,
+                RequestAuthenticator = RequestAuthenticator
+            };
+
+            return packet;
         }
     }
 }

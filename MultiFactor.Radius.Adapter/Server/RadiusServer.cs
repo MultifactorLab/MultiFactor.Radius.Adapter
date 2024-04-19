@@ -30,7 +30,6 @@ using System.Net;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Net.Sockets;
 using MultiFactor.Radius.Adapter.Services;
 using System.Globalization;
 using System.Collections.Generic;
@@ -41,7 +40,9 @@ namespace MultiFactor.Radius.Adapter.Server
 {
     public sealed class RadiusServer : IDisposable
     {
-        private UdpClient _server;
+        private IUdpClient _server;
+        private IRadiusResponseSender _responseSender;
+
         private readonly IPEndPoint _localEndpoint;
         private readonly IRadiusPacketParser _radiusPacketParser;
         private readonly IRadiusDictionary _dictionary;
@@ -50,7 +51,8 @@ namespace MultiFactor.Radius.Adapter.Server
         private readonly ServiceConfiguration _serviceConfiguration;
         private readonly CacheService _cacheService;
         private readonly RadiusRouter _radiusRouter;
-        private readonly RandomWaiter _waiter;
+
+        private readonly Func<IPEndPoint, IUdpClient> _createUdpClient;
 
         public bool Running
         {
@@ -66,7 +68,9 @@ namespace MultiFactor.Radius.Adapter.Server
             IRadiusPacketParser radiusPacketParser,
             CacheService cacheService,
             RadiusRouter radiusRouter,
-            RandomWaiter waiter,
+            // need for tests only
+            Func<IPEndPoint, IUdpClient> createUdpClient,
+            IRadiusResponseSender responseSender,
             ILogger logger)
         {
             _serviceConfiguration = serviceConfiguration ?? throw new ArgumentNullException(nameof(serviceConfiguration));
@@ -74,7 +78,8 @@ namespace MultiFactor.Radius.Adapter.Server
             _radiusPacketParser = radiusPacketParser ?? throw new ArgumentNullException(nameof(radiusPacketParser));
             _cacheService = cacheService ?? throw new ArgumentNullException(nameof(cacheService));
             _radiusRouter = radiusRouter ?? throw new ArgumentNullException(nameof(radiusRouter));
-            _waiter = waiter ?? throw new ArgumentNullException(nameof(waiter));
+            _createUdpClient = createUdpClient;
+            _responseSender = responseSender;
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
             _localEndpoint = serviceConfiguration.ServiceServerEndpoint;
@@ -89,7 +94,8 @@ namespace MultiFactor.Radius.Adapter.Server
             {
                 _logger.Information("Starting Radius server on {host:l}:{port}", _localEndpoint.Address, _localEndpoint.Port);
                
-                _server = new UdpClient(_localEndpoint);
+                _server = _createUdpClient(_localEndpoint);
+
                 Running = true;
                 var receiveTask = Receive();
 
@@ -160,7 +166,7 @@ namespace MultiFactor.Radius.Adapter.Server
             }
             catch (Exception ex) when (ex is ArgumentException || ex is OverflowException)
             {
-                _logger.Warning("Ignoring malformed(?) packet received from {host}:{port}, message: {msg:l}", remoteEndpoint.Address, remoteEndpoint.Port, ex.Message);
+                _logger.Warning(ex, "Ignoring malformed(?) packet received from {host}:{port}, message: {msg:l}", remoteEndpoint.Address, remoteEndpoint.Port, ex.Message);
             }
             catch (Exception ex)
             {
@@ -203,7 +209,7 @@ namespace MultiFactor.Radius.Adapter.Server
             }
 
             var requestPacket = _radiusPacketParser.Parse(packetBytes, 
-                Encoding.UTF8.GetBytes(clientConfiguration.RadiusSharedSecret), 
+                new SharedSecret(clientConfiguration.RadiusSharedSecret), 
                 encodingName: clientConfiguration.RadiusPapEncoding,
                 configure: x => x.CallingStationIdAttribute = clientConfiguration.CallingStationIdVendorAttribute);
             var requestScope = new RequestScope(clientConfiguration, remoteEndpoint, proxyEndpoint, requestPacket);
@@ -219,70 +225,62 @@ namespace MultiFactor.Radius.Adapter.Server
                 _logger.Debug("Retransmissed request from {host:l}:{port} id={id} client '{client:l}', ignoring", 
                     requestScope.RemoteEndpoint.Address, 
                     requestScope.RemoteEndpoint.Port, 
-                    requestScope.Packet.Identifier, 
+                    requestScope.Packet.Header.Identifier, 
                     requestScope.ClientConfiguration.Name);
                 return;
             }
 
             if (requestScope.ProxyEndpoint != null)
             {
-                if (requestScope.Packet.Code == PacketCode.StatusServer)
+                if (requestScope.Packet.Header.Code == PacketCode.StatusServer)
                 {
                     _logger.Information("Received {code:l} from {host:l}:{port} proxied by {proxyhost:l}:{proxyport} id={id} client '{client:l}'",  
-                        requestScope.Packet.Code.ToString(), 
+                        requestScope.Packet.Header.Code.ToString(), 
                         requestScope.RemoteEndpoint.Address, 
                         requestScope.RemoteEndpoint.Port, 
                         requestScope.ProxyEndpoint.Address, 
                         requestScope.ProxyEndpoint.Port, 
-                        requestScope.Packet.Identifier, 
+                        requestScope.Packet.Header.Identifier, 
                         requestScope.ClientConfiguration.Name);
                 }
                 else
                 {
                     _logger.Information("Received {code:l} from {host:l}:{port} proxied by {proxyhost:l}:{proxyport} id={id} user='{user:l}' client '{client:l}'", 
-                        requestScope.Packet.Code.ToString(), 
+                        requestScope.Packet.Header.Code.ToString(), 
                         requestScope.RemoteEndpoint.Address, 
                         requestScope.RemoteEndpoint.Port, 
                         requestScope.ProxyEndpoint.Address, 
                         requestScope.ProxyEndpoint.Port, 
-                        requestScope.Packet.Identifier, 
+                        requestScope.Packet.Header.Identifier, 
                         requestScope.Packet.UserName, 
                         requestScope.ClientConfiguration.Name);
                 }
             }
             else
             {
-                if (requestScope.Packet.Code == PacketCode.StatusServer)
+                if (requestScope.Packet.Header.Code == PacketCode.StatusServer)
                 {
                     _logger.Debug("Received {code:l} from {host:l}:{port} id={id} client '{client:l}'", 
-                        requestScope.Packet.Code.ToString(), 
+                        requestScope.Packet.Header.Code.ToString(), 
                         requestScope.RemoteEndpoint.Address, 
                         requestScope.RemoteEndpoint.Port, 
-                        requestScope.Packet.Identifier, 
+                        requestScope.Packet.Header.Identifier, 
                         requestScope.ClientConfiguration.Name);
                 }
                 else
                 {
                     _logger.Information("Received {code:l} from {host:l}:{port} id={id} user='{user:l}' client '{client:l}'", 
-                        requestScope.Packet.Code.ToString(), 
+                        requestScope.Packet.Header.Code.ToString(), 
                         requestScope.RemoteEndpoint.Address, 
                         requestScope.RemoteEndpoint.Port, 
-                        requestScope.Packet.Identifier, 
+                        requestScope.Packet.Header.Identifier, 
                         requestScope.Packet.UserName, 
                         requestScope.ClientConfiguration.Name);
                 }
             }
 
-
-            var request = new PendingRequest 
-            { 
-                RemoteEndpoint = requestScope.RemoteEndpoint, 
-                ProxyEndpoint = requestScope.ProxyEndpoint, 
-                RequestPacket = requestScope.Packet, 
-                UserName = requestScope.Packet.UserName
-            };
-
-            Task.Run(async () => await _radiusRouter.HandleRequest(request, requestScope.ClientConfiguration));
+            var request = requestScope.CreatePendingRequest();
+            Task.Run(async () => await _radiusRouter.HandleRequest(request));
         }
 
         /// <summary>
@@ -290,31 +288,29 @@ namespace MultiFactor.Radius.Adapter.Server
         /// </summary>
         private void Send(IRadiusPacket responsePacket, string user, IPEndPoint remoteEndpoint, IPEndPoint proxyEndpoint, bool debugLog)
         {
-            var responseBytes = _radiusPacketParser.GetBytes(responsePacket);
-            _server.Send(responseBytes, responseBytes.Length, proxyEndpoint ?? remoteEndpoint);
+            _responseSender.Send(_server, responsePacket, proxyEndpoint ?? remoteEndpoint);
 
             if (proxyEndpoint != null)
             {
                 if (debugLog)
                 {
-                    _logger.Debug("{code:l} sent to {host:l}:{port} via {proxyhost:l}:{proxyport} id={id}", responsePacket.Code.ToString(), remoteEndpoint.Address, remoteEndpoint.Port, proxyEndpoint.Address, proxyEndpoint.Port, responsePacket.Identifier);
+                    _logger.Debug("{code:l} sent to {host:l}:{port} via {proxyhost:l}:{proxyport} id={id}", responsePacket.Header.Code.ToString(), remoteEndpoint.Address, remoteEndpoint.Port, proxyEndpoint.Address, proxyEndpoint.Port, responsePacket.Header.Identifier);
                 }
                 else
                 {
-                    _logger.Information("{code:l} sent to {host:l}:{port} via {proxyhost:l}:{proxyport} id={id} user='{user:l}'", responsePacket.Code.ToString(), remoteEndpoint.Address, remoteEndpoint.Port, proxyEndpoint.Address, proxyEndpoint.Port, responsePacket.Identifier, user);
+                    _logger.Information("{code:l} sent to {host:l}:{port} via {proxyhost:l}:{proxyport} id={id} user='{user:l}'", responsePacket.Header.Code.ToString(), remoteEndpoint.Address, remoteEndpoint.Port, proxyEndpoint.Address, proxyEndpoint.Port, responsePacket.Header.Identifier, user);
                 }
+
+                return;
             }
-            else
+               
+            if (debugLog)
             {
-                if (debugLog)
-                {
-                    _logger.Debug("{code:l} sent to {host:l}:{port} id={id}", responsePacket.Code.ToString(), remoteEndpoint.Address, remoteEndpoint.Port, responsePacket.Identifier);
-                }
-                else
-                {
-                    _logger.Information("{code:l} sent to {host:l}:{port} id={id} user='{user:l}'", responsePacket.Code.ToString(), remoteEndpoint.Address, remoteEndpoint.Port, responsePacket.Identifier, user);
-                }
+                _logger.Debug("{code:l} sent to {host:l}:{port} id={id}", responsePacket.Header.Code.ToString(), remoteEndpoint.Address, remoteEndpoint.Port, responsePacket.Header.Identifier);
+                return;
             }
+                  
+            _logger.Information("{code:l} sent to {host:l}:{port} id={id} user='{user:l}'", responsePacket.Header.Code.ToString(), remoteEndpoint.Address, remoteEndpoint.Port, responsePacket.Header.Identifier, user); 
         }
 
         private async void RouterRequestProcessed(object sender, PendingRequest request)
@@ -322,7 +318,7 @@ namespace MultiFactor.Radius.Adapter.Server
             if (request.ResponsePacket?.IsEapMessageChallenge == true)
             {
                 //EAP authentication in process, just proxy response
-                _logger.Debug("Proxying EAP-Message Challenge to {host:l}:{port} id={id}", request.RemoteEndpoint.Address, request.RemoteEndpoint.Port, request.RequestPacket.Identifier);
+                _logger.Debug("Proxying EAP-Message Challenge to {host:l}:{port} id={id}", request.RemoteEndpoint.Address, request.RemoteEndpoint.Port, request.RequestPacket.Header.Identifier);
                 Send(request.ResponsePacket, request.RequestPacket?.UserName, request.RemoteEndpoint, request.ProxyEndpoint, true);
 
                 return; //stop processing
@@ -331,7 +327,7 @@ namespace MultiFactor.Radius.Adapter.Server
             if (request.RequestPacket.IsVendorAclRequest == true && request.ResponsePacket != null)
             {
                 //ACL and other rules transfer, just proxy response
-                _logger.Debug("Proxying #ACSACL# to {host:l}:{port} id={id}", request.RemoteEndpoint.Address, request.RemoteEndpoint.Port, request.RequestPacket.Identifier);
+                _logger.Debug("Proxying #ACSACL# to {host:l}:{port} id={id}", request.RemoteEndpoint.Address, request.RemoteEndpoint.Port, request.RequestPacket.Header.Identifier);
                 Send(request.ResponsePacket, request.RequestPacket?.UserName, request.RemoteEndpoint, request.ProxyEndpoint, true);
 
                 return; //stop processing
@@ -347,11 +343,12 @@ namespace MultiFactor.Radius.Adapter.Server
                     {
                         request.ResponsePacket.CopyTo(responsePacket);
                     }
-                    if (request.RequestPacket.Code == PacketCode.StatusServer)
+                    if (request.RequestPacket.Header.Code == PacketCode.StatusServer)
                     {
                         responsePacket.AddAttribute("Reply-Message", request.ReplyMessage);
                     }
 
+                    // TODO maybe request.Configuration instead of .GetClient()?
                     var clientConfiguration = _serviceConfiguration.GetClient(request);
 
                     if (request.ResponseCode == PacketCode.AccessAccept)
@@ -368,12 +365,12 @@ namespace MultiFactor.Radius.Adapter.Server
                 case PacketCode.AccessReject:
                     if (request.ResponsePacket != null) //copy from remote radius reply
                     {
-                        if (request.ResponsePacket.Code == PacketCode.AccessReject) //for mschap pwd change only
+                        if (request.ResponsePacket.Header.Code == PacketCode.AccessReject) //for mschap pwd change only
                         {
                             request.ResponsePacket.CopyTo(responsePacket);
                         }
                     }
-                    await _waiter.WaitSomeTimeAsync();
+                    await new RandomWaiter(request.Configuration.InvalidCredentialDelay).WaitSomeTimeAsync();
                     break;
                 default:
                     throw new NotImplementedException(request.ResponseCode.ToString());
@@ -388,7 +385,7 @@ namespace MultiFactor.Radius.Adapter.Server
                 }
             }
 
-            var debugLog = request.RequestPacket.Code == PacketCode.StatusServer;
+            var debugLog = request.RequestPacket.Header.Code == PacketCode.StatusServer;
             Send(responsePacket, request.RequestPacket?.UserName, request.RemoteEndpoint, request.ProxyEndpoint, debugLog);
         }
 

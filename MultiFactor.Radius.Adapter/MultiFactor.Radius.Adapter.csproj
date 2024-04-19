@@ -23,7 +23,7 @@
     <UpdatePeriodically>false</UpdatePeriodically>
     <UpdateRequired>false</UpdateRequired>
     <MapFileExtensions>true</MapFileExtensions>
-    <ApplicationRevision>2</ApplicationRevision>
+    <ApplicationRevision>3</ApplicationRevision>
     <ApplicationVersion>1.0.0.%2a</ApplicationVersion>
     <UseApplicationTrust>false</UseApplicationTrust>
     <PublishWizardCompleted>true</PublishWizardCompleted>
@@ -58,7 +58,7 @@
     <ManifestKeyFile>MultiFactor.Radius.Adapter_TemporaryKey.pfx</ManifestKeyFile>
   </PropertyGroup>
   <PropertyGroup>
-    <GenerateManifests>false</GenerateManifests>
+    <GenerateManifests>true</GenerateManifests>
   </PropertyGroup>
   <PropertyGroup>
     <SignManifests>false</SignManifests>
@@ -199,6 +199,9 @@
     <Compile Include="Configuration\AuthenticatedClientCacheConfig.cs" />
     <Compile Include="Configuration\AuthenticationSource.cs" />
     <Compile Include="Configuration\ClientConfiguration.cs" />
+    <Compile Include="Configuration\Features\PreAuthnModeFeature\PreAuthnMode.cs" />
+    <Compile Include="Configuration\Features\PreAuthnModeFeature\PreAuthnModeDescriptor.cs" />
+    <Compile Include="Configuration\Features\PreAuthnModeFeature\PreAuthnModeSettings.cs" />
     <Compile Include="Configuration\Features\PrivacyModeFeature\PrivacyMode.cs" />
     <Compile Include="Configuration\Features\PrivacyModeFeature\PrivacyModeDescriptor.cs" />
     <Compile Include="Configuration\RadiusReplyAttributeElement.cs" />
@@ -212,8 +215,21 @@
     <Compile Include="Configuration\ValueElement.cs" />
     <Compile Include="Configuration\ValueElementCollection.cs" />
     <Compile Include="Core\Constants.cs" />
+    <Compile Include="Configuration\DefaultRootConfigurationProvider.cs" />
+    <Compile Include="Configuration\DefaultClientConfigurationsProvider.cs" />
+    <Compile Include="Configuration\DefaultApplicationPath.cs" />
     <Compile Include="Core\Http\WebProxyFactory.cs" />
+    <Compile Include="Core\IApplicationPath.cs" />
+    <Compile Include="Core\IClientConfigurationsProvider.cs" />
+    <Compile Include="Core\IRootConfigurationProvider.cs" />
+    <Compile Include="Core\IUdpClient.cs" />
+    <Compile Include="Core\PassedLineArguments.cs" />
+    <Compile Include="Core\RadiusField.cs" />
+    <Compile Include="Core\RadiusPacketHeader.cs" />
+    <Compile Include="Core\RadiusFieldOffsets.cs" />
     <Compile Include="Core\RadiusPacketOptions.cs" />
+    <Compile Include="Core\RealUdpClient.cs" />
+    <Compile Include="Core\SharedSecret.cs" />
     <Compile Include="Extensions\LoggerConfigurationExtensions.cs" />
     <Compile Include="Extensions\LoggingLevelSwitchExtensions.cs" />
     <Compile Include="Extensions\SearchResponseExtensions.cs" />
@@ -225,7 +241,24 @@
     <Compile Include="Core\RadiusPacketNasIdentifierParser.cs" />
     <Compile Include="Logging\Enrichers\RadiusPacketLogEventEnricher.cs" />
     <Compile Include="Logging\LoggerScope.cs" />
+    <Compile Include="Server\AuthenticationCode.cs" />
+    <Compile Include="Server\AuthenticationState.cs" />
+    <Compile Include="Core\IRadiusResponseSender.cs" />
+    <Compile Include="Server\RealRadiusResponseSender.cs" />
+    <Compile Include="Server\UserPassphrase.cs" />
+    <Compile Include="Services\Ldap\ILdapAttributes.cs" />
+    <Compile Include="Services\Ldap\LdapAttributes.cs" />
+    <Compile Include="Services\Ldap\LdapConnectionFactory.cs" />
+    <Compile Include="Services\MultiFactorApi\ApiAuthHeaderValue.cs" />
+    <Compile Include="Services\MultiFactorApi\Dto\CapabilitiesDto.cs" />
+    <Compile Include="Services\MultiFactorApi\Dto\ChallengeDto.cs" />
+    <Compile Include="Services\MultiFactorApi\Models\ChallengeResponse.cs" />
+    <Compile Include="Services\MultiFactorApi\Dto\CreateRequestDto.cs" />
+    <Compile Include="Services\MultiFactorApi\Dto\GroupPolicyPresetDto.cs" />
+    <Compile Include="Services\MultiFactorApi\Models\SecondFactorResponse.cs" />
     <Compile Include="Services\MultiFactorApi\MfTraceIdHeaderSetter.cs" />
+    <Compile Include="Services\MultiFactorApi\MultifactorApiAdapter.cs" />
+    <Compile Include="Services\MultiFactorApi\MultifactorApiClient.cs" />
     <Compile Include="Services\NetbiosService.cs" />
     <Compile Include="Server\RequestScope.cs" />
     <Compile Include="Services\ActiveDirectory\LdapErrorFlag.cs" />
@@ -242,7 +275,7 @@
     <Compile Include="Server\FirstAuthFactorProcessing\ActiveDirectoryFirstAuthFactorProcessor.cs" />
     <Compile Include="Services\ActiveDirectory\MembershipVerification\ActiveDirectoryMembershipVerifier.cs" />
     <Compile Include="Server\FirstAuthFactorProcessing\AdLdsFirstAuthFactorProcessor.cs" />
-    <Compile Include="Server\FirstAuthFactorProcessing\DefaultFirstAuthFactorProcessor.cs" />
+    <Compile Include="Server\FirstAuthFactorProcessing\AnonymousProcessor.cs" />
     <Compile Include="Core\IFirstAuthFactorProcessor.cs" />
     <Compile Include="Server\FirstAuthFactorProcessing\FirstAuthFactorProcessorProvider.cs" />
     <Compile Include="Services\ActiveDirectory\MembershipVerification\MembershipVerificationResultHandler.cs" />
@@ -275,8 +308,7 @@
     <Compile Include="Services\Ldap\LdapProfile.cs" />
     <Compile Include="Services\Ldap\ProfileLoader.cs" />
     <Compile Include="Services\MultiFactorApi\Literals.cs" />
-    <Compile Include="Services\MultiFactorApi\MultiFactorAccessRequest.cs" />
-    <Compile Include="Services\MultiFactorApi\MultiFactorApiClient.cs" />
+    <Compile Include="Services\MultiFactorApi\Dto\AccessRequestDto.cs" />
     <Compile Include="Server\RadiusReplyAttributeValue.cs" />
     <Compile Include="Services\ActiveDirectory\ActiveDirectoryService.cs" />
     <Compile Include="ServiceInstaller.cs">
@@ -337,6 +369,7 @@
   <ItemGroup>
     <EmbeddedResource Include="ServiceInstaller.resx">
       <DependentUpon>ServiceInstaller.cs</DependentUpon>
+      <SubType>Designer</SubType>
     </EmbeddedResource>
   </ItemGroup>
   <ItemGroup />

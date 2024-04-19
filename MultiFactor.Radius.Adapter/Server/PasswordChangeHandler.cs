@@ -1,5 +1,4 @@
-﻿using MultiFactor.Radius.Adapter.Configuration;
-using MultiFactor.Radius.Adapter.Core;
+﻿using MultiFactor.Radius.Adapter.Core;
 using MultiFactor.Radius.Adapter.Services;
 using MultiFactor.Radius.Adapter.Services.ActiveDirectory;
 using System;
@@ -32,7 +31,7 @@ namespace MultiFactor.Radius.Adapter.Server
         /// <returns></returns>
         /// <exception cref="ArgumentNullException"></exception>
         /// <remarks>Step 2 and 3 of password change flow.</remarks>
-        public PacketCode TryContinuePasswordChallenge(PendingRequest request, ClientConfiguration clientConfig)
+        public PacketCode TryContinuePasswordChallenge(PendingRequest request)
         {
             if (request == null) throw new ArgumentNullException(nameof(request));
 
@@ -42,8 +41,7 @@ namespace MultiFactor.Radius.Adapter.Server
                 return PacketCode.AccessAccept; //not a password change request, continue authentication
             }
 
-            var newPassword = request.RequestPacket.TryGetUserPassword();
-            if (string.IsNullOrEmpty(newPassword))
+            if (string.IsNullOrEmpty(request.Passphrase.Raw))
             {
                 return PacketCode.AccessReject; //some error
             }
@@ -51,16 +49,16 @@ namespace MultiFactor.Radius.Adapter.Server
             if (passwordChangeRequest.NewPasswordEncryptedData != null)
             {
                 //re-entered new password
-                var decryptedNewPassword = _dataProtectionService.Unprotect(clientConfig, passwordChangeRequest.NewPasswordEncryptedData);
-                if (decryptedNewPassword != newPassword)
+                var decryptedNewPassword = _dataProtectionService.Unprotect(request.Configuration, passwordChangeRequest.NewPasswordEncryptedData);
+                if (decryptedNewPassword != request.Passphrase.Raw)
                 {
                     return PasswordsNotMatchChallenge(request, passwordChangeRequest);
                 }
 
-                var currentPassword = _dataProtectionService.Unprotect(clientConfig, passwordChangeRequest.CurrentPasswordEncryptedData);
+                var currentPassword = _dataProtectionService.Unprotect(request.Configuration, passwordChangeRequest.CurrentPasswordEncryptedData);
                 var activeDirectoryService = _activeDirectoryServices[passwordChangeRequest.Domain];
 
-                if (activeDirectoryService.ChangePassword(clientConfig, request.UserName, currentPassword, newPassword, out var passwordDoesNotMeetRequirements))
+                if (activeDirectoryService.ChangePassword(request, currentPassword, out var passwordDoesNotMeetRequirements))
                 {
                     _cache.Remove(request.RequestPacket.State);
                     return PacketCode.AccessAccept;
@@ -75,7 +73,7 @@ namespace MultiFactor.Radius.Adapter.Server
                 return PacketCode.AccessReject;
             }
 
-            return RepeatPasswordChallenge(request, clientConfig, passwordChangeRequest);
+            return RepeatPasswordChallenge(request, passwordChangeRequest);
         }
 
         /// <summary>
@@ -83,24 +81,19 @@ namespace MultiFactor.Radius.Adapter.Server
         /// </summary>
         /// <returns>AccessChallenge packet code if user must change password; AccessAccept otherwise</returns>
         /// <exception cref="ArgumentNullException"></exception>
-        public PacketCode TryCreatePasswordChallenge(PendingRequest request, ClientConfiguration clientConfig)
+        public void CreatePasswordChallenge(PendingRequest request)
         {
             if (request == null) throw new ArgumentNullException(nameof(request));
 
-            if (!request.MustChangePassword)
-            {
-                return PacketCode.AccessAccept; //not a password change request, continue authentication
-            }
             var passwordChangeRequest = new PasswordChangeRequest
             {
                 Domain = request.MustChangePasswordDomain,
-                CurrentPasswordEncryptedData = _dataProtectionService.Protect(clientConfig, request.RequestPacket.TryGetUserPassword())
+                CurrentPasswordEncryptedData = _dataProtectionService.Protect(request.Configuration, request.Passphrase.Raw)
             };
             _cache.RegisterPasswordChangeRequest(passwordChangeRequest);
 
             request.State = passwordChangeRequest.Id;
             request.ReplyMessage = "Please change password to continue. Enter new password: ";
-            return PacketCode.AccessChallenge;
         }
 
         private PacketCode PasswordsNotMatchChallenge(PendingRequest request, PasswordChangeRequest passwordChangeRequest)
@@ -114,9 +107,9 @@ namespace MultiFactor.Radius.Adapter.Server
             return PacketCode.AccessChallenge;
         }
 
-        private PacketCode RepeatPasswordChallenge(PendingRequest request, ClientConfiguration clientConfig, PasswordChangeRequest passwordChangeRequest)
+        private PacketCode RepeatPasswordChallenge(PendingRequest request, PasswordChangeRequest passwordChangeRequest)
         {
-            passwordChangeRequest.NewPasswordEncryptedData = _dataProtectionService.Protect(clientConfig, request.RequestPacket.TryGetUserPassword());
+            passwordChangeRequest.NewPasswordEncryptedData = _dataProtectionService.Protect(request.Configuration, request.Passphrase.Raw);
 
             _cache.RegisterPasswordChangeRequest(passwordChangeRequest);
 

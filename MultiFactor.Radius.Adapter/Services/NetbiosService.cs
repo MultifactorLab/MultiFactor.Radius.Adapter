@@ -4,17 +4,21 @@ using MultiFactor.Radius.Adapter.Services.Ldap;
 using MultiFactor.Radius.Adapter.Services.Ldap.LdapMetadata;
 using Serilog;
 using System;
-using System.DirectoryServices.Protocols;
 
 namespace MultiFactor.Radius.Adapter.Services
 {
     public class NetbiosService
     {
         private readonly ForestMetadataCache _forestMetadataCache;
+        private readonly LdapConnectionFactory _connectionFactory;
         public readonly ILogger _logger;
-        public NetbiosService(ForestMetadataCache forestMetadataCache, ILogger logger)
+
+        public NetbiosService(ForestMetadataCache forestMetadataCache, 
+            LdapConnectionFactory connectionFactory,
+            ILogger logger)
         {
             _forestMetadataCache = forestMetadataCache;
+            _connectionFactory = connectionFactory;
             _logger = logger;
         }
 
@@ -30,7 +34,7 @@ namespace MultiFactor.Radius.Adapter.Services
 
         private string ResolveDomainByNetBios(ClientConfiguration clientConfig, string fullUserName, string netBiosName, string domain)
         {
-            _logger.Information($"Trying to resolve domain by netbios {netBiosName}, user:{fullUserName}.");
+            _logger.Information("Trying to resolve domain by netbios {Netbios:l}, user: {UserName:l}.", netBiosName, fullUserName);
             try
             {
                 using (var nameTranslator = new NameTranslator(domain, _logger))
@@ -39,42 +43,37 @@ namespace MultiFactor.Radius.Adapter.Services
                     var netBiosDomain = nameTranslator.Translate(fullUserName);
                     if (!string.IsNullOrEmpty(netBiosDomain))
                     {
-                        _logger.Information($"Success find {netBiosDomain} by {fullUserName}");
+                        _logger.Information("Success find {Netbios:l} by {UserName:l}", netBiosDomain, fullUserName);
                         return netBiosDomain;
                     }
                 }
             }
             catch (Exception e)
             {
-                _logger.Warning($"Error during translate netbios name {fullUserName}:\r\n{e.Message}");
+                _logger.Warning(e, "Error during translate netbios name {UserName:l}", fullUserName);
             }
 
             try
             {
                 // in case of failure, try to find a suitable suffix
-                _logger.Information($"Degradation of the domain resolving method for {fullUserName}");
-                using (var connection = new LdapConnection(domain))
+                _logger.Information("Degradation of the domain resolving method for {UserName:l}", fullUserName);
+                using (var connection = _connectionFactory.CreateAsCurrentProcessUser(domain))
                 {
-                    connection.SessionOptions.ProtocolVersion = 3;
-                    connection.SessionOptions.RootDseCache = true;
-                    connection.Bind();
-
                     var dnDomain = LdapIdentity.FqdnToDn(domain);
                     var schema = _forestMetadataCache.Get(
                         clientConfig.Name,
                         dnDomain,
                         () => new ForestSchemaLoader(clientConfig, connection, _logger).Load(dnDomain));
                     var userDomain = schema.FindDomainByNetbiosName(netBiosName);
-                    _logger.Information($"Success find {userDomain} by {fullUserName}");
+                    _logger.Information("Success find {UserDomain:l} by {UserName:l}", userDomain, fullUserName);
                     return userDomain;
                 }
             }
             catch (Exception e)
             {
-                _logger.Warning($"Error during translate netbios name {fullUserName}. Domain can't resolving, the request handling stopped.\r\n{e.Message}\r\n");
+                _logger.Warning(e, "Error during translate netbios name {UserName:l}. Domain can't resolving, the request handling stopped.", fullUserName);
                 throw;
             }
-
         }
     }
 }

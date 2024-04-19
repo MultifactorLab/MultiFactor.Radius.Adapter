@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 16
-VisualStudioVersion = 16.0.29613.14
+# Visual Studio Version 17
+VisualStudioVersion = 17.8.34330.188
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MultiFactor.Radius.Adapter", "MultiFactor.Radius.Adapter\MultiFactor.Radius.Adapter.csproj", "{29F671C6-62DA-40AA-905F-0A9387209FFE}"
 EndProject
@@ -13,6 +13,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		README.ru.md = README.ru.md
 	EndProjectSection
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MultiFactor.Radius.Adapter.Tests", "MultiFactor.Radius.Adapter.Tests\MultiFactor.Radius.Adapter.Tests.csproj", "{26567958-A767-4123-90DE-19D0A53CB5CB}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -23,6 +25,10 @@ Global
 		{29F671C6-62DA-40AA-905F-0A9387209FFE}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{29F671C6-62DA-40AA-905F-0A9387209FFE}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{29F671C6-62DA-40AA-905F-0A9387209FFE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{26567958-A767-4123-90DE-19D0A53CB5CB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{26567958-A767-4123-90DE-19D0A53CB5CB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{26567958-A767-4123-90DE-19D0A53CB5CB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{26567958-A767-4123-90DE-19D0A53CB5CB}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

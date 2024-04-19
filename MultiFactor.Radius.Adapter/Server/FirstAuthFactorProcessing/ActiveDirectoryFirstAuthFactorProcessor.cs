@@ -29,28 +29,25 @@ namespace MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing
 
         public AuthenticationSource AuthenticationSource => AuthenticationSource.ActiveDirectory;
 
-        public Task<PacketCode> ProcessFirstAuthFactorAsync(PendingRequest request, ClientConfiguration clientConfig)
+        public Task<PacketCode> ProcessFirstAuthFactorAsync(PendingRequest request)
         {
-            var userName = request.UserName;
-            var password = request.RequestPacket.TryGetUserPassword();
-
-            if (string.IsNullOrEmpty(userName))
+            if (string.IsNullOrEmpty(request.UserName))
             {
-                _logger.Warning("Can't find User-Name in message id={id} from {host:l}:{port}", request.RequestPacket.Identifier, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
+                _logger.Warning("Can't find User-Name in message id={id} from {host:l}:{port}", request.RequestPacket.Header.Identifier, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
                 return Task.FromResult(PacketCode.AccessReject);
             }
 
-            if (string.IsNullOrEmpty(password))
+            if (string.IsNullOrEmpty(request.Passphrase.Password))
             {
-                _logger.Warning("Can't find User-Password in message id={id} from {host:l}:{port}", request.RequestPacket.Identifier, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
+                _logger.Warning("Can't find User-Password in message id={id} from {host:l}:{port}", request.RequestPacket.Header.Identifier, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
                 return Task.FromResult(PacketCode.AccessReject);
             }
 
             //trying to authenticate for each domain/forest
-            foreach (var domain in clientConfig.SplittedActiveDirectoryDomains)
+            foreach (var domain in request.Configuration.SplittedActiveDirectoryDomains)
             {
                 var activeDirectoryService = _activeDirectoryServices[domain.Trim()];
-                var isValid = activeDirectoryService.VerifyCredentialAndMembership(clientConfig, userName, password, request);
+                var isValid = activeDirectoryService.VerifyCredentialAndMembership(request);
                 if (isValid)
                 {
                     return Task.FromResult(PacketCode.AccessAccept);
@@ -58,7 +55,6 @@ namespace MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing
 
                 if (request.MustChangePassword)
                 {
-                    request.MustChangePasswordDomain = domain;
                     return Task.FromResult(PacketCode.AccessReject);
                 }
             }

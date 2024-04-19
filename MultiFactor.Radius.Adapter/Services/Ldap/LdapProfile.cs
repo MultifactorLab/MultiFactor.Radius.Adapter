@@ -1,24 +1,72 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Linq;
 
 namespace MultiFactor.Radius.Adapter.Services.Ldap
 {
     public class LdapProfile
     {
-        public LdapProfile()
+        private readonly string[] _phoneAttrs;
+
+        public LdapIdentity BaseDn { get; }
+        public string DistinguishedName => LdapAttrs.GetValue("distinguishedname");
+        public string Upn => LdapAttrs.GetValue("userprincipalname");
+        public string DisplayName => LdapAttrs.GetValue("displayname");
+        public string Email => LdapAttrs.GetValue("mail");
+
+        private string _phone = string.Empty;
+        public string Phone
         {
-            LdapAttrs = new Dictionary<string, object>();
+            get
+            {
+                if (_phone != string.Empty)
+                {
+                    return _phone;
+                }
+
+                if (_phoneAttrs.Length == 0)
+                {
+                    _phone = LdapAttrs.GetValue("phone");
+                    return _phone;
+                }
+
+                _phone = _phoneAttrs
+                    .Select(x => LdapAttrs.GetValue(x))
+                    .FirstOrDefault(x => x != null) ?? LdapAttrs.GetValue("phone");
+
+                return _phone;
+            }
         }
 
-        public string DistinguishedName { get; set; }
-        public string Upn { get; set; }
-        public string DisplayName { get; set; }
-        public string Email { get; set; }
-        public string Phone { get; set; }
-        public string SecondFactorIdentity { get; set; }
-        public IList<string> MemberOf { get; set; }
+        public ReadOnlyCollection<string> MemberOf => LdapAttrs.GetValues("memberOf");
 
-        public LdapIdentity BaseDn { get; set; }
+        public ILdapAttributes LdapAttrs { get; private set; }
 
-        public IDictionary<string, object> LdapAttrs { get; set; }
+        private LdapProfile()
+        {
+            BaseDn = null;
+            LdapAttrs = new LdapAttributes();
+            _phoneAttrs = Array.Empty<string>();
+        }
+
+        public LdapProfile(LdapIdentity baseDn, ILdapAttributes attributes, IEnumerable<string> phoneAttrs)
+        {
+            if (phoneAttrs is null)
+            {
+                throw new ArgumentNullException(nameof(phoneAttrs));
+            }
+
+            BaseDn = baseDn ?? throw new ArgumentNullException(nameof(baseDn));
+            LdapAttrs = attributes ?? throw new ArgumentNullException(nameof(attributes));
+            _phoneAttrs = phoneAttrs.ToArray();
+        }
+
+        public static LdapProfile Empty() => new LdapProfile();   
+        
+        public void UpdateAttributes(ILdapAttributes attributes)
+        {
+            LdapAttrs = attributes ?? throw new ArgumentNullException(nameof(attributes));
+        }
     }
 }
