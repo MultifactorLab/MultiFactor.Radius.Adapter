@@ -222,14 +222,21 @@ namespace MultiFactor.Radius.Adapter.Server
                         CreateAndSendRadiusResponse(request);
                         return;
                     }
-                    
-                    if (code == PacketCode.AccessAccept) 
+
+                    if (code != PacketCode.AccessAccept)
                     {
-                        request.AuthenticationState.SetSecondFactor(AuthenticationCode.Accept);
+                        _logger.Information("Second factor rejected for user '{user:l}' from {host:l}:{port}",
+                            request.UserName, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
+                        request.AuthenticationState.SetSecondFactor(AuthenticationCode.Reject);
                         request.ResponseCode = request.AuthenticationState.GetResultPacketCode();
                         CreateAndSendRadiusResponse(request);
                         return;
-                    } 
+                    }
+                    
+                    request.AuthenticationState.SetSecondFactor(AuthenticationCode.Accept);
+                    request.ResponseCode = request.AuthenticationState.GetResultPacketCode();
+                    CreateAndSendRadiusResponse(request);
+                    return;     
                 }
 
                 request.ResponseCode = request.AuthenticationState.GetResultPacketCode();
