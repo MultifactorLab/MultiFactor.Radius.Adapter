@@ -174,12 +174,6 @@ namespace MultiFactor.Radius.Adapter.Core
                 RequestAuthenticator = Header.Authenticator
             };
 
-            // A Message authenticator is required in status server and access packets, calculated last
-            if (Header.Code == PacketCode.AccessRequest || Header.Code == PacketCode.StatusServer)
-            {
-                packet.AddAttribute("Message-Authenticator", new byte[16]);
-            }
-
             return packet;
         }
 
