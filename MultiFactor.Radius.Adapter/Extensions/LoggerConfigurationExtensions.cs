@@ -38,6 +38,15 @@ namespace MultiFactor.Radius.Adapter.Extensions
 
         public static LoggerConfiguration ConfigureFileLogging(this LoggerConfiguration loggerConfiguration)
         {
+            TimeSpan? flushInterval = null;
+            if (TimeSpan.TryParseExact(ConfigurationManager.AppSettings["log-file-flush-interval"], @"hh\:mm\:ss", null, System.Globalization.TimeSpanStyles.None, out var interval))
+            {
+                if (interval >= TimeSpan.FromSeconds(5) && interval <= TimeSpan.FromMinutes(10))
+                {
+                    flushInterval = interval;
+                }
+            }
+
             var defaultFileSize = 1L * 1024 * 1024 * 1024;
             if (!long.TryParse(ConfigurationManager.AppSettings["log-file-max-size-bytes"], out long fileSizeLimitBytes))
             {
@@ -57,7 +66,8 @@ namespace MultiFactor.Radius.Adapter.Extensions
                     formatter,
                     $"{path}Logs{Path.DirectorySeparatorChar}log-.txt",
                     rollingInterval: RollingInterval.Day,
-                    fileSizeLimitBytes: fileSizeLimitBytes);
+                    fileSizeLimitBytes: fileSizeLimitBytes,
+                    flushToDiskInterval: flushInterval);
                 return loggerConfiguration;
             }   
 
@@ -67,13 +77,15 @@ namespace MultiFactor.Radius.Adapter.Extensions
                 loggerConfiguration.WriteTo.File($"{path}Logs{Path.DirectorySeparatorChar}log-.txt",
                     outputTemplate: fileTemplate,
                     rollingInterval: RollingInterval.Day,
-                    fileSizeLimitBytes: fileSizeLimitBytes);
+                    fileSizeLimitBytes: fileSizeLimitBytes,
+                    flushToDiskInterval: flushInterval);
                 return loggerConfiguration;
             }
                   
             loggerConfiguration.WriteTo.File($"{path}Logs{Path.DirectorySeparatorChar}log-.txt",
                 rollingInterval: RollingInterval.Day,
-                fileSizeLimitBytes: fileSizeLimitBytes);
+                fileSizeLimitBytes: fileSizeLimitBytes,
+                flushToDiskInterval: flushInterval);
             return loggerConfiguration;
         }
 
