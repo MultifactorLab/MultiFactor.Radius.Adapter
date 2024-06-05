@@ -71,30 +71,32 @@ The component's parameters are stored in ```MultiFactor.Radius.Adapter.exe.confi
 ### General Parameters
 
 ```xml
-<!-- The address and port (UDP) on which the adapter will receive authentication requests from clients -->
-<!-- If you specify 0.0.0.0, then the adapter will listen on all network interfaces -->
-<add key="adapter-server-endpoint" value="192.168.0.1:1812"/>
+<appSettings>
+  <!-- The address and port (UDP) on which the adapter will receive authentication requests from clients -->
+  <!-- If you specify 0.0.0.0, then the adapter will listen on all network interfaces -->
+  <add key="adapter-server-endpoint" value="192.168.0.1:1812"/>
 
-<!-- Shared secret to authenticate RADIUS clients -->
-<add key="radius-shared-secret" value=""/>
+  <!-- Shared secret to authenticate RADIUS clients -->
+  <add key="radius-shared-secret" value=""/>
 
-<!-- How to check the first factor: Active Directory, RADIUS or None (do not check) -->
-<add key="first-factor-authentication-source" value="ActiveDirectory"/>
+  <!-- How to check the first factor: Active Directory, RADIUS or None (do not check) -->
+  <add key="first-factor-authentication-source" value="ActiveDirectory"/>
 
-<!-- Multifactor API address -->
-<add key="multifactor-api-url" value="https://api.multifactor.ru"/>
-<!-- NAS-Identifier parameter to connect to the Multifactor API (found in user profile) -->
-<add key="multifactor-nas-identifier" value=""/>
-<!-- Shared Secret parameter for connection to the Multifactor API (found in user profile) -->
-<add key="multifactor-shared-secret" value=""/>
+  <!-- Multifactor API address -->
+  <add key="multifactor-api-url" value="https://api.multifactor.ru"/>
+  <!-- NAS-Identifier parameter to connect to the Multifactor API (found in user profile) -->
+  <add key="multifactor-nas-identifier" value=""/>
+  <!-- Shared Secret parameter for connection to the Multifactor API (found in user profile) -->
+  <add key="multifactor-shared-secret" value=""/>
 
-<!-- Access to the Multifactor API via HTTP proxy (optional)-->
-<!--add key="multifactor-api-proxy" value="http://proxy:3128"/-->
-<!--Timeout for requests in the Multifactor API, the minimum value is 65 seconds-->
-<add key="multifactor-api-timeout" value="00:01:05"/>
+  <!-- Access to the Multifactor API via HTTP proxy (optional)-->
+  <!--add key="multifactor-api-proxy" value="http://proxy:3128"/-->
+  <!--Timeout for requests in the Multifactor API, the minimum value is 65 seconds-->
+  <add key="multifactor-api-timeout" value="00:01:05"/>
 
-<!-- Logging level: 'Debug', 'Info', 'Warn', 'Error' -->
-<add key="logging-level" value="Debug"/>
+  <!-- Logging level: 'Debug', 'Info', 'Warn', 'Error' -->
+  <add key="logging-level" value="Debug"/>
+</appSettings>
 ```
 
 ### Active Directory Connection Parameters
@@ -102,16 +104,18 @@ The component's parameters are stored in ```MultiFactor.Radius.Adapter.exe.confi
 To check the first factor in the domain, the following parameters apply:
 
 ```xml
-<!--Domain-->
-<add key="active-directory-domain" value="domain.local"/>
+<appSettings>
+  <!--Domain-->
+  <add key="active-directory-domain" value="domain.local"/>
 
-<!-- Give access to users from specified group only (not checked if setting is removed)-->
-<add key="active-directory-group" value="VPN Users"/>
-<!--Require the second factor for users from a specified group only (second factor is required for users if the setting is removed)-->
-<add key="active-directory-2fa-group" value="2FA Users"/>
-<!-- Use your users' phone numbers listed in Active Directory to send one-time SMS codes (not used if settings are removed)-->
-<!--add key="use-active-directory-user-phone" value="true"/-->
-<!--add key="use-active-directory-mobile-user-phone" value="true"/-->
+  <!-- Give access to users from specified group only (not checked if setting is removed)-->
+  <add key="active-directory-group" value="VPN Users"/>
+  <!--Require the second factor for users from a specified group only (second factor is required for users if the setting is removed)-->
+  <add key="active-directory-2fa-group" value="2FA Users"/>
+  <!-- Use your users' phone numbers listed in Active Directory to send one-time SMS codes (not used if settings are removed)-->
+  <!--add key="use-active-directory-user-phone" value="true"/-->
+  <!--add key="use-active-directory-mobile-user-phone" value="true"/-->
+</appSettings>
 ```
 
 When the ```use-active-directory-user-phone``` option is enabled, the component will use the phone recorded in the General tab. The format of the phone can be anything.
@@ -127,10 +131,12 @@ When the ```use-active-directory-mobile-user-phone``` option is enabled, the com
 To check the first factor in another RADIUS server, eg. in Network Policy Server, the following parameters apply:
 
 ```xml
-<!--Address (UDP) from which the adapter will connect to the server -->
-<add key="adapter-client-endpoint" value="192.168.0.1"/>
-<!-- Server address and port (UDP) -->
-<add key="nps-server-endpoint" value="192.168.0.10:1812"/>
+<appSettings>
+  <!--Address (UDP) from which the adapter will connect to the server -->
+  <add key="adapter-client-endpoint" value="192.168.0.1"/>
+  <!-- Server address and port (UDP) -->
+  <add key="nps-server-endpoint" value="192.168.0.10:1812"/>
+</appSettings>
 ```
 
 ### Optional RADIUS Attributes
@@ -153,14 +159,57 @@ You can specify attributes the component will pass further upon successful authe
 The following parameters will help you set up access to the MULTIFACTOR API when checking the second factor:
 
 ```xml
-<!-- Use the specified attribute as the user identity when checking the second factor-->
-<add key="use-attribute-as-identity" value="mail"/>
-<!-- Skip repeated authentications without requesting the second factor for 1 hour, 20 minutes, 10 seconds (caching is disabled if you remove the setting) -->
-<add key="authentication-cache-lifetime" value="01:20:10" />
-<!-- If the API is unavailable, skip the MULTIFACTOR without checking (by default), or deny access (false) -->
-<add key="bypass-second-factor-when-api-unreachable" value="true"/>
-<!-- Automatically assign MULTIFACTOR group membership to registering users -->
-<add key="sign-up-groups" value="group1;Group name 2"/>
+<appSettings>
+  <!-- Use the specified attribute as the user identity when checking the second factor-->
+  <add key="use-attribute-as-identity" value="mail"/>
+  <!-- Skip repeated authentications without requesting the second factor for 1 hour, 20 minutes, 10 seconds (caching is disabled if you remove the setting) -->
+  <add key="authentication-cache-lifetime" value="01:20:10" />
+  <!-- If the API is unavailable, skip the MULTIFACTOR without checking (by default), or deny access (false) -->
+  <add key="bypass-second-factor-when-api-unreachable" value="true"/>
+  <!-- Automatically assign MULTIFACTOR group membership to registering users -->
+  <add key="sign-up-groups" value="group1;Group name 2"/>
+</appSettings>
+```
+
+### Logging
+
+There are such options to customize logging:
+
+```xml
+<appSettings>
+  <!--Allows you to customize the template of logs which get into the console -->
+  <add key="console-log-output-template" value="outputTemplate"/>
+  <!--Allows you to customize the logs template which get into the file -->
+  <add key="file-log-output-template" value="outputTemplate"/>
+  <!--Allows you to customize the logs template which get into the remote syslog server -->
+  <add key="syslog-output-template" value="outputTemplate"/>
+</appSettings>
+```
+
+As ```outputTemplate``` also acts text template which shows the logging system how the message should be formatted. For example
+
+ ```sh
+[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}
+[{Timestamp:HH:mm:ss} {Level:u3}] {CorrelationId} {Message:lj}{NewLine}{Exception} 
+```
+
+For more information [see this page.](https://github.com/serilog/serilog/wiki/Formatting-Output)
+
+Moreover, logging can be provided in json (for console and file only):
+
+```xml
+<appSettings>
+  <add key="logging-format" value="json"/>
+</appSettings>
+```
+> Keep in mind that `console-log-output-template` and `file-log-output-template` settings are not applicable for the JSON log format.
+
+Sometimes there may be a delay in writing logs to a file, or a situation where logs are written to a file only after the process has completed. For these cases, there is a setting with which you can control the frequency of flushing logs to a file:
+```xml
+<appSettings>
+  <!-- Write logs at least once every 10 seconds -->
+  <add key="log-file-flush-interval" value="00:00:10"/>
+</appSettings>
 ```
 
 ## Start-Up
@@ -192,7 +241,7 @@ Use Radius Adapter Component to implement 2FA in one of the following scenarios:
 * Two-factor authentication for VPN devices [Cisco](https://multifactor.pro/docs/vpn/cisco-anyconnect-vpn-2fa/), [Fortigate](https://multifactor.pro/docs/vpn/fortigate-forticlient-vpn-2fa/), [CheckPoint](https://multifactor.pro/docs/vpn/checkpoint-remote-access-vpn-2fa/), Mikrotik, Huawei and others;
 * Two-factor authentication for [Windows VPN with Routing and Remote Access Service (RRAS)](https://multifactor.pro/docs/windows-2fa-rras-vpn/);
 * Two-factor authentication for [Microsoft Remote Desktop Gateway](https://multifactor.pro/docs/windows-2fa-remote-desktop-gateway/) ;
-* Two factor authentication for [VMware Horizon](https://multifactor.pro/docs/vmware-horizon-2fa/);
+* Two-factor authentication for [VMware Horizon](https://multifactor.pro/docs/vmware-horizon-2fa/);
 * [Citrix Gateway](https://multifactor.pro/docs/citrix-radius-2fa/) two-factor authentication;
 * Apache Guacamole two-factor authentication;
 * Two-factor authentication for Wi-Fi hotspots;
