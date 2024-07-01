@@ -84,13 +84,8 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory
 
             try
             {
-                _logger.Debug("Verifying user '{User:l}' credential and status at {Domain:l}", user, _domain);
-
-                using (var connection = _connectionFactory.Create(_domain, user.Name, request.Passphrase.Password))
-                {
-                    _logger.Information("User '{User:l}' credential and status verified successfully in {Domain:l}", user, _domain);
-                    return VerifyMembership(request.Configuration, connection, _domain, user, request);
-                }
+                VerifyCredential(user, request);
+                return VerifyMembership(request.Configuration, user, request);
             }
             catch (LdapException lex)
             {
@@ -193,17 +188,25 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory
             return false;
         }
 
-        private bool VerifyMembership(ClientConfiguration clientConfig, LdapConnection connection, string userDomain, LdapIdentity user, PendingRequest request)
+        private bool VerifyMembership(ClientConfiguration clientConfig, LdapIdentity user, PendingRequest request)
         {
-            var domain = LdapIdentity.FqdnToDn(userDomain);
-            var schema = _forestMetadataCache.Get(
-                clientConfig.Name,
-                domain,
-                () => new ForestSchemaLoader(clientConfig, connection, _logger).Load(domain));
-            var profile = new ProfileLoader(schema, _logger).LoadProfile(clientConfig, connection, domain, user);
-            if (profile == null)
+            var domain = LdapIdentity.FqdnToDn(_domain);
+
+            LdapProfile profile;
+            
+            using (var connection = _connectionFactory.CreateAsCurrentProcessUser(_domain))
             {
-                return false;
+                var forestSchema = _forestMetadataCache.Get(
+                    clientConfig.Name,
+                    domain,
+                    () => new ForestSchemaLoader(clientConfig, connection, _logger).Load(domain));
+                
+                profile = new ProfileLoader(forestSchema, _logger).LoadProfile(clientConfig, connection, domain, user);
+                
+                if (profile == null)
+                {
+                    return false;
+                }
             }
 
             //user must be member of security group
@@ -262,6 +265,16 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory
             }
 
             return true;
+        }
+
+        private void VerifyCredential(LdapIdentity user, PendingRequest request)
+        {
+            _logger.Debug("Verifying user '{User:l}' credential and status at {Domain:l}", user, _domain);
+            
+            using (_ = _connectionFactory.Create(_domain, user.Name, request.Passphrase.Password))
+            {
+                _logger.Information("User '{User:l}' credential and status verified successfully in {Domain:l}", user, _domain);
+            }
         }
 
         private bool IsMemberOf(LdapProfile profile, string group)

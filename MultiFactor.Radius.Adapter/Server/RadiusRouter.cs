@@ -215,6 +215,7 @@ namespace MultiFactor.Radius.Adapter.Server
                 if (request.AuthenticationState.SecondFactor == AuthenticationCode.Awaiting)
                 {
                     var code = await ProcessSecondAuthenticationFactor(request);
+                    
                     if (code == PacketCode.AccessChallenge) 
                     {
                         request.ResponseCode = request.AuthenticationState.GetResultPacketCode();
@@ -223,7 +224,17 @@ namespace MultiFactor.Radius.Adapter.Server
                         return;
                     }
 
-                    if (code != PacketCode.AccessAccept)
+                    if (code == PacketCode.AccessAccept)
+                    {
+                        _logger.Information("Second factor accepted for user '{user:l}' from {host:l}:{port}",
+                            request.UserName, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
+                        request.AuthenticationState.SetSecondFactor(AuthenticationCode.Accept);
+                        request.ResponseCode = request.AuthenticationState.GetResultPacketCode();
+                        CreateAndSendRadiusResponse(request);
+                        return;
+                    }
+
+                    if (code == PacketCode.AccessReject)
                     {
                         _logger.Information("Second factor rejected for user '{user:l}' from {host:l}:{port}",
                             request.UserName, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
@@ -232,11 +243,6 @@ namespace MultiFactor.Radius.Adapter.Server
                         CreateAndSendRadiusResponse(request);
                         return;
                     }
-                    
-                    request.AuthenticationState.SetSecondFactor(AuthenticationCode.Accept);
-                    request.ResponseCode = request.AuthenticationState.GetResultPacketCode();
-                    CreateAndSendRadiusResponse(request);
-                    return;     
                 }
 
                 request.ResponseCode = request.AuthenticationState.GetResultPacketCode();
