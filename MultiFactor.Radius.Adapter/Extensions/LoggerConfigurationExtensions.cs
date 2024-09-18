@@ -10,7 +10,9 @@ using System.Configuration;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.Security;
 using System.Net.Sockets;
+using System.Security.Cryptography.X509Certificates;
 
 namespace MultiFactor.Radius.Adapter.Extensions
 {
@@ -108,6 +110,11 @@ namespace MultiFactor.Radius.Adapter.Extensions
             var sysLogFacilitySetting = appSettings["syslog-facility"];
             var sysLogAppName = appSettings["syslog-app-name"] ?? "multifactor-radius";
 
+            if (!bool.TryParse(appSettings["syslog-use-tls"], out var sysLogUseTls))
+            {
+                sysLogUseTls = true;
+            }
+            
             var isJson = ServiceConfiguration.GetLogFormat() == "json";
 
             var facility = ParseSettingOrDefault(sysLogFacilitySetting, Facility.Auth);
@@ -143,7 +150,9 @@ namespace MultiFactor.Radius.Adapter.Extensions
                             framingType: framer,
                             facility: facility,
                             json: isJson,
-                            outputTemplate: template);
+                            outputTemplate: template,
+                            certValidationCallback: ValidateServerCertificate,
+                            secureProtocols: sysLogUseTls ? System.Security.Authentication.SslProtocols.Tls12 : System.Security.Authentication.SslProtocols.None);
                     logMessage = $"Using syslog server {sysLogServer}, format: {format}, framing: {framer}, facility: {facility}, appName: {sysLogAppName}";
                     break;
                 default:
@@ -193,5 +202,7 @@ namespace MultiFactor.Radius.Adapter.Extensions
 
             return host;
         }
+        
+        private static bool ValidateServerCertificate(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors) => true;
     }
 }
