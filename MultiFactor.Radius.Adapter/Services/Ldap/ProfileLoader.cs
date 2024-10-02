@@ -60,7 +60,7 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
             //nested groups if configured
             if (clientConfig.LoadActiveDirectoryNestedGroups && clientConfig.ShouldLoadUserGroups())
             {
-                LoadAllUserGroups(connAdapter, result.BaseDn, profile.DistinguishedName, profileAttributes);
+                LoadAllUserGroups(result.BaseDn, profile.DistinguishedName, profileAttributes);
             }
 
             return profile;
@@ -154,23 +154,35 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
             return null;
         }
 
-        private void LoadAllUserGroups(LdapConnectionAdapter connectionAdapter, LdapIdentity baseDn, string dn, LdapAttributes attributes)
+        private void LoadAllUserGroups(LdapIdentity baseDn, string dn, LdapAttributes attributes)
         {
-            var searchFilter = $"(member:1.2.840.113556.1.4.1941:={dn})";
-            var response = connectionAdapter.Query(baseDn.Name, searchFilter, SearchScope.Subtree, false, "DistinguishedName");
-            if (response.Entries.Count == 0)
+            using (var ctx = new PrincipalContext(ContextType.Domain, baseDn.DnToFqdn(), null, ContextOptions.Negotiate))
             {
-                response = connectionAdapter.Query(baseDn.Name, searchFilter, SearchScope.Subtree, true, "DistinguishedName");
+                using (var user = UserPrincipal.FindByIdentity(ctx, IdentityType.DistinguishedName, dn))
+                {
+                    if (user is null)
+                    {
+                        _logger.Error("User '{dn:l}' not found", dn);
+                        return;
+                    }
+
+                    var userGroups = user.GetAuthorizationGroups()
+                        .Where(x => !string.IsNullOrWhiteSpace(x.DistinguishedName))
+                        .Select(x => LdapIdentity.DnToCn(x.DistinguishedName))
+                        .ToArray();
+                    
+                    if (userGroups.Length > 0)
+                    {
+                        attributes.Remove("MemberOf");
+                        attributes.Add("MemberOf", userGroups);
+                        _logger.Verbose("Found groups: {groups}",string.Join(",", userGroups.Select(x => $"'{x}'")));
+                    }
+                    else
+                    {
+                        _logger.Warning("User '{dn:l}' does not have any group with DN. Attribute 'MemberOf' will not be updated", dn);
+                    }
+                }
             }
-
-            var groups = response.Entries
-                .Cast<SearchResultEntry>()
-                .Select(x => LdapIdentity.DnToCn(x.DistinguishedName))
-                .Distinct()
-                .ToArray();
-
-            attributes.Remove("MemberOf");
-            attributes.Add("MemberOf", groups);
         }
     }
 }
