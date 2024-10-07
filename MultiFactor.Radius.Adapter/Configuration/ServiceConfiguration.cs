@@ -35,6 +35,8 @@ namespace MultiFactor.Radius.Adapter.Configuration
         /// List of clients with identification by NAS-Identifier attr
         /// </summary>
         private readonly IDictionary<string, ClientConfiguration> _nasIdClients;
+        
+        private static readonly TimeSpan _recommendedMinimalApiTimeout = TimeSpan.FromSeconds(65);
 
         public ServiceConfiguration()
         {
@@ -217,7 +219,28 @@ namespace MultiFactor.Radius.Adapter.Configuration
                 throw new Exception("Configuration error: Can't parse 'adapter-server-endpoint' value");
             }
 
-            TimeSpan apiTimeout = ParseHttpTimeout(mfTimeoutSetting);
+            TimeSpan apiTimeout = ParseMultifactorApiTimeout(mfTimeoutSetting, out var forcedTimeout);
+            
+            if (Timeout.InfiniteTimeSpan != apiTimeout && apiTimeout < _recommendedMinimalApiTimeout)
+            {
+                if (forcedTimeout)
+                {
+                    logger.Warning(
+                        "You have set the timeout to {httpRequestTimeout} seconds. The recommended minimal timeout is {recommendedApiTimeout} seconds. Lowering this threshold may cause incorrect system behavior.",
+                        apiTimeout.TotalSeconds,
+                        _recommendedMinimalApiTimeout.TotalSeconds);
+                }
+                else
+                {
+                    logger.Warning(
+                        "You have tried to set the timeout to {httpRequestTimeout} seconds. The recommended minimal timeout is {recommendedApiTimeout} seconds. If you are sure, use the following syntax: 'value={apiTimeoutSetting}!'",
+                        apiTimeout.TotalSeconds,
+                        _recommendedMinimalApiTimeout.TotalSeconds,
+                        mfTimeoutSetting);
+
+                    apiTimeout = _recommendedMinimalApiTimeout;
+                }
+            }
             
             var configuration = new ServiceConfiguration
             {
@@ -302,20 +325,25 @@ namespace MultiFactor.Radius.Adapter.Configuration
 
             return configuration;
         }
-
-        private static TimeSpan ParseHttpTimeout(string mfTimeoutSetting)
+        
+        private static TimeSpan ParseMultifactorApiTimeout(string mfTimeoutSetting, out bool forcedTimeout)
         {
-            TimeSpan _minimalApiTimeout = TimeSpan.FromSeconds(65);
+            forcedTimeout = IsForcedTimeout(mfTimeoutSetting);
+            if (forcedTimeout)
+            {
+                mfTimeoutSetting = mfTimeoutSetting.TrimEnd('!');
+            }
+        
+            if (!TimeSpan.TryParseExact(mfTimeoutSetting, @"hh\:mm\:ss", null, System.Globalization.TimeSpanStyles.None, out var httpRequestTimeout))
+                return _recommendedMinimalApiTimeout;
 
-            if(!TimeSpan.TryParseExact(mfTimeoutSetting, @"hh\:mm\:ss", null, System.Globalization.TimeSpanStyles.None, out var httpRequestTimeout))
-                return _minimalApiTimeout;
-
-            return httpRequestTimeout == TimeSpan.Zero ?
-                Timeout.InfiniteTimeSpan // infinity timeout
-                : httpRequestTimeout < _minimalApiTimeout
-                    ? _minimalApiTimeout  // minimal timeout
-                    : httpRequestTimeout; // timeout from config
+            if (httpRequestTimeout == TimeSpan.Zero)
+                return Timeout.InfiniteTimeSpan;
+        
+            return httpRequestTimeout;
         }
+        
+        private static bool IsForcedTimeout(string mfTimeoutSetting) => mfTimeoutSetting?.EndsWith("!") ?? false;
 
         public static ClientConfiguration LoadClientSettings(string name, 
             IRadiusDictionary dictionary, 
