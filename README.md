@@ -96,6 +96,13 @@ The component's parameters are stored in ```MultiFactor.Radius.Adapter.exe.confi
 
   <!-- Logging level: 'Debug', 'Info', 'Warn', 'Error' -->
   <add key="logging-level" value="Debug"/>
+
+  <!-- [Optional] Enable/disable nested group checking in active directory -->
+  <add key="load-active-directory-nested-groups" value="false"/>
+
+  <!-- [Optional] Base dn(s) separated by ';' for user nested groups checking.
+  Specify the containers in which to search for nested groups. -->
+  <add key="nested-groups-base-dn" value="CN=Users,DC=domain,DC=your;OU=Admins,DC=domain,DC=your"/>
 </appSettings>
 ```
 

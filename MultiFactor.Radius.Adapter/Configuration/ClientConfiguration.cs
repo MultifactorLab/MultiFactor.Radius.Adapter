@@ -115,6 +115,13 @@ namespace MultiFactor.Radius.Adapter.Configuration
             .Distinct()
             .ToArray();
 
+        public string NestedGroupsBaseDn { get; set; }
+        
+        public string[] SplittedNestedGroupsBaseDn => NestedGroupsBaseDn
+            ?.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray() ?? Array.Empty<string>();
+        
         /// <summary>
         /// Only UPN user name format permitted
         /// </summary>

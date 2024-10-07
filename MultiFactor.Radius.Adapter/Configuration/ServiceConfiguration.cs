@@ -207,7 +207,6 @@ namespace MultiFactor.Radius.Adapter.Configuration
                 throw new Exception("Configuration error: 'multifactor-api-url' element not found");
             }
 
-
             if (string.IsNullOrEmpty(logLevelSetting))
             {
                 throw new Exception("Configuration error: 'logging-level' element not found");
@@ -508,6 +507,7 @@ namespace MultiFactor.Radius.Adapter.Configuration
             var useActiveDirectoryMobileUserPhoneSetting = appSettings.Settings["use-active-directory-mobile-user-phone"]?.Value;
             var phoneAttributes = appSettings.Settings["phone-attribute"]?.Value;
             var loadActiveDirectoryNestedGroupsSettings = appSettings.Settings["load-active-directory-nested-groups"]?.Value;
+            var nestedGroupsBaseDn = appSettings.Settings["nested-groups-base-dn"]?.Value;
             var useUpnAsIdentitySetting = appSettings.Settings["use-upn-as-identity"]?.Value;
             var twoFAIdentityAttribyteSetting = appSettings.Settings["use-attribute-as-identity"]?.Value;
 
@@ -543,6 +543,11 @@ namespace MultiFactor.Radius.Adapter.Configuration
                 }
 
                 configuration.LoadActiveDirectoryNestedGroups = loadActiveDirectoryNestedGroups;
+            }
+
+            if (!string.IsNullOrWhiteSpace(nestedGroupsBaseDn))
+            {
+                configuration.NestedGroupsBaseDn = nestedGroupsBaseDn;
             }
 
             SetActiveDirectorySettings(appSettings, configuration);
