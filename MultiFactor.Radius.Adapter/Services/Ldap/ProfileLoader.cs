@@ -8,6 +8,7 @@ using MultiFactor.Radius.Adapter.Services.Ldap.LdapMetadata;
 using Serilog;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.DirectoryServices.AccountManagement;
 using System.DirectoryServices.Protocols;
 using System.Linq;
@@ -51,18 +52,26 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
             //groups
             var groups = result.Entry.Attributes.Contains("memberOf")
                 ? result.Entry.Attributes["memberOf"].GetValues(typeof(string))
-                : Array.Empty<object>();
-
-            profileAttributes.Add("memberOf", groups.Cast<string>().Select(LdapIdentity.DnToCn).ToArray());
-
-            _logger.Debug("User '{User:l}' profile loaded: {DistinguishedName:l} (upn={Upn:l})", user, profile.DistinguishedName, profile.Upn);
+                : Array.Empty<string>();
+            
+            var userGroupsCn = groups.Cast<string>().Select(LdapIdentity.DnToCn).ToList();
             
             //nested groups if configured
             if (clientConfig.LoadActiveDirectoryNestedGroups && clientConfig.ShouldLoadUserGroups())
             {
-                LoadAllUserGroups(connAdapter, result.BaseDn, profile.DistinguishedName, profileAttributes);
+                var allUserGroupsNames = new List<string>();
+                var baseDnsForSearch = clientConfig.SplittedNestedGroupsBaseDn?.Length > 0 ? clientConfig.SplittedNestedGroupsBaseDn : new string[1] { result.BaseDn.Name };
+                foreach (var baseDn in baseDnsForSearch)
+                {
+                    var foundGroupsNames = GetUserGroupsFromContainer(connAdapter, baseDn, profile.DistinguishedName);
+                    allUserGroupsNames.AddRange(foundGroupsNames);
+                    _logger.Verbose("Found groups in {baseDn}: {groups}", baseDn, string.Join(",", foundGroupsNames.Select(x => $"'{x}'")));
+                }
+                userGroupsCn.AddRange(allUserGroupsNames);
             }
-
+            
+            profileAttributes.Add("MemberOf", userGroupsCn.Distinct(StringComparer.OrdinalIgnoreCase));
+            _logger.Debug("User '{User:l}' profile loaded: {DistinguishedName:l} (upn={Upn:l})", user, profile.DistinguishedName, profile.Upn);
             return profile;
         }
 
@@ -154,23 +163,28 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
             return null;
         }
 
-        private void LoadAllUserGroups(LdapConnectionAdapter connectionAdapter, LdapIdentity baseDn, string dn, LdapAttributes attributes)
+        private string[] GetUserGroupsFromContainer(LdapConnectionAdapter connectionAdapter, string baseDn, string userDn)
         {
-            var searchFilter = $"(member:1.2.840.113556.1.4.1941:={dn})";
-            var response = connectionAdapter.Query(baseDn.Name, searchFilter, SearchScope.Subtree, false, "DistinguishedName");
+            var searchFilter = $"(&(objectCategory=group)(member:1.2.840.113556.1.4.1941:={userDn}))";
+            
+            var sw = Stopwatch.StartNew();
+            
+            var response = connectionAdapter.Query(baseDn, searchFilter, SearchScope.Subtree, false, "DistinguishedName");
             if (response.Entries.Count == 0)
             {
-                response = connectionAdapter.Query(baseDn.Name, searchFilter, SearchScope.Subtree, true, "DistinguishedName");
+                response = connectionAdapter.Query(baseDn, searchFilter, SearchScope.Subtree, true, "DistinguishedName");
             }
 
+            sw.Stop();
+            _logger.Verbose("Search in {baseDn} for user {userDn} took {ms}ms", baseDn, userDn, sw.ElapsedMilliseconds);
+            
             var groups = response.Entries
                 .Cast<SearchResultEntry>()
                 .Select(x => LdapIdentity.DnToCn(x.DistinguishedName))
                 .Distinct()
                 .ToArray();
-
-            attributes.Remove("MemberOf");
-            attributes.Add("MemberOf", groups);
+            
+            return groups;
         }
     }
 }

@@ -248,7 +248,7 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory
                 var bypassGroup = clientConfig.ActiveDirectory2FaBypassGroup.FirstOrDefault(group => IsMemberOf(profile, group));
                 if (bypassGroup != null)
                 {
-                    _logger.Information("User '{{user:l}}' is member of '{BypassGroup:l}' 2FA bypass group in {BaseDn:l}", user, bypassGroup.Trim(), profile.BaseDn.Name);
+                    _logger.Information("User '{user:l}' is member of '{BypassGroup:l}' 2FA bypass group in {BaseDn:l}", user, bypassGroup.Trim(), profile.BaseDn.Name);
                     request.AuthenticationState.SetSecondFactor(AuthenticationCode.Bypass);
                 }
                 else
