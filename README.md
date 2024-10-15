@@ -94,6 +94,9 @@ The component's parameters are stored in ```MultiFactor.Radius.Adapter.exe.confi
   <!--Timeout for requests in the Multifactor API, the minimum value is 65 seconds-->
   <add key="multifactor-api-timeout" value="00:01:05"/>
 
+  <!-- [Optional] Ldap bind request timeout. The default value is 30 seconds. -->
+  <add key="ldap-bind-timeout" value="00:00:30"/>
+  
   <!-- Logging level: 'Debug', 'Info', 'Warn', 'Error' -->
   <add key="logging-level" value="Debug"/>
 </appSettings>

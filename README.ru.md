@@ -95,7 +95,10 @@ Remote Authentication Dial-In User Service (RADIUS) &mdash; сетевой пр�
 
   <!--Доступ к API Мультифактора через HTTP прокси (опционально)-->
   <!--add key="multifactor-api-proxy" value="http://proxy:3128"/-->
-
+  
+  <!-- [Опционально] Таймаут для ldap bind запроса. Значение по умолчанию 30 секунд -->
+  <add key="ldap-bind-timeout" value="00:00:30"/>
+  
   <!-- Уровень логирования: 'Debug', 'Info', 'Warn', 'Error' -->
   <add key="logging-level" value="Debug"/>
 </appSettings>
