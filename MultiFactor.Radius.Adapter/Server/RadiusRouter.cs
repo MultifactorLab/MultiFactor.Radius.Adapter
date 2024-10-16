@@ -185,6 +185,7 @@ namespace MultiFactor.Radius.Adapter.Server
                         {
                             _passwordChangeHandler.CreatePasswordChallenge(request);
                             _logger.Information("CreatePasswordChallengeState: {State:l}", request.State);
+                            request.ResponseCode = request.AuthenticationState.GetResultPacketCode();
                             CreateAndSendRadiusResponse(request);
                             return;
                         }
