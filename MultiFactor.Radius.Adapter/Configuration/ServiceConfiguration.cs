@@ -359,6 +359,7 @@ namespace MultiFactor.Radius.Adapter.Configuration
             var bypassSecondFactorWhenApiUnreachableSetting = appSettings.Settings["bypass-second-factor-when-api-unreachable"]?.Value;
             var multiFactorApiKeySetting = appSettings.Settings["multifactor-nas-identifier"]?.Value;
             var multiFactorApiSecretSetting = appSettings.Settings["multifactor-shared-secret"]?.Value;
+            var ldapBindTimeoutSetting = appSettings.Settings["ldap-bind-timeout"]?.Value;
 
             if (string.IsNullOrEmpty(firstFactorAuthenticationSourceSettings))
             {
@@ -495,6 +496,14 @@ namespace MultiFactor.Radius.Adapter.Configuration
             if (configuration.PreAuthnMode.Mode != PreAuthnMode.None && configuration.InvalidCredentialDelay.Min < 2)
             {
                 throw new Exception($"Configuration error: to enable pre-auth second factor for this client please set 'invalid-credential-delay' min value to 2 or more");
+            }
+            
+            if (TimeSpan.TryParseExact(ldapBindTimeoutSetting, @"hh\:mm\:ss", null, System.Globalization.TimeSpanStyles.None, out var ldapBindTimeout))
+            {
+                if (ldapBindTimeout > TimeSpan.Zero)
+                {
+                    configuration.LdapBindTimeout = ldapBindTimeout;
+                }
             }
 
             return configuration;

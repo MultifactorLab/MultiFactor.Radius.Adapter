@@ -139,6 +139,7 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory
 
                 using (var connection = _connectionFactory.CreateAsCurrentProcessUser(_domain))
                 {
+                    connection.Bind();
                     var domain = LdapIdentity.FqdnToDn(_domain);
                     var schema = _forestMetadataCache.Get(
                         request.Configuration.Name,
@@ -196,6 +197,7 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory
             
             using (var connection = _connectionFactory.CreateAsCurrentProcessUser(_domain))
             {
+                connection.Bind();
                 var forestSchema = _forestMetadataCache.Get(
                     clientConfig.Name,
                     domain,
@@ -271,10 +273,13 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory
         {
             _logger.Debug("Verifying user '{User:l}' credential and status at {Domain:l}", user, _domain);
             
-            using (_ = _connectionFactory.Create(_domain, user.Name, request.Passphrase.Password))
+            using (var ldapConnection = _connectionFactory.Create(_domain, user.Name, request.Passphrase.Password, request.Configuration.LdapBindTimeout))
             {
-                _logger.Information("User '{User:l}' credential and status verified successfully in {Domain:l}", user, _domain);
+                _logger.Debug("Start bind to {Domain} as '{User}'", _domain, user.Name);
+                ldapConnection.Bind();
             }
+            
+            _logger.Information("User '{User:l}' credential and status verified successfully in {Domain:l}", user, _domain);
         }
 
         private bool IsMemberOf(LdapProfile profile, string group)

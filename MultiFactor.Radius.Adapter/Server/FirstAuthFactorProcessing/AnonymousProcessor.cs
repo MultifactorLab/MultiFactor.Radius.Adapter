@@ -84,6 +84,7 @@ namespace MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing
                     _logger.Debug($"Loading attributes for user '{{user:l}}' at {domainIdentity}", user.Name);
                     using (var connection = _connectionFactory.CreateAsCurrentProcessUser(domain))
                     {
+                        connection.Bind();
                         var schema = _metadataCache.Get(
                             request.Configuration.Name,
                             domainIdentity,
@@ -95,18 +96,15 @@ namespace MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing
                 catch (UserDomainNotPermittedException ex)
                 {
                     _logger.Warning(ex.Message);
-                    continue;
                 }
                 catch (UserNameFormatException ex)
                 {
                     _logger.Warning(ex.Message);
-                    continue;
                 }
                 catch (Exception ex)
                 {
                     _logger.Error(ex, $"Loading attributes of user '{{user:l}}' at {domainIdentity} failed", request.UserName);
                     _logger.Information("Run MultiFactor.Raduis.Adapter as user with domain read permissions (basically any domain user)");
-                    continue;
                 }
             }
 

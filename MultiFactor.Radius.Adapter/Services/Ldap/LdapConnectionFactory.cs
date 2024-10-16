@@ -11,7 +11,7 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
     {
         private readonly ILogger _logger;
         private readonly PassedLineArguments _lineArguments;
-
+        
         public LdapConnectionFactory(ILogger logger, PassedLineArguments lineArguments)
         {
             _logger = logger;
@@ -19,34 +19,36 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
         }
 
         /// <summary>
-        /// Creates new connection to a ldap domain, binds as a current process user credential using Negotiate auth type and returns it.
+        /// Creates new connection to a ldap domain using a current process user credential with Negotiate auth type.
         /// </summary>
         /// <param name="domain">LDAP domain</param>
+        /// <param name="connectionTimeout">Connection timeout.</param>
         /// <returns></returns>
         /// <exception cref="ArgumentException"></exception>
-        public LdapConnection CreateAsCurrentProcessUser(string domain)
+        public LdapConnection CreateAsCurrentProcessUser(string domain, TimeSpan? connectionTimeout = null)
         {
             if (string.IsNullOrWhiteSpace(domain))
             {
                 throw new ArgumentException($"'{nameof(domain)}' cannot be null or whitespace.", nameof(domain));
             }
-
-            _logger.Debug("Start connection to {Domain}", domain);
+            
             var connection = new LdapConnection(domain);
             connection.SessionOptions.ProtocolVersion = 3;
-            connection.SessionOptions.RootDseCache = true;    
-
+            connection.SessionOptions.RootDseCache = true;
+            if (connectionTimeout.HasValue)
+            {
+                connection.Timeout = connectionTimeout.Value;
+            }
             if (_lineArguments.Has(KnownLineArg.ACT_AS_USER) && _lineArguments.Has(KnownLineArg.ACT_AS_USER_PWD))
             {
                 var u = _lineArguments[KnownLineArg.ACT_AS_USER];
                 var p = _lineArguments[KnownLineArg.ACT_AS_USER_PWD];
-                _logger.Debug("Start bind to {Domain} with a passed user credential {u:l}:{p:l}", domain, u, HidePwd(p));
-                connection.Bind(new NetworkCredential(u, p));
+                _logger.Debug("Connection was created to {Domain} with a passed user credential {u:l}:{p:l}", domain, u, HidePwd(p));
+                connection.Credential = new NetworkCredential(u, p);
             }
             else
             {
-                _logger.Debug("Start bind to {Domain} as a process user", domain);
-                connection.Bind();
+                _logger.Debug("Connection was created to {Domain} with credential of a process user", domain);
             }
             
             return connection;  
@@ -63,15 +65,16 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
         }
 
         /// <summary>
-        /// Creates new connection to a ldap domain, binds with the specified credential using Negotiate auth type and returns it.
+        /// Creates new connection to a ldap domain with the specified credential using Negotiate auth type.
         /// </summary>
         /// <param name="domain">LDAP domain.</param>
         /// <param name="userName">Username.</param>
         /// <param name="password">Password.</param>
+        /// <param name="connectionTimeout">Connection timeout.</param>
         /// <returns></returns>
         /// <exception cref="ArgumentException"></exception>
         /// <exception cref="ArgumentNullException"></exception>
-        public LdapConnection Create(string domain, string userName, string password)
+        public LdapConnection Create(string domain, string userName, string password, TimeSpan? connectionTimeout = null)
         {
             if (string.IsNullOrWhiteSpace(domain))
             {
@@ -87,15 +90,15 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
             {
                 throw new ArgumentNullException(nameof(password));
             }
-
-            _logger.Debug("Start connection to {Domain}", domain);
+            
             var connection = new LdapConnection(domain);
             connection.Credential = new NetworkCredential(userName, password);
             connection.SessionOptions.ProtocolVersion = 3;
             connection.SessionOptions.RootDseCache = true;
-
-            _logger.Debug("Start bind to {Domain} as '{User}'", domain, userName);
-            connection.Bind();
+            if (connectionTimeout.HasValue)
+            {
+                connection.Timeout = connectionTimeout.Value;
+            }
             return connection;  
         }
 
@@ -105,10 +108,11 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
         /// <param name="ldapServer">LDAP uri.</param>
         /// <param name="logonName">Logon name.</param>
         /// <param name="password">Password.</param>
+        /// <param name="connectionTimeout">Connection timeout.</param>
         /// <returns></returns>
         /// <exception cref="ArgumentNullException"></exception>
         /// <exception cref="ArgumentException"></exception>
-        public LdapConnection CreateForAdlds(Uri ldapServer, string logonName, string password)
+        public LdapConnection CreateForAdlds(Uri ldapServer, string logonName, string password, TimeSpan? connectionTimeout = null)
         {
             if (ldapServer is null)
             {
@@ -124,8 +128,7 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
             {
                 throw new ArgumentNullException(nameof(password));
             }
-
-            _logger.Debug("Start connection to {Server}", ldapServer.Authority);
+            
             var connection = new LdapConnection(ldapServer.Authority);
             connection.Credential = new NetworkCredential(logonName, password);
             connection.SessionOptions.RootDseCache = true;
@@ -136,10 +139,11 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
             {
                 connection.SessionOptions.SecureSocketLayer = true;
             }
+            if (connectionTimeout.HasValue)
+            {
+                connection.Timeout = connectionTimeout.Value;
+            }
 
-            _logger.Debug("Start bind to {Scheme}://{Server} as '{User}'",
-                isLdaps ? "LDAPS" : "LDAP", ldapServer.Authority, logonName);
-            connection.Bind();
             return connection;  
         }
     }

@@ -59,6 +59,8 @@ namespace MultiFactor.Radius.Adapter.Services
                 _logger.Information("Degradation of the domain resolving method for {UserName:l}", fullUserName);
                 using (var connection = _connectionFactory.CreateAsCurrentProcessUser(domain))
                 {
+                    _logger.Debug("Start connection to {Domain}", domain);
+                    connection.Bind();
                     var dnDomain = LdapIdentity.FqdnToDn(domain);
                     var schema = _forestMetadataCache.Get(
                         clientConfig.Name,

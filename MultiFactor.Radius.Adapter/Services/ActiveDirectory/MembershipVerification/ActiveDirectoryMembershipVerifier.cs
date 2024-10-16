@@ -70,6 +70,7 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory.MembershipVerifica
 
                     using (var connection = _connectionFactory.CreateAsCurrentProcessUser(domain))
                     {
+                        connection.Bind();
                         var schema = _metadataCache.Get(
                             request.Configuration.Name,
                             domainIdentity,
@@ -100,7 +101,6 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory.MembershipVerifica
                     result.AddDomainResult(MembershipVerificationResult.Create(domainIdentity)
                         .SetSuccess(false)
                         .Build());
-                    continue;
                 }
                 catch (UserNameFormatException ex)
                 {
@@ -108,7 +108,6 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory.MembershipVerifica
                     result.AddDomainResult(MembershipVerificationResult.Create(domainIdentity)
                         .SetSuccess(false)
                         .Build());
-                    continue;
                 }
                 catch (Exception ex)
                 {
@@ -117,7 +116,6 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory.MembershipVerifica
                     result.AddDomainResult(MembershipVerificationResult.Create(domainIdentity)
                         .SetSuccess(false)
                         .Build());
-                    continue;
                 }
             }
 
