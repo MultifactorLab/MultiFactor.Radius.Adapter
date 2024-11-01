@@ -239,5 +239,10 @@ namespace MultiFactor.Radius.Adapter.Configuration
         /// Overrides the root-level config.
         /// </summary>
         public RandomWaiterConfig InvalidCredentialDelay { get; internal set; }
+        
+        /// <summary>
+        /// Ldap connection timeout
+        /// </summary>
+        public TimeSpan LdapBindTimeout { get; set; } = new TimeSpan(0, 0, 30);
     }
 }

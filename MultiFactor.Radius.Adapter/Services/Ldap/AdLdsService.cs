@@ -54,8 +54,11 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
             {
                 _logger.Debug($"Verifying user '{logonName}' credential and status at {ldapUrl}");
 
-                using (var connection = _connectionFactory.CreateForAdlds(ldapUrl, logonName, request.Passphrase.Password))
+                using (var connection = _connectionFactory.CreateForAdlds(ldapUrl, logonName, request.Passphrase.Password, request.Configuration.LdapBindTimeout))
                 {
+                    var isLdaps = ldapUrl.Scheme.ToLower() == "ldaps";
+                    _logger.Debug("Start bind to {Scheme}://{Server} as '{User}'", isLdaps ? "LDAPS" : "LDAP", ldapUrl.Authority, logonName);
+                    connection.Bind();
                     _logger.Information($"User '{user.Name}' credential and status verified successfully at {ldapUrl}");
 
                     return true;
