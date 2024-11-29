@@ -96,6 +96,12 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
 
                 var httpClient = _httpClientFactory.CreateClient(nameof(MultifactorApiClient));
                 var res = await httpClient.SendAsync(message);
+                if ((int)res.StatusCode == 429)
+                {
+                    _logger.Warning("Got unsuccessful api response: {reason}", res.ReasonPhrase);
+                    return new AccessRequestDto() { Status = Literals.RadiusCode.Denied, ReplyMessage = "Too many requests"};
+                }
+
                 res.EnsureSuccessStatusCode();
 
                 var jsonResponse = await res.Content.ReadAsStringAsync();
@@ -105,7 +111,7 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
 
                 if (!response.Success)
                 {
-                    _logger.Warning("Got unsuccessful response with code {StatusCode} ({StatusCodeText}) from API {Url}: {@response}", (int)res.StatusCode, res.StatusCode, url, response);
+                    _logger.Warning("Got unsuccessful api response with code {StatusCode} ({StatusCodeText}) from API {Url}: {@response}", (int)res.StatusCode, res.StatusCode, url, response);
                 }
 
                 return response.Model;
