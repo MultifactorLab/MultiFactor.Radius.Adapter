@@ -384,6 +384,14 @@ namespace MultiFactor.Radius.Adapter.Server
                     responsePacket.Attributes.Add("Proxy-State", requestPacket.Attributes.SingleOrDefault(o => o.Key == "Proxy-State").Value);
                 }
             }
+            
+            // page 12  https://fortinetweb.s3.amazonaws.com/docs.fortinet.com/v2/attachments/51019988-746d-11ef-8355-fa163e15d75b/fortios-v7.2.10-release-notes.pdf
+            if (!responsePacket.Attributes.ContainsKey("Message-Authenticator"))
+            {
+                var placeholder = new byte[16];
+                var placeholderStr = Encoding.Default.GetString(placeholder);
+                responsePacket.AddAttribute("Message-Authenticator", placeholderStr);
+            }
 
             var debugLog = request.RequestPacket.Header.Code == PacketCode.StatusServer;
             Send(responsePacket, request.RequestPacket?.UserName, request.RemoteEndpoint, request.ProxyEndpoint, debugLog);
