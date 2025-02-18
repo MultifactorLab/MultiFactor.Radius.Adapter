@@ -94,21 +94,7 @@ namespace MultiFactor.Radius.Adapter.Configuration
         /// <summary>
         /// Load user profile from AD and check group membership and 
         /// </summary>
-        public bool CheckMembership
-        {
-            get
-            {
-                return ActiveDirectoryDomain != null &&
-                    (ActiveDirectoryGroup.Any() ||
-                    ActiveDirectory2FaGroup.Any() ||
-                    ActiveDirectory2FaBypassGroup.Any() ||
-                    PhoneAttributes.Any() ||
-                    RadiusReplyAttributes
-                        .Values
-                        .SelectMany(attr => attr)
-                        .Any(attr => attr.FromLdap || attr.IsMemberOf || attr.UserGroupCondition != null));
-            }
-        }
+        public bool CheckMembership => ActiveDirectoryDomain != null;
 
         public string[] SplittedActiveDirectoryDomains =>
             (ActiveDirectoryDomain ?? string.Empty).Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
@@ -116,12 +102,12 @@ namespace MultiFactor.Radius.Adapter.Configuration
             .ToArray();
 
         public string NestedGroupsBaseDn { get; set; }
-        
+
         public string[] SplittedNestedGroupsBaseDn => NestedGroupsBaseDn
             ?.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray() ?? Array.Empty<string>();
-        
+
         /// <summary>
         /// Only UPN user name format permitted
         /// </summary>
@@ -151,6 +137,7 @@ namespace MultiFactor.Radius.Adapter.Configuration
             {
                 return IncludedDomains.Any(included => included.ToLower() == domain.ToLower());
             }
+
             if (ExcludedDomains?.Count > 0)
             {
                 return !ExcludedDomains.Any(excluded => excluded.ToLower() == domain.ToLower());
@@ -167,6 +154,7 @@ namespace MultiFactor.Radius.Adapter.Configuration
         /// This service RADIUS UDP Client endpoint
         /// </summary>
         public IPEndPoint ServiceClientEndpoint { get; set; }
+
         /// <summary>
         /// Network Policy Service RADIUS UDP Server endpoint
         /// </summary>
@@ -185,6 +173,7 @@ namespace MultiFactor.Radius.Adapter.Configuration
         /// Multifactor API key
         /// </summary>
         public string MultifactorApiKey { get; set; }
+
         /// <summary>
         /// Multifactor API secret
         /// </summary>
@@ -239,7 +228,7 @@ namespace MultiFactor.Radius.Adapter.Configuration
         /// Overrides the root-level config.
         /// </summary>
         public RandomWaiterConfig InvalidCredentialDelay { get; internal set; }
-        
+
         /// <summary>
         /// Ldap connection timeout
         /// </summary>

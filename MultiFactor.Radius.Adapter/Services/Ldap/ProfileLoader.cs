@@ -77,7 +77,7 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
 
         private static string[] GetQueryAttributes(ClientConfiguration clientConfig)
         {
-            var queryAttributes = new List<string> { "DistinguishedName", "displayName", "mail", "memberOf", "userPrincipalName" };
+            var queryAttributes = new List<string> { "DistinguishedName", "displayName", "mail", "email", "memberOf", "userPrincipalName" };
             if (clientConfig.UseIdentityAttribute)
             {
                 queryAttributes.Add(clientConfig.TwoFAIdentityAttribyte);

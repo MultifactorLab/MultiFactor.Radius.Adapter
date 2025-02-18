@@ -13,7 +13,7 @@ namespace MultiFactor.Radius.Adapter.Services.Ldap
         public string DistinguishedName => LdapAttrs.GetValue("distinguishedname");
         public string Upn => LdapAttrs.GetValue("userprincipalname");
         public string DisplayName => LdapAttrs.GetValue("displayname");
-        public string Email => LdapAttrs.GetValue("mail");
+        public string Email => LdapAttrs.GetValue("mail") ?? LdapAttrs.GetValue("email");
 
         private string _phone = string.Empty;
         public string Phone
