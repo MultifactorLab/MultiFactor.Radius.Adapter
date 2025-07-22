@@ -513,15 +513,16 @@ namespace MultiFactor.Radius.Adapter.Configuration
         {
             var setting = appSettings.Settings[Constants.Configuration.AuthenticationCacheLifetime]?.Value;
             var legacySetting = appSettings.Settings[Constants.Configuration.BypassSecondFactorPeriod]?.Value;
+            var groups = appSettings.Settings["authentication-cache-groups"]?.Value;
             try
             {
                 if (setting != null)
                 {
-                    configuration.AuthenticationCacheLifetime = AuthenticatedClientCacheConfig.CreateFromTimeSpan(setting);
+                    configuration.AuthenticationCacheLifetime = AuthenticatedClientCacheConfig.CreateFromTimeSpan(setting, groups);
                 }
                 else
                 {
-                    configuration.AuthenticationCacheLifetime = AuthenticatedClientCacheConfig.CreateFromMinutes(legacySetting);
+                    configuration.AuthenticationCacheLifetime = AuthenticatedClientCacheConfig.CreateFromMinutes(legacySetting, groups);
                 }
 
             }
