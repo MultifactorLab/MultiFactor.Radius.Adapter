@@ -33,8 +33,9 @@ namespace MultiFactor.Radius.Adapter.Configuration
         private static string[] SplitCacheGroup(string cacheGroup)
         {
             return cacheGroup
-                ?.Split(new[] {';'}, StringSplitOptions.RemoveEmptyEntries)
-                .Select(x => x.ToLower().Trim())
+                ?.Trim()
+                .Split(new[] {';'}, StringSplitOptions.RemoveEmptyEntries)
+                .Select(x => x.ToLower())
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToArray() ?? Array.Empty<string>();
         }

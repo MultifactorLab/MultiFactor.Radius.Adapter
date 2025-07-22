@@ -505,6 +505,8 @@ namespace MultiFactor.Radius.Adapter.Configuration
                     configuration.LdapBindTimeout = ldapBindTimeout;
                 }
             }
+            
+            ReadIpWhiteList(configuration, appSettings.Settings["ip-white-list"]?.Value);
 
             return configuration;
         }
@@ -811,6 +813,23 @@ namespace MultiFactor.Radius.Adapter.Configuration
             }
 
             configuration.SignUpGroups = signUpGroupsSettings;
+        }
+        
+        private static void ReadIpWhiteList(ClientConfiguration builder, string ipWhiteList)
+        {
+            var splittedRanges = ipWhiteList
+                ?.Split(new[] {';'}, StringSplitOptions.RemoveEmptyEntries)
+                .Select(x => x.ToLower().Trim())
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray() ?? Array.Empty<string>();
+
+            foreach (var range in splittedRanges)
+            {
+                if (!IPAddressRange.TryParse(range, out var ipAddressRange))
+                    throw new Exception($"Invalid IP address range: '{range}' in '{builder.Name}' config");
+                builder.AddWhiteIpRange(ipAddressRange);
+            }
         }
 
         #endregion

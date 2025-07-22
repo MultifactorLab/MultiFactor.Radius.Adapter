@@ -9,6 +9,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
+using NetTools;
 
 namespace MultiFactor.Radius.Adapter.Configuration
 {
@@ -17,6 +18,8 @@ namespace MultiFactor.Radius.Adapter.Configuration
     /// </summary>
     public class ClientConfiguration
     {
+        private readonly List<IPAddressRange> _ipAddressRanges = new List<IPAddressRange>();
+        
         public ClientConfiguration()
         {
             BypassSecondFactorWhenApiUnreachable = true; //by default
@@ -205,6 +208,7 @@ namespace MultiFactor.Radius.Adapter.Configuration
             return
                 ActiveDirectoryGroup.Any() ||
                 ActiveDirectory2FaGroup.Any() ||
+                AuthenticationCacheLifetime.AuthenticationCacheGroups.Any() ||
                 RadiusReplyAttributes
                     .Values
                     .SelectMany(attr => attr)
@@ -233,5 +237,9 @@ namespace MultiFactor.Radius.Adapter.Configuration
         /// Ldap connection timeout
         /// </summary>
         public TimeSpan LdapBindTimeout { get; set; } = new TimeSpan(0, 0, 30);
+        
+        public IReadOnlyCollection<IPAddressRange> IpWhiteAddressRanges => _ipAddressRanges;
+        
+        public void AddWhiteIpRange(IPAddressRange range) => _ipAddressRanges.Add(range);
     }
 }

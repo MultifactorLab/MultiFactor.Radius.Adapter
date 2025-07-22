@@ -47,6 +47,17 @@ namespace MultiFactor.Radius.Adapter.Server
         {
             try
             {
+                if (!IsAllowedClientIp(request))
+                {
+                    var rangesStr = string.Join(", ", request.Configuration.IpWhiteAddressRanges);
+                    _logger.Debug("Client '{clientIp}' is not in the allowed IP range: ({ranges})", request.RemoteEndpoint.Address, rangesStr);
+
+                    request.AuthenticationState.Reject();
+                    
+                    CreateAndSendRadiusResponse(request);
+                    return;
+                }
+                
                 if (request.RequestPacket.Header.Code == PacketCode.StatusServer)
                 {
                     //status
@@ -432,6 +443,17 @@ namespace MultiFactor.Radius.Adapter.Server
         private void RemoveStateChallengeRequest(string state)
         {
             _stateChallengePendingRequests.TryRemove(state, out PendingRequest _);
+        }
+
+        private bool IsAllowedClientIp(PendingRequest request)
+        {
+            var ipWhiteList = request.Configuration.IpWhiteAddressRanges;
+            if (ipWhiteList.Count == 0)
+                return true;
+            
+            var clientIp = request.RemoteEndpoint.Address;
+            var isIpInRange = ipWhiteList.Any(x => x.Contains(clientIp));
+            return isIpInRange;
         }
     }
 }
