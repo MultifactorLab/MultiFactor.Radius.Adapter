@@ -33,8 +33,11 @@ namespace MultiFactor.Radius.Adapter.Services
                 return false;
             }
 
-            _logger.Debug("User '{userName}' is a member of authentication cache groups: ({groups})", userName, groupsStr);
-            
+            if (!string.IsNullOrEmpty(groupsStr))
+            {
+                _logger.Debug("User '{userName}' is a member of authentication cache groups: ({groups})", userName, groupsStr);
+            }
+
             if (string.IsNullOrEmpty(callingStationId))
             {
                 _logger.Warning($"Remote host parameter miss for user {userName}");

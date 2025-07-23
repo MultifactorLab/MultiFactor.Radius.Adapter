@@ -33,10 +33,10 @@ namespace MultiFactor.Radius.Adapter.Configuration
         private static string[] SplitCacheGroup(string cacheGroup)
         {
             return cacheGroup
-                ?.Trim()
-                .Split(new[] {';'}, StringSplitOptions.RemoveEmptyEntries)
-                .Select(x => x.ToLower())
-                .Distinct(StringComparer.OrdinalIgnoreCase)
+                ?.Split(new[] {';'}, StringSplitOptions.RemoveEmptyEntries)
+                .Select(x => x.ToLower().Trim())
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Distinct()
                 .ToArray() ?? Array.Empty<string>();
         }
     }

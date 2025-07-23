@@ -12,6 +12,7 @@ using Serilog;
 using System;
 using System.Collections.Concurrent;
 using System.Linq;
+using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
@@ -47,9 +48,9 @@ namespace MultiFactor.Radius.Adapter.Server
         {
             try
             {
+                var rangesStr = string.Join(", ", request.Configuration.IpWhiteAddressRanges);
                 if (!IsAllowedClientIp(request))
                 {
-                    var rangesStr = string.Join(", ", request.Configuration.IpWhiteAddressRanges);
                     _logger.Debug("Client '{clientIp}' is not in the allowed IP range: ({ranges})", request.RemoteEndpoint.Address, rangesStr);
 
                     request.AuthenticationState.Reject();
@@ -57,8 +58,11 @@ namespace MultiFactor.Radius.Adapter.Server
                     CreateAndSendRadiusResponse(request);
                     return;
                 }
+				
+				if (!string.IsNullOrWhiteSpace(rangesStr))
+                	_logger.Debug("Client '{clientIp}' is in the allowed IP range: ({ranges})", request.RemoteEndpoint.Address, rangesStr);
                 
-                if (request.RequestPacket.Header.Code == PacketCode.StatusServer)
+				if (request.RequestPacket.Header.Code == PacketCode.StatusServer)
                 {
                     //status
                     var uptime = (DateTime.Now - _startedAt);
@@ -451,7 +455,12 @@ namespace MultiFactor.Radius.Adapter.Server
             if (ipWhiteList.Count == 0)
                 return true;
             
-            var clientIp = request.RemoteEndpoint.Address;
+            var callingStationId = request.RequestPacket.CallingStationId;
+            
+            var clientIp =  IPAddress.TryParse(callingStationId ?? string.Empty, out var callingStationIp)
+                ? callingStationIp
+                : request.RemoteEndpoint.Address;
+            
             var isIpInRange = ipWhiteList.Any(x => x.Contains(clientIp));
             return isIpInRange;
         }

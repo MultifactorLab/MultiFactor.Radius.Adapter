@@ -821,7 +821,7 @@ namespace MultiFactor.Radius.Adapter.Configuration
                 ?.Split(new[] {';'}, StringSplitOptions.RemoveEmptyEntries)
                 .Select(x => x.ToLower().Trim())
                 .Where(x => !string.IsNullOrWhiteSpace(x))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Distinct()
                 .ToArray() ?? Array.Empty<string>();
 
             foreach (var range in splittedRanges)
