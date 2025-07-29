@@ -117,6 +117,15 @@ namespace MultiFactor.Radius.Adapter.Core
         public string NasIdentifier => GetString("NAS-Identifier");
         public string State => GetString("State");
         
+        public AccountType AccountType
+        {
+            get
+            {
+                var attrValue = AcctAuthentic ?? 0;
+                return UnintToAccountType(attrValue);
+            }
+        }
+        
         public string TryGetUserPassword()
         {
             var password = UserPassword;
@@ -285,5 +294,41 @@ namespace MultiFactor.Radius.Adapter.Core
 
             return packet;
         }
+        
+        private uint? AcctAuthentic
+        {
+            get
+            {
+                if (Attributes.TryGetValue("Acct-Authentic", out var values))
+                {
+                    return values.FirstOrDefault() as uint?;
+                }
+
+                return null;
+            }
+        }
+
+        private static AccountType UnintToAccountType(uint value)
+        {
+            switch (value)
+            {
+                case 1:
+                    return AccountType.Domain;
+                case 2:
+                    return AccountType.Local;
+                case 3:
+                    return AccountType.Microsoft;
+                default:
+                    return AccountType.Domain;
+            }
+        }
+    }
+    
+    public enum AccountType
+    {
+        Unknown = 0,
+        Domain = 1,
+        Local = 2,
+        Microsoft = 3
     }
 }

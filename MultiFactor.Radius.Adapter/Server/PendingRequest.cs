@@ -40,7 +40,7 @@ namespace MultiFactor.Radius.Adapter.Server
         public string ReplyMessage { get; set; }
 
         public string UserName { get; private set; }
-        public IList<string> UserGroups { get; set; }
+        public IList<string> UserGroups { get; set; } = new List<string>();
 
         public bool MustChangePassword { get; private set; }
         public string MustChangePasswordDomain { get; private set; }
@@ -50,8 +50,21 @@ namespace MultiFactor.Radius.Adapter.Server
         /// <summary>
         /// Should use for 2FA request to MFA API.
         /// </summary>
-        public string SecondFactorIdentity => Configuration.UseIdentityAttribute ? Profile.LdapAttrs.GetValue(Configuration.TwoFAIdentityAttribyte) : UserName;
-
+        public string SecondFactorIdentity
+        {
+            get
+            {
+                if (!Configuration.UseIdentityAttribute)
+                    return UserName;
+                var identity = Profile.LdapAttrs.GetValue(Configuration.TwoFAIdentityAttribyte);
+                var name = string.IsNullOrWhiteSpace(identity) && RequestPacket.AccountType != AccountType.Domain
+                    ? UserName
+                    : identity;
+                
+                return name;
+            }
+        }
+        
         public AuthenticationState AuthenticationState { get; private set; }
         public UserPassphrase Passphrase { get; private set; }
 

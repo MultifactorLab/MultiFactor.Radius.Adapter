@@ -12,6 +12,7 @@ using System.Collections.Generic;
 using System.DirectoryServices.AccountManagement;
 using System.DirectoryServices.Protocols;
 using System.Linq;
+using MultiFactor.Radius.Adapter.Core;
 
 namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory
 {
@@ -85,7 +86,12 @@ namespace MultiFactor.Radius.Adapter.Services.ActiveDirectory
             try
             {
                 VerifyCredential(user, request);
-                return VerifyMembership(request.Configuration, user, request);
+
+                if (request.RequestPacket.AccountType == AccountType.Domain)
+                    return VerifyMembership(request.Configuration, user, request);
+                
+                _logger.Information("User '{user}' used '{accountType}' account to log in. Membership check is skipped.", request.UserName, request.RequestPacket.AccountType);
+                return true;
             }
             catch (LdapException lex)
             {
