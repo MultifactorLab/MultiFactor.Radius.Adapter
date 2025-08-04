@@ -122,7 +122,7 @@ namespace MultiFactor.Radius.Adapter.Core
             get
             {
                 var attrValue = AcctAuthentic ?? 0;
-                return UnintToAccountType(attrValue);
+                return UintToAccountType(attrValue);
             }
         }
         
@@ -308,7 +308,7 @@ namespace MultiFactor.Radius.Adapter.Core
             }
         }
 
-        private static AccountType UnintToAccountType(uint value)
+        private static AccountType UintToAccountType(uint value)
         {
             switch (value)
             {
