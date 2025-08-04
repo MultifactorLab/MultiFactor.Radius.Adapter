@@ -66,5 +66,6 @@ namespace MultiFactor.Radius.Adapter.Core
         }
 
         string CreateUniqueKey(IPEndPoint remoteEndpoint);
+        AccountType AccountType { get; }
     }
 }

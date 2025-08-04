@@ -48,6 +48,12 @@ namespace MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing
             {
                 return radiusResponse;
             }
+            
+            if (request.RequestPacket.AccountType != AccountType.Domain)
+            {
+                _logger.Information("User '{user}' used '{accountType}' account to log in. Membership check is skipped.", request.UserName, request.RequestPacket.AccountType);
+                return radiusResponse;
+            }
 
             if (request.Configuration.CheckMembership)
             {

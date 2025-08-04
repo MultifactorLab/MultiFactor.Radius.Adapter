@@ -37,29 +37,39 @@ namespace MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing
 
         public Task<PacketCode> ProcessFirstAuthFactorAsync(PendingRequest request)
         {
-            if (request.Configuration.CheckMembership)
+            if (request.RequestPacket.AccountType != AccountType.Domain)
             {
-                // check membership without AD authentication
-                var result = _membershipVerifier.VerifyMembership(request);
-                var handler = new MembershipVerificationResultHandler(result);
-
-                handler.EnrichRequest(request);
-                return Task.FromResult(handler.GetDecision());
+                _logger.Information("User '{user}' used '{accountType}' account to log in. Membership check is skipped.", request.UserName, request.RequestPacket.AccountType);
             }
-
-            if (request.Configuration.UseIdentityAttribute)
+            else
             {
-                var attrs = LoadRequiredAttributes(request, request.Configuration.TwoFAIdentityAttribyte);
-                if (!attrs.ContainsKey(request.Configuration.TwoFAIdentityAttribyte))
+                if (request.Configuration.CheckMembership)
                 {
-                    _logger.Warning("Attribute '{TwoFAIdentityAttribyte}' was not loaded", request.Configuration.TwoFAIdentityAttribyte);
-                    return Task.FromResult(PacketCode.AccessReject);
+                    // check membership without AD authentication
+                    var result = _membershipVerifier.VerifyMembership(request);
+                    var handler = new MembershipVerificationResultHandler(result);
+
+                    handler.EnrichRequest(request);
+                    return Task.FromResult(handler.GetDecision());
                 }
 
-                var existedAttributes = new LdapAttributes(request.Profile.LdapAttrs);
-                existedAttributes.Replace(request.Configuration.TwoFAIdentityAttribyte, new[] { attrs[request.Configuration.TwoFAIdentityAttribyte].FirstOrDefault() });
-                request.Profile.UpdateAttributes(existedAttributes);
+                if (request.Configuration.UseIdentityAttribute)
+                {
+                    var attrs = LoadRequiredAttributes(request, request.Configuration.TwoFAIdentityAttribyte);
+                    if (!attrs.ContainsKey(request.Configuration.TwoFAIdentityAttribyte))
+                    {
+                        _logger.Warning("Attribute '{TwoFAIdentityAttribyte}' was not loaded",
+                            request.Configuration.TwoFAIdentityAttribyte);
+                        return Task.FromResult(PacketCode.AccessReject);
+                    }
+
+                    var existedAttributes = new LdapAttributes(request.Profile.LdapAttrs);
+                    existedAttributes.Replace(request.Configuration.TwoFAIdentityAttribyte,
+                        new[] { attrs[request.Configuration.TwoFAIdentityAttribyte].FirstOrDefault() });
+                    request.Profile.UpdateAttributes(existedAttributes);
+                }
             }
+
             return Task.FromResult(PacketCode.AccessAccept);
         }
 
