@@ -62,7 +62,7 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
             }
             
             //try to get authenticated client to bypass second factor if configured
-            if (_authenticatedClientCache.TryHitCache(callingStationId, userName, request.Configuration))
+            if (_authenticatedClientCache.TryHitCache(callingStationId, userName, request.Configuration, request.Profile.MemberOf))
             {
                 _logger.Information("Bypass second factor for user '{name:l}' with identity '{user:l}' from {host:l}:{port}", request.UserName, userName, request.RemoteEndpoint.Address, request.RemoteEndpoint.Port);
                 return new SecondFactorResponse(PacketCode.AccessAccept);

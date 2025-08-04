@@ -2,6 +2,8 @@
 using Serilog;
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace MultiFactor.Radius.Adapter.Services
 {
@@ -15,9 +17,26 @@ namespace MultiFactor.Radius.Adapter.Services
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
-        public bool TryHitCache(string callingStationId, string userName, ClientConfiguration clientConfiguration)
+        public bool TryHitCache(string callingStationId, string userName, ClientConfiguration clientConfiguration, IReadOnlyCollection<string> userGroups)
         {
+            if (userGroups is null)
+                throw new ArgumentException(nameof(userGroups));
+            
             if (!clientConfiguration.AuthenticationCacheLifetime.Enabled) return false;
+            
+            var cacheGroups = clientConfiguration.AuthenticationCacheLifetime.AuthenticationCacheGroups;
+            var lowercaseUserGroups = userGroups.Select(x => x.ToLower().Trim());
+            var groupsStr = string.Join(", ", cacheGroups);
+            if (cacheGroups.Count > 0 && !cacheGroups.Intersect(lowercaseUserGroups).Any())
+            {
+                _logger.Debug("Skip auth caching. User '{userName}' is not a member of any authentication cache groups: ({groups})", userName, groupsStr);
+                return false;
+            }
+
+            if (!string.IsNullOrEmpty(groupsStr))
+            {
+                _logger.Debug("User '{userName}' is a member of authentication cache groups: ({groups})", userName, groupsStr);
+            }
 
             if (string.IsNullOrEmpty(callingStationId))
             {
