@@ -37,7 +37,11 @@ namespace MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing
 
         public Task<PacketCode> ProcessFirstAuthFactorAsync(PendingRequest request)
         {
-            if (request.RequestPacket.AccountType == AccountType.Domain)
+            if (request.RequestPacket.AccountType != AccountType.Domain)
+            {
+                _logger.Information("User '{user}' used '{accountType}' account to log in. Membership check is skipped.", request.UserName, request.RequestPacket.AccountType);
+            }
+            else
             {
                 if (request.Configuration.CheckMembership)
                 {
@@ -64,10 +68,6 @@ namespace MultiFactor.Radius.Adapter.Server.FirstAuthFactorProcessing
                         new[] { attrs[request.Configuration.TwoFAIdentityAttribyte].FirstOrDefault() });
                     request.Profile.UpdateAttributes(existedAttributes);
                 }
-            }
-            else
-            {
-                _logger.Information("User '{user}' used '{accountType}' account to log in. Membership check is skipped.", request.UserName, request.RequestPacket.AccountType);
             }
 
             return Task.FromResult(PacketCode.AccessAccept);
