@@ -116,9 +116,11 @@ namespace MultiFactor.Radius.Adapter.Services.MultiFactorApi
 
                 return response.Model;
             }
-            catch (TaskCanceledException tce)
+            catch (TaskCanceledException)
             {
-                throw new MultifactorApiUnreachableException($"Multifactor API host unreachable: {url}. Reason: Http request timeout", tce);
+                var message = "Multifactor API timeout expired.";
+                _logger.Warning(message);
+                return new AccessRequestDto() { Status = Literals.RadiusCode.Denied, ReplyMessage = message };
             }
             catch (Exception ex)
             {
